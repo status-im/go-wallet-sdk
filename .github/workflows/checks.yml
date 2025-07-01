@@ -1,0 +1,70 @@
+name: Checks
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Setup
+      uses: ./.github/actions/setup
+
+    - name: Go Tidy
+      # Ensure that the go.mod and go.sum files are up to date
+      run: go mod tidy && git diff --exit-code
+
+    - name: Go Generate
+      # Ensure that the generated files are up to date
+      run: go generate ./... && git diff --exit-code
+
+    - name: Go Format
+      # Ensure that the code is formatted correctly
+      run: gofmt -s -w . && git diff --exit-code
+
+    - name: Go Build
+      # Ensure that the code builds correctly
+      run: go build -o /dev/null ./...
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Setup
+      uses: ./.github/actions/setup
+
+    - name: Go Test
+      run: go test -v -count=1 -race -shuffle=on -coverprofile=coverage.txt ./...
+
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v3
+      continue-on-error: true
+      with:
+        token: ${{secrets.CODECOV_TOKEN}}
+        file: ./coverage.txt
+        fail_ci_if_error: false
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Setup
+      uses: ./.github/actions/setup
+
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v8
+      with:
+        version: latest
