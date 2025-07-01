@@ -1,0 +1,62 @@
+version: "2"
+
+run:
+  concurrency: 0
+  timeout: 10m
+  issues-exit-code: 1
+  tests: true
+
+output:
+  formats: 
+    text:
+      path: stdout
+      colors: true
+      print-issued-lines: true
+      print-linter-name: false
+
+linters:
+  exclusions:
+    paths:
+      - internal/contracts
+      - .*_mock.go
+  default: none
+  enable:
+    - errcheck
+    - gosec
+    - govet
+    - ineffassign
+    - staticcheck
+    - misspell
+    - revive
+    # You can't disable typecheck, see:
+    # https://github.com/golangci/golangci-lint/blob/master/docs/src/docs/welcome/faq.mdx#why-do-you-have-typecheck-errors
+    - unconvert
+  settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+    govet:
+      disable:
+        - shadow
+    revive:
+      confidence: 0.8
+    dupl:
+      threshold: 50
+    goconst:
+      min-len: 3
+      min-occurrences: 2
+
+formatters:
+  exclusions:
+    paths:
+      - internal/contracts
+      - .*_mock.go
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes: 
+        - github.com/status-im/go-wallet-sdk
