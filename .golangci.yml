@@ -17,8 +17,9 @@ output:
 linters:
   exclusions:
     paths:
-      - internal/contracts
-      - .*_mock.go
+      - pkg/contracts
+      - mock
+      - examples
   default: none
   enable:
     - errcheck
@@ -49,8 +50,9 @@ linters:
 formatters:
   exclusions:
     paths:
-      - internal/contracts
-      - .*_mock.go
+      - pkg/contracts
+      - mock
+      - examples
   enable:
     - gofmt
     - goimports
