@@ -4,12 +4,12 @@ High-performance balance fetching for EVM-compatible blockchains.
 
 ## Features
 
-- 🚀 **Batch balance fetching** for multiple addresses
-- 🔄 **Automatic fallback**: BalanceScanner contract → standard RPC calls
-- 🧪 **Testable**: Includes interfaces and mock support
-- ⛓️ **Chain-agnostic**: Works with any EVM-compatible chain
+- **Batch balance fetching** for multiple addresses and ERC20 tokens in fewer calls
+- **Chain-agnostic**: Works with any EVM-compatible chain
 
 ## Quick Usage
+
+### Native Token Balances
 
 ```go
 import (
@@ -32,6 +32,36 @@ if err != nil {
 
 for addr, bal := range balances {
     fmt.Printf("%s: %s wei\n", addr.Hex(), bal.String())
+}
+```
+
+### ERC20 Token Balances
+
+```go
+import (
+    "context"
+    "math/big"
+    "github.com/status-im/go-wallet-sdk/pkg/balance/fetcher"
+    // ... your RPC client import
+)
+
+// addresses: slice of common.Address (account addresses)
+// tokenAddresses: slice of common.Address (ERC20 token contract addresses)
+// atBlock: block number (use nil for latest)
+// rpcClient: must implement fetcher.RPCClient and fetcher.BatchCaller
+// batchSize: number of calls per batch (e.g., 10)
+
+balances, err := fetcher.FetchErc20Balances(context.Background(), addresses, tokenAddresses, atBlock, rpcClient, batchSize)
+if err != nil {
+    // handle error
+}
+
+// balances is a map[common.Address]map[common.Address]*big.Int
+// balances[accountAddress][tokenAddress] = balance
+for accountAddr, tokenBalances := range balances {
+    for tokenAddr, balance := range tokenBalances {
+        fmt.Printf("Account %s, Token %s: %s\n", accountAddr.Hex(), tokenAddr.Hex(), balance.String())
+    }
 }
 ```
 

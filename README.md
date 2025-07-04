@@ -12,7 +12,8 @@ go get github.com/status-im/go-wallet-sdk
 
 ### Balance Management
 - **`pkg/balance/fetcher`**: High-performance balance fetching with automatic fallback strategies
-  - Batch processing for multiple addresses
+  - Native token (ETH) balance fetching for multiple addresses
+  - ERC20 token balance fetching for multiple addresses and tokens
   - Smart fallback between different fetching methods
   - Chain-agnostic design
 
