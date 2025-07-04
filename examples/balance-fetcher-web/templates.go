@@ -177,15 +177,148 @@ const homeTemplate = `
         .add-chain-btn:hover {
             background: #218838;
         }
+        
+        .token-section {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .token-section label {
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .token-list {
+            margin-bottom: 10px;
+        }
+        
+        .token-search-row {
+            margin-bottom: 10px;
+        }
+        
+        .token-search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .token-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+        
+        .token-row select,
+        .token-row input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #e1e5e9;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .remove-token-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0 8px;
+            font-size: 14px;
+            cursor: pointer;
+            height: 32px;
+            align-self: center;
+        }
+        
+        .remove-token-btn:hover {
+            background: #a71d2a;
+        }
+        
+        .add-token-btn {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        
+        .add-token-btn:hover {
+            background: #138496;
+        }
+        
+        .erc20-balances {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .erc20-balances h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #495057;
+        }
+        
+        .token-balance {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .token-balance:last-child {
+            border-bottom: none;
+        }
+        
+        .token-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .token-symbol {
+            font-weight: 600;
+            color: #007bff;
+        }
+        
+        .token-address {
+            font-size: 11px;
+            color: #6c757d;
+            font-family: monospace;
+        }
+        
+        .token-balance-amount {
+            text-align: right;
+        }
+        
+        .token-balance-amount .balance-eth {
+            font-size: 14px;
+            font-weight: 600;
+            color: #28a745;
+        }
+        
+        .token-balance-amount .balance-wei {
+            font-size: 10px;
+            color: #6c757d;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🌐 Native Balance Fetcher</h1>
+        <h1>🌐 Balance Fetcher (Native + ERC20)</h1>
         
         <div class="info">
             <strong>Note:</strong> Enter one or more (ChainID, RPC URL) pairs below. You can use any EVM-compatible chain.<br>
-            Example RPC URLs: Infura, Alchemy, public endpoints, or your own node.
+            Example RPC URLs: Infura, Alchemy, public endpoints, or your own node.<br>
+            <strong>ERC20 Support:</strong> Select tokens from Uniswap's default token list or enter custom contract addresses.
         </div>
 
         <form id="balanceForm">
@@ -220,14 +353,203 @@ const homeTemplate = `
         function createChainRow(chainId = '', rpcUrl = '') {
             const row = document.createElement('div');
             row.className = 'chain-row';
-            row.innerHTML = 
-                '<input type="number" min="1" step="1" class="chain-id-input" placeholder="ChainID" value="' + chainId + '" required />' +
-                '<input type="text" class="rpc-url-input" placeholder="RPC URL (https://...)" value="' + rpcUrl + '" required />' +
+            row.innerHTML =
+                '<input type="number" class="chain-id-input" placeholder="Chain ID" value="' + chainId + '" required style="max-width: 120px;" />' +
+                '<input type="text" class="rpc-url-input" placeholder="RPC URL" value="' + rpcUrl + '" required />' +
+                '<div class="token-section">' +
+                '<label>ERC20 Tokens (optional):</label>' +
+                '<div class="token-list"></div>' +
+                '<button type="button" class="add-token-btn">+ Add Token</button>' +
+                '</div>' +
                 '<button type="button" class="remove-chain-btn" title="Remove">&times;</button>';
+            
+            // Set up token functionality
+            const addTokenBtn = row.querySelector('.add-token-btn');
+            const tokenList = row.querySelector('.token-list');
+            
+            // Initialize with a default token row
+            const defaultTokenRow = createTokenRow();
+            tokenList.appendChild(defaultTokenRow);
+            
+            addTokenBtn.onclick = function() {
+                addTokenRow(tokenList);
+            };
+            
             row.querySelector('.remove-chain-btn').onclick = function() {
                 row.remove();
             };
+            
+            // Load tokens when chain ID changes
+            const chainIdInput = row.querySelector('.chain-id-input');
+            chainIdInput.addEventListener('change', function() {
+                console.log('Chain ID changed to:', this.value);
+                loadTokensForChain(parseInt(this.value), tokenList);
+            });
+            
+            // If chain ID is pre-populated, load tokens immediately
+            if (chainIdInput.value) {
+                console.log('Pre-populated chain ID found:', chainIdInput.value);
+                setTimeout(() => {
+                    loadTokensForChain(parseInt(chainIdInput.value), tokenList);
+                }, 200);
+            } else {
+                console.log('No pre-populated chain ID');
+            }
+            
             return row;
+        }
+        
+        function createTokenRow(tokenAddress = '', isCustom = false) {
+            const row = document.createElement('div');
+            row.className = 'token-row';
+            
+            if (isCustom) {
+                row.innerHTML = 
+                    '<input type="text" class="token-address-input" placeholder="Token Contract Address" value="' + tokenAddress + '" required />' +
+                    '<button type="button" class="remove-token-btn" title="Remove Token">&times;</button>';
+            } else {
+                row.innerHTML = 
+                    '<select class="token-select">' +
+                    '<option value="">Select a token...</option>' +
+                    '</select>' +
+                    '<button type="button" class="remove-token-btn" title="Remove Token">&times;</button>';
+            }
+            
+            row.querySelector('.remove-token-btn').onclick = function() {
+                row.remove();
+            };
+            
+            console.log('Created token row:', row.outerHTML);
+            return row;
+        }
+        
+        async function loadTokensForSelect(chainId, selectElement) {
+            if (!chainId || !selectElement) {
+                console.log('loadTokensForSelect called with invalid parameters');
+                return;
+            }
+            console.log('Loading tokens for select element, chain ID:', chainId);
+            
+            try {
+                const response = await fetch('/api/tokens/' + chainId);
+                const data = await response.json();
+                console.log('Loaded tokens for select:', data.tokens.length);
+                
+                // Update the select with new tokens
+                selectElement.innerHTML = '<option value="">Select a token...</option>';
+                
+                // Add all tokens to the dropdown
+                data.tokens.forEach(token => {
+                    const option = document.createElement('option');
+                    option.value = token.address;
+                    option.textContent = token.symbol + ' - ' + token.name;
+                    selectElement.appendChild(option);
+                });
+                
+                // Add "Add Custom Token" option
+                const customOption = document.createElement('option');
+                customOption.value = 'custom';
+                customOption.textContent = '+ Add Custom Token';
+                selectElement.appendChild(customOption);
+                
+                console.log('Updated select with', data.tokens.length, 'tokens');
+                
+            } catch (error) {
+                console.error('Failed to load tokens for select:', error);
+                selectElement.innerHTML = '<option value="">Error loading tokens</option>';
+            }
+        }
+
+        function addTokenRow(tokenList, tokenAddress = '', isCustom = false) {
+            const tokenRow = createTokenRow(tokenAddress, isCustom);
+            tokenList.appendChild(tokenRow);
+            
+            if (!isCustom) {
+                // Add custom token option
+                const customOption = document.createElement('option');
+                customOption.value = 'custom';
+                customOption.textContent = '+ Add Custom Token';
+                tokenRow.querySelector('.token-select').appendChild(customOption);
+                
+                tokenRow.querySelector('.token-select').addEventListener('change', function() {
+                    if (this.value === 'custom') {
+                        // Replace with custom input
+                        const customRow = createTokenRow('', true);
+                        tokenRow.parentNode.replaceChild(customRow, tokenRow);
+                    }
+                });
+                
+                // Load tokens for this new token row if there's a chain ID
+                const chainRow = tokenList.closest('.chain-row');
+                if (chainRow) {
+                    const chainIdInput = chainRow.querySelector('.chain-id-input');
+                    if (chainIdInput && chainIdInput.value) {
+                        console.log('Loading tokens for new token row, chain ID:', chainIdInput.value);
+                        loadTokensForSelect(parseInt(chainIdInput.value), tokenRow.querySelector('.token-select'));
+                    }
+                }
+            }
+        }
+        
+        async function loadTokensForChain(chainId, tokenList) {
+            if (!chainId) {
+                console.log('loadTokensForChain called with no chainId');
+                return;
+            }
+            console.log('Loading tokens for chain:', chainId);
+            
+            try {
+                const response = await fetch('/api/tokens/' + chainId);
+                const data = await response.json();
+                console.log('Loaded tokens:', data.tokens.length);
+                
+                // Find the existing select element
+                const select = tokenList.querySelector('.token-select');
+                if (!select) {
+                    console.error('No select element found in tokenList');
+                    return;
+                }
+                
+                // Update the select with new tokens
+                select.innerHTML = '<option value="">Select a token...</option>';
+                
+                // Add all tokens to the dropdown
+                data.tokens.forEach(token => {
+                    const option = document.createElement('option');
+                    option.value = token.address;
+                    option.textContent = token.symbol + ' - ' + token.name;
+                    select.appendChild(option);
+                });
+                
+                // Add "Add Custom Token" option
+                const customOption = document.createElement('option');
+                customOption.value = 'custom';
+                customOption.textContent = '+ Add Custom Token';
+                select.appendChild(customOption);
+                
+                // Add change event listener if not already present
+                if (!select.hasAttribute('data-listener-added')) {
+                    select.setAttribute('data-listener-added', 'true');
+                    select.addEventListener('change', function() {
+                        if (this.value === 'custom') {
+                            // Replace with custom input
+                            const tokenRow = this.closest('.token-row');
+                            const customRow = createTokenRow('', true);
+                            tokenRow.parentNode.replaceChild(customRow, tokenRow);
+                        }
+                    });
+                }
+                
+                console.log('Updated select with', data.tokens.length, 'tokens');
+                
+            } catch (error) {
+                console.error('Failed to load tokens:', error);
+                // Add fallback with common tokens
+                const select = tokenList.querySelector('.token-select');
+                if (select) {
+                    select.innerHTML = '<option value="">Error loading tokens</option>';
+                }
+            }
         }
 
         function addChainRow(chainId = '', rpcUrl = '') {
@@ -242,6 +564,7 @@ const homeTemplate = `
 
         // Add a default row for user convenience
         window.onload = function() {
+            console.log('window.onload running');
             // Prepopulate with popular chains
             const defaultChains = [
                 { chainId: 1, rpcUrl: 'https://ethereum-rpc.publicnode.com', name: 'Ethereum' },
@@ -253,6 +576,8 @@ const homeTemplate = `
             defaultChains.forEach(chain => {
                 addChainRow(chain.chainId, chain.rpcUrl);
             });
+            
+            // No need to manually load tokens - createChainRow handles it for pre-populated chain IDs
         };
 
         document.getElementById('balanceForm').addEventListener('submit', async function(e) {
@@ -269,7 +594,31 @@ const homeTemplate = `
                 const chainId = row.querySelector('.chain-id-input').value.trim();
                 const rpcUrl = row.querySelector('.rpc-url-input').value.trim();
                 if (!chainId || !rpcUrl) continue;
-                chains.push({ chainId: parseInt(chainId), rpcUrl });
+                
+                // Collect token addresses for this chain
+                const tokenAddresses = [];
+                const tokenRows = row.querySelectorAll('.token-row');
+                for (const tokenRow of tokenRows) {
+                    const tokenSelect = tokenRow.querySelector('.token-select');
+                    const tokenInput = tokenRow.querySelector('.token-address-input');
+                    
+                    let tokenAddress = '';
+                    if (tokenSelect) {
+                        tokenAddress = tokenSelect.value.trim();
+                    } else if (tokenInput) {
+                        tokenAddress = tokenInput.value.trim();
+                    }
+                    
+                    if (tokenAddress && tokenAddress !== 'custom') {
+                        tokenAddresses.push(tokenAddress);
+                    }
+                }
+                
+                chains.push({ 
+                    chainId: parseInt(chainId), 
+                    rpcUrl,
+                    tokenAddresses: tokenAddresses
+                });
             }
             if (chains.length === 0) {
                 alert('Please add at least one chain with ChainID and RPC URL.');
@@ -317,17 +666,44 @@ const homeTemplate = `
                         if (chainResults['__chain_error__'] && chainResults['__chain_error__'].error) {
                             html += '<div class="error-message">' + chainResults['__chain_error__'].error + '</div>';
                         } else {
-                            for (const [address, result] of Object.entries(chainResults)) {
+                            for (const [address, accountBalances] of Object.entries(chainResults)) {
                                 html += '<div class="balance-item">';
                                 html += '<div class="address">' + address + '</div>';
-                                if (result.error) {
-                                    html += '<div class="error">Error: ' + result.error + '</div>';
+                                
+                                // Native balance
+                                const native = accountBalances.nativeBalance;
+                                if (native.error) {
+                                    html += '<div class="error">Native Error: ' + native.error + '</div>';
                                 } else {
                                     html += '<div class="balance">';
-                                    html += '<div class="balance-eth">' + result.balance + ' ETH</div>';
-                                    html += '<div class="balance-wei">' + result.wei + ' wei</div>';
+                                    html += '<div class="balance-eth">' + native.balance + ' ETH</div>';
+                                    html += '<div class="balance-wei">' + native.wei + ' wei</div>';
                                     html += '</div>';
                                 }
+                                
+                                // ERC20 balances
+                                if (accountBalances.erc20Balances && Object.keys(accountBalances.erc20Balances).length > 0) {
+                                    html += '<div class="erc20-balances">';
+                                    html += '<h4>ERC20 Tokens:</h4>';
+                                    for (const [tokenAddress, tokenBalance] of Object.entries(accountBalances.erc20Balances)) {
+                                        html += '<div class="token-balance">';
+                                        if (tokenBalance.error) {
+                                            html += '<div class="error">' + (tokenBalance.tokenSymbol || tokenAddress) + ' Error: ' + tokenBalance.error + '</div>';
+                                        } else {
+                                            html += '<div class="token-info">';
+                                            html += '<span class="token-symbol">' + (tokenBalance.tokenSymbol || 'UNKNOWN') + '</span>';
+                                            html += '<span class="token-address">(' + tokenAddress + ')</span>';
+                                            html += '</div>';
+                                            html += '<div class="token-balance-amount">';
+                                            html += '<div class="balance-eth">' + tokenBalance.balance + '</div>';
+                                            html += '<div class="balance-wei">' + tokenBalance.wei + ' wei</div>';
+                                            html += '</div>';
+                                        }
+                                        html += '</div>';
+                                    }
+                                    html += '</div>';
+                                }
+                                
                                 html += '</div>';
                             }
                         }
