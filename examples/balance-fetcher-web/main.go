@@ -20,6 +20,9 @@ func main() {
 	r.HandleFunc("/", handleHome)
 	r.HandleFunc("/fetch", handleFetchBalances)
 	r.HandleFunc("/api/chains", handleGetChains)
+	r.HandleFunc("/api/tokensearch", handleSearchTokens)
+	r.HandleFunc("/api/tokens/{chainID}", handleGetTokens)
+	r.HandleFunc("/api/tokenlist/info", handleGetTokenListInfo)
 
 	// Start server
 	port := ":8080"
