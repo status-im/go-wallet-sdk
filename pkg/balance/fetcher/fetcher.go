@@ -37,3 +37,25 @@ func FetchNativeBalances(
 	// As last resort, use less efficient batch call
 	return FetchNativeBalancesStandard(ctx, addresses, atBlock, rpcClient, batchSize)
 }
+
+func FetchErc20Balances(
+	ctx context.Context,
+	addresses []common.Address,
+	tokenAddresses []common.Address,
+	atBlock gethrpc.BlockNumber,
+	rpcClient RPCClient,
+	batchSize int,
+) (BalancePerAccountAndTokenAddress, error) {
+	chainID, err := rpcClient.ChainID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// For efficiency, try to use balancescanner first if available for this chain
+	if balanceScanner := getBalanceScanner(chainID.Uint64(), atBlock, rpcClient); balanceScanner != nil {
+		return FetchErc20BalancesWithBalanceScanner(ctx, addresses, tokenAddresses, atBlock, balanceScanner, batchSize)
+	}
+
+	// As last resort, use less efficient batch call
+	return FetchErc20BalancesStandard(ctx, addresses, tokenAddresses, atBlock, rpcClient, batchSize)
+}

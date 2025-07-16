@@ -1,0 +1,11 @@
+ignore:
+  - "examples"
+  - "pkg/contracts"
+  - "mock"
+
+comment:
+  behavior: default
+  layout: diff,flags,tree
+
+github_checks:
+  annotations: false

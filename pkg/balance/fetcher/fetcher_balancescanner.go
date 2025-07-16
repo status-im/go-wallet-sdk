@@ -44,3 +44,57 @@ func FetchNativeBalancesWithBalanceScanner(
 
 	return balances, nil
 }
+
+func FetchErc20BalancesWithBalanceScanner(
+	ctx context.Context,
+	accountAddresses []common.Address,
+	tokenAddresses []common.Address,
+	atBlock gethrpc.BlockNumber,
+	balanceScanner BalanceScanner,
+	batchSize int,
+) (BalancePerAccountAndTokenAddress, error) {
+	balances := make(BalancePerAccountAndTokenAddress, len(accountAddresses))
+	for _, accountAddress := range accountAddresses {
+		balances[accountAddress] = make(BalancePerTokenAddress, len(tokenAddresses))
+	}
+
+	if len(accountAddresses) > len(tokenAddresses) {
+		// Loop over tokens, batch accounts
+		for _, tokenAddress := range tokenAddresses {
+			for chunk := range slices.Chunk(accountAddresses, batchSize) {
+				res, err := balanceScanner.TokenBalances(&bind.CallOpts{
+					Context:     ctx,
+					BlockNumber: big.NewInt(int64(atBlock)),
+				}, chunk, tokenAddress)
+				if err != nil {
+					return nil, err
+				}
+				for idx, account := range chunk {
+					balance := new(big.Int)
+					balance.SetBytes(res[idx].Data)
+					balances[account][tokenAddress] = balance
+				}
+			}
+		}
+	} else {
+		// Loop over accounts, batch tokens
+		for _, accountAddress := range accountAddresses {
+			for chunk := range slices.Chunk(tokenAddresses, batchSize) {
+				res, err := balanceScanner.TokensBalance(&bind.CallOpts{
+					Context:     ctx,
+					BlockNumber: big.NewInt(int64(atBlock)),
+				}, accountAddress, chunk)
+				if err != nil {
+					return nil, err
+				}
+				for idx, token := range chunk {
+					balance := new(big.Int)
+					balance.SetBytes(res[idx].Data)
+					balances[accountAddress][token] = balance
+				}
+			}
+		}
+	}
+
+	return balances, nil
+}
