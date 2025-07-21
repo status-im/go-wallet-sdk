@@ -20,6 +20,7 @@ import (
 type MockRPCClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockRPCClientMockRecorder
+	isgomock struct{}
 }
 
 // MockRPCClientMockRecorder is the mock recorder for MockRPCClient.
@@ -40,10 +41,10 @@ func (m *MockRPCClient) EXPECT() *MockRPCClientMockRecorder {
 }
 
 // CallContext mocks base method.
-func (m *MockRPCClient) CallContext(arg0 context.Context, arg1 any, arg2 string, arg3 ...any) error {
+func (m *MockRPCClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1, arg2}
-	for _, a := range arg3 {
+	varargs := []any{ctx, result, method}
+	for _, a := range args {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "CallContext", varargs...)
@@ -52,8 +53,8 @@ func (m *MockRPCClient) CallContext(arg0 context.Context, arg1 any, arg2 string,
 }
 
 // CallContext indicates an expected call of CallContext.
-func (mr *MockRPCClientMockRecorder) CallContext(arg0, arg1, arg2 any, arg3 ...any) *gomock.Call {
+func (mr *MockRPCClientMockRecorder) CallContext(ctx, result, method any, args ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1, arg2}, arg3...)
+	varargs := append([]any{ctx, result, method}, args...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallContext", reflect.TypeOf((*MockRPCClient)(nil).CallContext), varargs...)
 }
