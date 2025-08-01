@@ -1,4 +1,4 @@
-package ethclient
+package ethclient_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 	mock_ethclient "github.com/status-im/go-wallet-sdk/pkg/ethclient/mock"
 )
 
@@ -20,9 +21,7 @@ func TestLineaEstimateGas(t *testing.T) {
 
 	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
 
-	client := &Client{
-		rpcClient: mockRPC,
-	}
+	client := ethclient.NewClient(mockRPC)
 
 	// Test data
 	callMsg := ethereum.CallMsg{

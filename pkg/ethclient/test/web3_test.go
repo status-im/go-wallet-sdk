@@ -1,4 +1,4 @@
-package ethclient
+package ethclient_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 	mock_ethclient "github.com/status-im/go-wallet-sdk/pkg/ethclient/mock"
 )
 
@@ -17,9 +18,7 @@ func TestWeb3Methods(t *testing.T) {
 
 	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
 
-	client := &Client{
-		rpcClient: mockRPC,
-	}
+	client := ethclient.NewClient(mockRPC)
 
 	// Test Web3ClientVersion
 	clientVersionJSON := `"Geth/v1.10.26-stable-979fc968/linux-amd64/go1.19.2"`

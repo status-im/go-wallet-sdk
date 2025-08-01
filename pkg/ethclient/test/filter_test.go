@@ -1,4 +1,4 @@
-package ethclient
+package ethclient_test
 
 import (
 	"encoding/json"
