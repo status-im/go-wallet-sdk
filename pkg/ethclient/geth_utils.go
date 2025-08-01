@@ -10,6 +10,16 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+// toBlockNumArg converts a block number to the RPC block number format.
+// nil will be converted to "latest".
+// positive numbers will be converted to the hex string of the number.
+// small negative numbers will be converted according to the rpc.BlockNumber type:
+// * -5 = "earliest",
+// * -4 = "safe",
+// * -3 = "finalized",
+// * -2 = "latest",
+// * -1 = "pending"
+// other negative numbers will be converted to a string with the format "<invalid %d>".
 func toBlockNumArg(number *big.Int) string {
 	if number == nil {
 		return "latest"
@@ -25,6 +35,7 @@ func toBlockNumArg(number *big.Int) string {
 	return fmt.Sprintf("<invalid %d>", number)
 }
 
+// toCallArg converts a CallMsg to the RPC call argument format.
 func toCallArg(msg ethereum.CallMsg) interface{} {
 	arg := map[string]interface{}{
 		"from": msg.From,
@@ -63,6 +74,7 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 	return arg
 }
 
+// toFilterArg converts a FilterQuery to the RPC filter argument format.
 func toFilterArg(q ethereum.FilterQuery) (interface{}, error) {
 	arg := map[string]interface{}{
 		"address": q.Addresses,
