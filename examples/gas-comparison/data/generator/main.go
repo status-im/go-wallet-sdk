@@ -199,11 +199,11 @@ func generateDataFile(
 
 import (
 	"encoding/json"
-	"math/big"
+	"gas-comparison/data"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 	"github.com/status-im/go-wallet-sdk/pkg/gas/infura"
-	"gas-comparison/data"
+	"math/big"
 )
 
 // GetGasData returns the gas data fetched from %s (Chain ID: %d)

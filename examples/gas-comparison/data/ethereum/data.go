@@ -2,11 +2,11 @@ package ethereum
 
 import (
 	"encoding/json"
-	"math/big"
+	"gas-comparison/data"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 	"github.com/status-im/go-wallet-sdk/pkg/gas/infura"
-	"gas-comparison/data"
+	"math/big"
 )
 
 // GetGasData returns the gas data fetched from Ethereum Mainnet (Chain ID: 1)
@@ -35,19 +35,19 @@ func GetGasData() (*data.GasData, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var infuraFees infura.GasResponse
 	err = json.Unmarshal([]byte(infuraFeesJSON), &infuraFees)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &data.GasData{
-		LatestBlock:         &block,
-		GasPrice:            gasPrice,
-		MaxPriorityFeePerGas:maxPriorityFeePerGas,
-		FeeHistory:          &feeHistory,
-		InfuraSuggestedFees: &infuraFees,
+		LatestBlock:          &block,
+		GasPrice:             gasPrice,
+		MaxPriorityFeePerGas: maxPriorityFeePerGas,
+		FeeHistory:           &feeHistory,
+		InfuraSuggestedFees:  &infuraFees,
 	}, nil
 }
 
