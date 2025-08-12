@@ -15,7 +15,7 @@ import (
 	reflect "reflect"
 
 	ethereum "github.com/ethereum/go-ethereum"
-	bind "github.com/ethereum/go-ethereum/accounts/abi/bind"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	common "github.com/ethereum/go-ethereum/common"
 	rpc "github.com/ethereum/go-ethereum/rpc"
 	balancescanner "github.com/status-im/go-wallet-sdk/pkg/contracts/balancescanner"
@@ -26,7 +26,6 @@ import (
 type MockRPCClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockRPCClientMockRecorder
-	isgomock struct{}
 }
 
 // MockRPCClientMockRecorder is the mock recorder for MockRPCClient.
@@ -47,69 +46,68 @@ func (m *MockRPCClient) EXPECT() *MockRPCClientMockRecorder {
 }
 
 // BatchCallContext mocks base method.
-func (m *MockRPCClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
+func (m *MockRPCClient) BatchCallContext(arg0 context.Context, arg1 []rpc.BatchElem) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchCallContext", ctx, b)
+	ret := m.ctrl.Call(m, "BatchCallContext", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BatchCallContext indicates an expected call of BatchCallContext.
-func (mr *MockRPCClientMockRecorder) BatchCallContext(ctx, b any) *gomock.Call {
+func (mr *MockRPCClientMockRecorder) BatchCallContext(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCallContext", reflect.TypeOf((*MockRPCClient)(nil).BatchCallContext), ctx, b)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCallContext", reflect.TypeOf((*MockRPCClient)(nil).BatchCallContext), arg0, arg1)
 }
 
 // CallContract mocks base method.
-func (m *MockRPCClient) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+func (m *MockRPCClient) CallContract(arg0 context.Context, arg1 ethereum.CallMsg, arg2 *big.Int) ([]byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CallContract", ctx, call, blockNumber)
+	ret := m.ctrl.Call(m, "CallContract", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CallContract indicates an expected call of CallContract.
-func (mr *MockRPCClientMockRecorder) CallContract(ctx, call, blockNumber any) *gomock.Call {
+func (mr *MockRPCClientMockRecorder) CallContract(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallContract", reflect.TypeOf((*MockRPCClient)(nil).CallContract), ctx, call, blockNumber)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallContract", reflect.TypeOf((*MockRPCClient)(nil).CallContract), arg0, arg1, arg2)
 }
 
 // ChainID mocks base method.
-func (m *MockRPCClient) ChainID(ctx context.Context) (*big.Int, error) {
+func (m *MockRPCClient) ChainID(arg0 context.Context) (*big.Int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ChainID", ctx)
+	ret := m.ctrl.Call(m, "ChainID", arg0)
 	ret0, _ := ret[0].(*big.Int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ChainID indicates an expected call of ChainID.
-func (mr *MockRPCClientMockRecorder) ChainID(ctx any) *gomock.Call {
+func (mr *MockRPCClientMockRecorder) ChainID(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChainID", reflect.TypeOf((*MockRPCClient)(nil).ChainID), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChainID", reflect.TypeOf((*MockRPCClient)(nil).ChainID), arg0)
 }
 
 // CodeAt mocks base method.
-func (m *MockRPCClient) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error) {
+func (m *MockRPCClient) CodeAt(arg0 context.Context, arg1 common.Address, arg2 *big.Int) ([]byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CodeAt", ctx, contract, blockNumber)
+	ret := m.ctrl.Call(m, "CodeAt", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CodeAt indicates an expected call of CodeAt.
-func (mr *MockRPCClientMockRecorder) CodeAt(ctx, contract, blockNumber any) *gomock.Call {
+func (mr *MockRPCClientMockRecorder) CodeAt(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CodeAt", reflect.TypeOf((*MockRPCClient)(nil).CodeAt), ctx, contract, blockNumber)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CodeAt", reflect.TypeOf((*MockRPCClient)(nil).CodeAt), arg0, arg1, arg2)
 }
 
 // MockBatchCaller is a mock of BatchCaller interface.
 type MockBatchCaller struct {
 	ctrl     *gomock.Controller
 	recorder *MockBatchCallerMockRecorder
-	isgomock struct{}
 }
 
 // MockBatchCallerMockRecorder is the mock recorder for MockBatchCaller.
@@ -130,24 +128,23 @@ func (m *MockBatchCaller) EXPECT() *MockBatchCallerMockRecorder {
 }
 
 // BatchCallContext mocks base method.
-func (m *MockBatchCaller) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
+func (m *MockBatchCaller) BatchCallContext(arg0 context.Context, arg1 []rpc.BatchElem) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchCallContext", ctx, b)
+	ret := m.ctrl.Call(m, "BatchCallContext", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BatchCallContext indicates an expected call of BatchCallContext.
-func (mr *MockBatchCallerMockRecorder) BatchCallContext(ctx, b any) *gomock.Call {
+func (mr *MockBatchCallerMockRecorder) BatchCallContext(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCallContext", reflect.TypeOf((*MockBatchCaller)(nil).BatchCallContext), ctx, b)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCallContext", reflect.TypeOf((*MockBatchCaller)(nil).BatchCallContext), arg0, arg1)
 }
 
 // MockBalanceScanner is a mock of BalanceScanner interface.
 type MockBalanceScanner struct {
 	ctrl     *gomock.Controller
 	recorder *MockBalanceScannerMockRecorder
-	isgomock struct{}
 }
 
 // MockBalanceScannerMockRecorder is the mock recorder for MockBalanceScanner.
@@ -168,46 +165,46 @@ func (m *MockBalanceScanner) EXPECT() *MockBalanceScannerMockRecorder {
 }
 
 // EtherBalances mocks base method.
-func (m *MockBalanceScanner) EtherBalances(opts *bind.CallOpts, addresses []common.Address) ([]balancescanner.BalanceScannerResult, error) {
+func (m *MockBalanceScanner) EtherBalances(arg0 *bind.CallOpts, arg1 []common.Address) ([]balancescanner.BalanceScannerResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EtherBalances", opts, addresses)
+	ret := m.ctrl.Call(m, "EtherBalances", arg0, arg1)
 	ret0, _ := ret[0].([]balancescanner.BalanceScannerResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // EtherBalances indicates an expected call of EtherBalances.
-func (mr *MockBalanceScannerMockRecorder) EtherBalances(opts, addresses any) *gomock.Call {
+func (mr *MockBalanceScannerMockRecorder) EtherBalances(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EtherBalances", reflect.TypeOf((*MockBalanceScanner)(nil).EtherBalances), opts, addresses)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EtherBalances", reflect.TypeOf((*MockBalanceScanner)(nil).EtherBalances), arg0, arg1)
 }
 
 // TokenBalances mocks base method.
-func (m *MockBalanceScanner) TokenBalances(opts *bind.CallOpts, addresses []common.Address, tokenAddress common.Address) ([]balancescanner.BalanceScannerResult, error) {
+func (m *MockBalanceScanner) TokenBalances(arg0 *bind.CallOpts, arg1 []common.Address, arg2 common.Address) ([]balancescanner.BalanceScannerResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TokenBalances", opts, addresses, tokenAddress)
+	ret := m.ctrl.Call(m, "TokenBalances", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]balancescanner.BalanceScannerResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // TokenBalances indicates an expected call of TokenBalances.
-func (mr *MockBalanceScannerMockRecorder) TokenBalances(opts, addresses, tokenAddress any) *gomock.Call {
+func (mr *MockBalanceScannerMockRecorder) TokenBalances(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TokenBalances", reflect.TypeOf((*MockBalanceScanner)(nil).TokenBalances), opts, addresses, tokenAddress)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TokenBalances", reflect.TypeOf((*MockBalanceScanner)(nil).TokenBalances), arg0, arg1, arg2)
 }
 
 // TokensBalance mocks base method.
-func (m *MockBalanceScanner) TokensBalance(opts *bind.CallOpts, owner common.Address, contracts []common.Address) ([]balancescanner.BalanceScannerResult, error) {
+func (m *MockBalanceScanner) TokensBalance(arg0 *bind.CallOpts, arg1 common.Address, arg2 []common.Address) ([]balancescanner.BalanceScannerResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TokensBalance", opts, owner, contracts)
+	ret := m.ctrl.Call(m, "TokensBalance", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]balancescanner.BalanceScannerResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // TokensBalance indicates an expected call of TokensBalance.
-func (mr *MockBalanceScannerMockRecorder) TokensBalance(opts, owner, contracts any) *gomock.Call {
+func (mr *MockBalanceScannerMockRecorder) TokensBalance(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TokensBalance", reflect.TypeOf((*MockBalanceScanner)(nil).TokensBalance), opts, owner, contracts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TokensBalance", reflect.TypeOf((*MockBalanceScanner)(nil).TokensBalance), arg0, arg1, arg2)
 }
