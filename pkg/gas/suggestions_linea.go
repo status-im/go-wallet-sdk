@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/ethereum/go-ethereum"
+
 	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 )
 

@@ -12,5 +12,5 @@ func estimateTxGas(ctx context.Context, ethClient EthClient, callMsg *ethereum.C
 	if err != nil {
 		return nil, err
 	}
-	return big.NewInt(int64(gasUsed)), nil
+	return big.NewInt(0).SetUint64(gasUsed), nil
 }
