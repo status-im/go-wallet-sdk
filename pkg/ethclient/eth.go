@@ -2,6 +2,7 @@ package ethclient
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum"
@@ -42,13 +43,28 @@ func (c *Client) EthEstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint
 }
 
 // EthFeeHistory retrieves the fee market history.
-func (c *Client) EthFeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int, rewardPercentiles []float64) (*FeeHistory, error) {
-	var result FeeHistory
-	blockArg := toBlockNumArg(lastBlock)
-	if err := c.rpcClient.CallContext(ctx, &result, "eth_feeHistory", hexutil.Uint(blockCount), blockArg, rewardPercentiles); err != nil {
+func (c *Client) EthFeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int, rewardPercentiles []float64) (*ethereum.FeeHistory, error) {
+	var res feeHistoryJSON
+	if err := c.rpcClient.CallContext(ctx, &res, "eth_feeHistory", hexutil.Uint(blockCount), toBlockNumArg(lastBlock), rewardPercentiles); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	reward := make([][]*big.Int, len(res.Reward))
+	for i, r := range res.Reward {
+		reward[i] = make([]*big.Int, len(r))
+		for j, r := range r {
+			reward[i][j] = (*big.Int)(r)
+		}
+	}
+	baseFee := make([]*big.Int, len(res.BaseFee))
+	for i, b := range res.BaseFee {
+		baseFee[i] = (*big.Int)(b)
+	}
+	return &ethereum.FeeHistory{
+		OldestBlock:  (*big.Int)(res.OldestBlock),
+		Reward:       reward,
+		BaseFee:      baseFee,
+		GasUsedRatio: res.GasUsedRatio,
+	}, nil
 }
 
 // EthGasPrice returns the current price per gas in wei
@@ -128,8 +144,8 @@ func (c *Client) EthGetCode(ctx context.Context, address common.Address, blockNu
 }
 
 // EthGetLogs returns an array of all logs matching a given filter object
-func (c *Client) EthGetLogs(ctx context.Context, q ethereum.FilterQuery) ([]*Log, error) {
-	var result []*Log
+func (c *Client) EthGetLogs(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error) {
+	var result []types.Log
 	arg, err := toFilterArg(q)
 	if err != nil {
 		return nil, err
@@ -242,6 +258,13 @@ func (c *Client) EthMaxPriorityFeePerGas(ctx context.Context) (*big.Int, error) 
 	return (*big.Int)(&result), err
 }
 
+// EthBlobBaseFee retrieves the current blob base fee.
+func (c *Client) EthBlobBaseFee(ctx context.Context) (*big.Int, error) {
+	var result hexutil.Big
+	err := c.rpcClient.CallContext(ctx, &result, "eth_blobBaseFee")
+	return (*big.Int)(&result), err
+}
+
 // EthMining returns true if client is actively mining new blocks
 func (c *Client) EthMining(ctx context.Context) (bool, error) {
 	var result bool
@@ -263,11 +286,22 @@ func (c *Client) EthSendRawTransaction(ctx context.Context, encodedTx []byte) (c
 	return result, err
 }
 
-// EthSyncing returns an object with data about the sync status or false
-func (c *Client) EthSyncing(ctx context.Context) (interface{}, error) {
-	var result interface{}
-	err := c.rpcClient.CallContext(ctx, &result, "eth_syncing")
-	return result, err
+// SyncProgress returns the current sync progress
+func (c *Client) EthSyncing(ctx context.Context) (*ethereum.SyncProgress, error) {
+	var raw json.RawMessage
+	if err := c.rpcClient.CallContext(ctx, &raw, "eth_syncing"); err != nil {
+		return nil, err
+	}
+	// Handle the possible response types
+	var syncing bool
+	if err := json.Unmarshal(raw, &syncing); err == nil {
+		return nil, nil // Not syncing (always false)
+	}
+	var p *rpcProgress
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil, err
+	}
+	return p.toSyncProgress(), nil
 }
 
 // EthSendTransaction creates new message call transaction or a contract creation
