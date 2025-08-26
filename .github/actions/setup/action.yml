@@ -10,7 +10,7 @@ runs:
 
     - name: Install dependencies
       run: |
-        go install go.uber.org/mock/mockgen@latest
+        go install go.uber.org/mock/mockgen@v0.6.0
       shell: bash
 
     - name: Go Mod
