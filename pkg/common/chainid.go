@@ -1,5 +1,15 @@
 package common
 
+const (
+	EthereumNativeCrossChainID = "eth-native"
+	EthereumNativeSymbol       = "ETH"
+	EthereumNativeName         = "Ethereum"
+
+	BinanceSmartChainNativeCrossChainID = "bsc-native"
+	BinanceSmartChainNativeSymbol       = "BNB"
+	BinanceSmartChainNativeName         = "BNB"
+)
+
 type ChainID = uint64
 
 const (
@@ -16,3 +26,17 @@ const (
 	BaseSepolia          ChainID = 84532
 	StatusNetworkSepolia ChainID = 1660990954
 )
+
+var AllChains = []ChainID{
+	EthereumMainnet,
+	EthereumSepolia,
+	OptimismMainnet,
+	OptimismSepolia,
+	ArbitrumMainnet,
+	ArbitrumSepolia,
+	BSCMainnet,
+	BSCTestnet,
+	BaseMainnet,
+	BaseSepolia,
+	StatusNetworkSepolia,
+}
