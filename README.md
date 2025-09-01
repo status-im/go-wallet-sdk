@@ -22,6 +22,14 @@ go get github.com/status-im/go-wallet-sdk
   - Complete RPC method coverage (eth_*, net_*, web3_*)
   - Go-ethereum ethclient compatible interface for easy migration
 
+### Token Lists Management
+- **`pkg/tokenlists`**: Comprehensive token list management with privacy-aware fetching
+  - Multi-source support (Status, Uniswap, CoinGecko, custom sources)
+  - Privacy-aware automatic refresh with ETag support
+  - Cross-chain token management and validation
+  - Extensible parser system for custom token list formats
+  - Thread-safe concurrent access with proper synchronization
+
 ### Common Utilities
 - **`pkg/common`**: Shared utilities and constants used across the SDK
 
@@ -56,6 +64,7 @@ go-wallet-sdk/
 ├── pkg/                    # Core SDK packages
 │   ├── balance/           # Balance-related functionality
 │   ├── ethclient/         # Ethereum client with full RPC support
+│   ├── tokenlists/        # Token list management and fetching
 │   └── common/            # Shared utilities
 ├── examples/              # Usage examples
 └── README.md             # This file
@@ -65,6 +74,7 @@ go-wallet-sdk/
 
 - [Balance Fetcher](pkg/balance/fetcher/README.md) - Balance fetching functionality
 - [Ethereum Client](pkg/ethclient/README.md) - Complete Ethereum RPC client
+- [Token Lists](pkg/tokenlists/README.md) - Token list management and fetching
 - [Web Example](examples/balance-fetcher-web/README.md) - Complete web application
 
 ## Contributing
