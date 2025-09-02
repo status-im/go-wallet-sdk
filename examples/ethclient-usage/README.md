@@ -1,6 +1,6 @@
 # Ethereum JSON-RPC Client Example
 
-This example demonstrates how to use the `ethclient` package to interact with multiple Ethereum-compatible networks and nodes.
+This example demonstrates how to use the `ethclient` package with our custom `eth.go` methods to interact with multiple Ethereum-compatible networks and nodes. Unlike go-ethereum's ethclient, our implementation is chain-agnostic and works with Arbitrum, Optimism, and other EVM chains.
 
 ## Features Demonstrated
 
@@ -13,7 +13,15 @@ This example demonstrates how to use the `ethclient` package to interact with mu
 - **Transaction Information**: Retrieve detailed transaction details
 - **Network Status**: Check node connectivity and network version
 - **Gas Estimation**: Estimate gas for contract calls
-- **Linea-Specific Features**: Use Linea-specific gas estimation methods
+
+## Why Our eth.go Methods?
+
+Our custom `eth.go` methods provide several advantages over go-ethereum's ethclient:
+
+- **Chain-agnostic**: Works with any EVM chain (Arbitrum, Optimism, Polygon, etc.)
+- **No assumptions**: Makes no assumptions about transaction types or chain-specific values
+- **Universal compatibility**: Follows only the standard Ethereum JSON-RPC specification
+- **Better L2 support**: Handles edge cases gracefully on non-Ethereum chains
 
 ## Usage
 
@@ -44,11 +52,10 @@ This example demonstrates how to use the `ethclient` package to interact with mu
 
 ```
 Testing RPC endpoint: https://ethereum-rpc.publicnode.com
-🚀 Ethereum JSON-RPC Client Example
-=====================================
+🚀 Ethereum JSON-RPC Client Example (using eth.go methods)
+==========================================================
 
 📡 Network Information
-✅ Connected to Ethereum node
 Client Version: Geth/v1.16.0-stable
 Network ID: 1
 Chain ID: 1
@@ -96,11 +103,6 @@ Net Version: 1
 
 ⛽ Gas Estimation
 Estimated gas for call: 21000
-
-🌐 Linea-specific methods
-GasLimit: 21000
-BaseFeePerGas: 15000000000 wei
-PriorityFeePerGas: 1500000000 wei
 --------------------------------
 --------------------------------
 --------------------------------
@@ -144,6 +146,38 @@ The example is organized into several functions:
 - `testRPC()`: Tests a single RPC endpoint with comprehensive functionality
 - Multiple example sections demonstrating different client capabilities
 
+## Method Usage
+
+The example demonstrates our custom `eth.go` methods:
+
+```go
+// Network information
+client.Web3ClientVersion(ctx)      // Get client version
+client.NetVersion(ctx)             // Get network ID
+client.EthChainId(ctx)             // Get chain ID
+
+// Blockchain data
+client.EthBlockNumber(ctx)         // Get latest block number
+client.EthGetBlockByNumberWithFullTxs(ctx, blockNum)  // Get block with transactions
+client.EthGasPrice(ctx)            // Get current gas price
+
+// Account information
+client.EthGetBalance(ctx, address, nil)      // Get account balance
+client.EthGetTransactionCount(ctx, address, nil)  // Get account nonce
+
+// Contract interaction
+client.EthGetCode(ctx, address, nil)         // Get contract code
+
+// Event filtering
+client.EthGetLogs(ctx, filterQuery)          // Get event logs
+
+// Transaction information
+client.EthGetTransactionByHash(ctx, hash)    // Get transaction details
+
+// Gas estimation
+client.EthEstimateGas(ctx, callMsg)          // Estimate gas for call
+```
+
 ## Error Handling
 
 The example includes comprehensive error handling for:
@@ -164,4 +198,6 @@ This example works with any Ethereum-compatible network including:
 - Ethereum Mainnet and testnets
 - Layer 2 networks (Optimism, Arbitrum, Polygon)
 - Other EVM-compatible chains
-- Local development networks 
+- Local development networks
+
+The key advantage is that our `eth.go` methods make no assumptions about transaction types or chain-specific implementations, making them universally compatible with any EVM chain that follows the JSON-RPC specification. 

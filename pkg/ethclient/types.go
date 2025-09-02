@@ -533,7 +533,7 @@ type Receipt struct {
 	EffectiveGasPrice *big.Int
 	From              common.Address
 	GasUsed           uint64
-	Logs              []*Log
+	Logs              []*types.Log
 	LogsBloom         types.Bloom
 	Status            uint64
 	To                *common.Address
@@ -601,7 +601,7 @@ type receiptJSON struct {
 	EffectiveGasPrice *hexutil.Big    `json:"effectiveGasPrice,omitempty"`
 	From              common.Address  `json:"from"`
 	GasUsed           hexutil.Uint64  `json:"gasUsed"`
-	Logs              []*Log          `json:"logs"`
+	Logs              []*types.Log    `json:"logs"`
 	LogsBloom         types.Bloom     `json:"logsBloom"`
 	Status            hexutil.Uint64  `json:"status"`
 	To                *common.Address `json:"to"`
@@ -612,130 +612,12 @@ type receiptJSON struct {
 	BlobGasPrice      *hexutil.Big    `json:"blobGasPrice,omitempty"`
 }
 
-// Log represents a log entry
-type Log struct {
-	Address          common.Address
-	Topics           []common.Hash
-	Data             []byte
-	BlockNumber      *big.Int
-	TransactionHash  common.Hash
-	TransactionIndex uint64
-	BlockHash        common.Hash
-	LogIndex         uint64
-	Removed          bool
-}
-
-// UnmarshalJSON implements json.Unmarshaler
-func (l *Log) UnmarshalJSON(data []byte) error {
-	var log logJSON
-	if err := json.Unmarshal(data, &log); err != nil {
-		return err
-	}
-	l.Address = log.Address
-	l.Topics = log.Topics
-	l.Data = []byte(log.Data)
-	l.BlockNumber = (*big.Int)(log.BlockNumber)
-	l.TransactionHash = log.TransactionHash
-	l.TransactionIndex = uint64(log.TransactionIndex)
-	l.BlockHash = log.BlockHash
-	l.LogIndex = uint64(log.LogIndex)
-	l.Removed = log.Removed
-	return nil
-}
-
-// MarshalJSON implements json.Marshaler
-func (l *Log) MarshalJSON() ([]byte, error) {
-	log := logJSON{
-		Address:          l.Address,
-		Topics:           l.Topics,
-		Data:             hexutil.Bytes(l.Data),
-		BlockNumber:      (*hexutil.Big)(l.BlockNumber),
-		TransactionHash:  l.TransactionHash,
-		TransactionIndex: hexutil.Uint64(l.TransactionIndex),
-		BlockHash:        l.BlockHash,
-		LogIndex:         hexutil.Uint64(l.LogIndex),
-		Removed:          l.Removed,
-	}
-	return json.Marshal(log)
-}
-
-// logJSON is the internal type used for JSON marshaling/unmarshaling
-type logJSON struct {
-	Address          common.Address `json:"address"`
-	Topics           []common.Hash  `json:"topics"`
-	Data             hexutil.Bytes  `json:"data"`
-	BlockNumber      *hexutil.Big   `json:"blockNumber"`
-	TransactionHash  common.Hash    `json:"transactionHash"`
-	TransactionIndex hexutil.Uint64 `json:"transactionIndex"`
-	BlockHash        common.Hash    `json:"blockHash"`
-	LogIndex         hexutil.Uint64 `json:"logIndex"`
-	Removed          bool           `json:"removed"`
-}
-
-// FeeHistory represents fee history data
-type FeeHistory struct {
-	OldestBlock   *big.Int
-	BaseFeePerGas []*big.Int
-	GasUsedRatio  []float64
-	Reward        [][]*big.Int
-}
-
-// UnmarshalJSON implements json.Unmarshaler
-func (f *FeeHistory) UnmarshalJSON(data []byte) error {
-	var history feeHistoryJSON
-	if err := json.Unmarshal(data, &history); err != nil {
-		return err
-	}
-	f.OldestBlock = (*big.Int)(history.OldestBlock)
-	f.GasUsedRatio = history.GasUsedRatio
-
-	// Convert BaseFeePerGas
-	f.BaseFeePerGas = make([]*big.Int, len(history.BaseFeePerGas))
-	for i, fee := range history.BaseFeePerGas {
-		f.BaseFeePerGas[i] = (*big.Int)(fee)
-	}
-
-	// Convert Reward
-	f.Reward = make([][]*big.Int, len(history.Reward))
-	for i, rewards := range history.Reward {
-		f.Reward[i] = make([]*big.Int, len(rewards))
-		for j, reward := range rewards {
-			f.Reward[i][j] = (*big.Int)(reward)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON implements json.Marshaler
-func (f *FeeHistory) MarshalJSON() ([]byte, error) {
-	history := feeHistoryJSON{
-		OldestBlock:  (*hexutil.Big)(f.OldestBlock),
-		GasUsedRatio: f.GasUsedRatio,
-	}
-
-	// Convert BaseFeePerGas
-	history.BaseFeePerGas = make([]*hexutil.Big, len(f.BaseFeePerGas))
-	for i, fee := range f.BaseFeePerGas {
-		history.BaseFeePerGas[i] = (*hexutil.Big)(fee)
-	}
-
-	// Convert Reward
-	history.Reward = make([][]*hexutil.Big, len(f.Reward))
-	for i, rewards := range f.Reward {
-		history.Reward[i] = make([]*hexutil.Big, len(rewards))
-		for j, reward := range rewards {
-			history.Reward[i][j] = (*hexutil.Big)(reward)
-		}
-	}
-	return json.Marshal(history)
-}
-
 // feeHistoryJSON is the internal type used for JSON marshaling/unmarshaling
 type feeHistoryJSON struct {
-	OldestBlock   *hexutil.Big     `json:"oldestBlock"`
-	BaseFeePerGas []*hexutil.Big   `json:"baseFeePerGas,omitempty"`
-	GasUsedRatio  []float64        `json:"gasUsedRatio"`
-	Reward        [][]*hexutil.Big `json:"reward,omitempty"`
+	OldestBlock  *hexutil.Big     `json:"oldestBlock"`
+	Reward       [][]*hexutil.Big `json:"reward,omitempty"`
+	BaseFee      []*hexutil.Big   `json:"baseFeePerGas,omitempty"`
+	GasUsedRatio []float64        `json:"gasUsedRatio"`
 }
 
 // StorageProof represents a storage proof
@@ -906,41 +788,3 @@ type FilterID string
 
 // WorkData represents work data for mining
 type WorkData [4]string
-
-// TransactionOrHash can be either a transaction hash (string) or a full transaction object
-type TransactionOrHash struct {
-	Hash        *common.Hash
-	Transaction *Transaction
-}
-
-// UnmarshalJSON implements json.Unmarshaler
-func (t *TransactionOrHash) UnmarshalJSON(data []byte) error {
-	// Try to unmarshal as a string (transaction hash) first
-	var hashStr string
-	if err := json.Unmarshal(data, &hashStr); err == nil {
-		hash := common.HexToHash(hashStr)
-		t.Hash = &hash
-		t.Transaction = nil
-		return nil
-	}
-
-	// If that fails, try to unmarshal as a full transaction object
-	var tx Transaction
-	if err := json.Unmarshal(data, &tx); err != nil {
-		return err
-	}
-	t.Hash = nil
-	t.Transaction = &tx
-	return nil
-}
-
-// MarshalJSON implements json.Marshaler
-func (t *TransactionOrHash) MarshalJSON() ([]byte, error) {
-	if t.Hash != nil {
-		return json.Marshal(t.Hash.Hex())
-	}
-	if t.Transaction != nil {
-		return json.Marshal(t.Transaction)
-	}
-	return json.Marshal(nil)
-}

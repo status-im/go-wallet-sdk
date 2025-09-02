@@ -51,24 +51,16 @@ func testRPC(rpcEndpoint string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	fmt.Println("🚀 Ethereum JSON-RPC Client Example")
-	fmt.Println("=====================================")
+	fmt.Println("🚀 Ethereum JSON-RPC Client Example (using eth.go methods)")
+	fmt.Println("==========================================================")
 
 	zeroAddress := common.Address{}
 
 	// Example 1: Get basic network information
 	fmt.Println("\n📡 Network Information")
 
-	// Check if connected
-	if client.IsConnected(ctx) {
-		fmt.Println("✅ Connected to Ethereum node")
-	} else {
-		fmt.Println("❌ Not connected to Ethereum node")
-		return
-	}
-
 	// Get client version
-	version, err := client.GetClientVersion(ctx)
+	version, err := client.Web3ClientVersion(ctx)
 	if err != nil {
 		log.Printf("Error getting client version: %v", err)
 	} else {
@@ -76,7 +68,7 @@ func testRPC(rpcEndpoint string) {
 	}
 
 	// Get network ID
-	networkID, err := client.GetNetworkID(ctx)
+	networkID, err := client.NetVersion(ctx)
 	if err != nil {
 		log.Printf("Error getting network ID: %v", err)
 	} else {
@@ -84,7 +76,7 @@ func testRPC(rpcEndpoint string) {
 	}
 
 	// Get chain ID
-	chainID, err := client.GetChainID(ctx)
+	chainID, err := client.EthChainId(ctx)
 	if err != nil {
 		log.Printf("Error getting chain ID: %v", err)
 	} else {
@@ -95,7 +87,7 @@ func testRPC(rpcEndpoint string) {
 	fmt.Println("\n⛓️  Blockchain Information")
 
 	// Get latest block number
-	blockNumber, err := client.GetLatestBlockNumber(ctx)
+	blockNumber, err := client.EthBlockNumber(ctx)
 	if err != nil {
 		log.Printf("Error getting block number: %v", err)
 	} else {
@@ -104,7 +96,7 @@ func testRPC(rpcEndpoint string) {
 
 	// Get latest block
 	firstTxHash := common.Hash{}
-	block, err := client.GetLatestBlock(ctx)
+	block, err := client.EthGetBlockByNumberWithFullTxs(ctx, big.NewInt(int64(blockNumber)))
 	if err != nil {
 		log.Printf("Error getting latest block: %v", err)
 	} else {
@@ -132,7 +124,7 @@ func testRPC(rpcEndpoint string) {
 	}
 
 	// Get gas price
-	gasPrice, err := client.GetGasPrice(ctx)
+	gasPrice, err := client.EthGasPrice(ctx)
 	if err != nil {
 		log.Printf("Error getting gas price: %v", err)
 	} else {
@@ -146,7 +138,7 @@ func testRPC(rpcEndpoint string) {
 	address := common.HexToAddress("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045")
 
 	// Get balance
-	balance, err := client.GetBalance(ctx, address)
+	balance, err := client.EthGetBalance(ctx, address, nil)
 	if err != nil {
 		log.Printf("Error getting balance: %v", err)
 	} else {
@@ -157,7 +149,7 @@ func testRPC(rpcEndpoint string) {
 	}
 
 	// Get nonce
-	nonce, err := client.GetNonce(ctx, address)
+	nonce, err := client.EthGetTransactionCount(ctx, address, nil)
 	if err != nil {
 		log.Printf("Error getting nonce: %v", err)
 	} else {
@@ -171,7 +163,7 @@ func testRPC(rpcEndpoint string) {
 	multicall3Address := common.HexToAddress("0xcA11bde05977b3631167028862bE2a173976CA11")
 
 	// Get contract code
-	code, err := client.GetCode(ctx, multicall3Address)
+	code, err := client.EthGetCode(ctx, multicall3Address, nil)
 	if err != nil {
 		log.Printf("Error getting contract code: %v", err)
 	} else {
@@ -211,10 +203,10 @@ func testRPC(rpcEndpoint string) {
 			if i >= 3 { // Show only first 3
 				break
 			}
-			fmt.Printf("  Event %d: Block %s, Tx %s\n",
+			fmt.Printf("  Event %d: Block %d, Tx %s\n",
 				i+1,
-				log.BlockNumber.String(),
-				log.TransactionHash.Hex())
+				log.BlockNumber,
+				log.TxHash.Hex())
 		}
 	}
 
@@ -222,7 +214,7 @@ func testRPC(rpcEndpoint string) {
 	fmt.Println("\n💸 Transaction Information")
 
 	// Get transaction
-	tx, err := client.GetTransactionByHash(ctx, firstTxHash)
+	tx, err := client.EthGetTransactionByHash(ctx, firstTxHash)
 	if err != nil {
 		fmt.Printf("Error getting transaction: %v\n", err)
 	} else if tx == nil {
@@ -262,28 +254,11 @@ func testRPC(rpcEndpoint string) {
 	}
 
 	// Estimate gas
-	estimatedGas, err := client.EstimateGas(ctx, callMsg)
+	estimatedGas, err := client.EthEstimateGas(ctx, callMsg)
 	if err != nil {
 		log.Printf("Error estimating gas: %v", err)
 	} else {
 		fmt.Printf("Estimated gas for call: %d\n", estimatedGas)
-	}
-
-	// Example 9: Linea-specific methods
-	fmt.Println("\n🌐 Linea-specific methods")
-	// Estimate gas for a linea transaction
-	lineaCallMsg := ethereum.CallMsg{
-		From:  zeroAddress,
-		To:    &zeroAddress,
-		Value: big.NewInt(0),
-	}
-	lineaEstimatedGas, err := client.LineaEstimateGas(ctx, lineaCallMsg)
-	if err != nil {
-		log.Printf("Error estimating gas: %v", err)
-	} else {
-		fmt.Printf("GasLimit: %s\n", lineaEstimatedGas.GasLimit.String())
-		fmt.Printf("BaseFeePerGas: %s wei\n", lineaEstimatedGas.BaseFeePerGas.String())
-		fmt.Printf("PriorityFeePerGas: %s wei\n", lineaEstimatedGas.PriorityFeePerGas.String())
 	}
 
 	fmt.Println("--------------------------------")

@@ -4,18 +4,19 @@ import (
 	"context"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // EthGetFilterChanges returns an array of all logs matching filter with given id
-func (c *Client) EthGetFilterChanges(ctx context.Context, filterID FilterID) ([]*Log, error) {
-	var result []*Log
+func (c *Client) EthGetFilterChanges(ctx context.Context, filterID FilterID) ([]*types.Log, error) {
+	var result []*types.Log
 	err := c.rpcClient.CallContext(ctx, &result, "eth_getFilterChanges", filterID)
 	return result, err
 }
 
 // EthGetFilterLogs returns an array of all logs matching filter with given id
-func (c *Client) EthGetFilterLogs(ctx context.Context, filterID FilterID) ([]*Log, error) {
-	var result []*Log
+func (c *Client) EthGetFilterLogs(ctx context.Context, filterID FilterID) ([]types.Log, error) {
+	var result []types.Log
 	err := c.rpcClient.CallContext(ctx, &result, "eth_getFilterLogs", filterID)
 	return result, err
 }

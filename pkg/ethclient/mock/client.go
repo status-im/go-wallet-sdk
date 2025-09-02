@@ -58,3 +58,15 @@ func (mr *MockRPCClientMockRecorder) CallContext(ctx, result, method any, args .
 	varargs := append([]any{ctx, result, method}, args...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallContext", reflect.TypeOf((*MockRPCClient)(nil).CallContext), varargs...)
 }
+
+// Close mocks base method.
+func (m *MockRPCClient) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockRPCClientMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockRPCClient)(nil).Close))
+}

@@ -17,6 +17,11 @@ go get github.com/status-im/go-wallet-sdk
   - Smart fallback between different fetching methods
   - Chain-agnostic design
 
+### Ethereum Client
+- **`pkg/ethclient`**: Full-featured Ethereum client with go-ethereum compatibility
+  - Complete RPC method coverage (eth_*, net_*, web3_*)
+  - Go-ethereum ethclient compatible interface for easy migration
+
 ### Common Utilities
 - **`pkg/common`**: Shared utilities and constants used across the SDK
 
@@ -31,6 +36,13 @@ go run .
 
 Access: http://localhost:8080
 
+### Ethereum Client Usage
+
+```bash
+cd examples/ethclient-usage
+go run .
+```
+
 ## Testing
 
 ```bash
@@ -43,6 +55,7 @@ go test ./...
 go-wallet-sdk/
 ├── pkg/                    # Core SDK packages
 │   ├── balance/           # Balance-related functionality
+│   ├── ethclient/         # Ethereum client with full RPC support
 │   └── common/            # Shared utilities
 ├── examples/              # Usage examples
 └── README.md             # This file
@@ -51,6 +64,7 @@ go-wallet-sdk/
 ## Documentation
 
 - [Balance Fetcher](pkg/balance/fetcher/README.md) - Balance fetching functionality
+- [Ethereum Client](pkg/ethclient/README.md) - Complete Ethereum RPC client
 - [Web Example](examples/balance-fetcher-web/README.md) - Complete web application
 
 ## Contributing

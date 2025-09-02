@@ -128,7 +128,7 @@ func TestGethMethods(t *testing.T) {
 
 	syncing, err := client.EthSyncing(context.Background())
 	assert.NoError(t, err)
-	assert.False(t, syncing.(bool))
+	assert.Nil(t, syncing)
 
 	// Test EthCoinbase
 	coinbaseJSON := `"0x3535353535353535353535353535353535353535"`
