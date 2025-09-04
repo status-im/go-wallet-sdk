@@ -28,3 +28,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+build/**
+
+examples/c-app/bin/**
