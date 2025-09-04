@@ -1002,6 +1002,20 @@ go test ./...
 
 This executes unit tests for the balance fetcher and Ethereum client. The balance fetcher includes a `mock` package to simulate RPC responses. The repository also includes continuous integration workflows (`.github/workflows`) and static analysis configurations (`.golangci.yml`).
 
+### 5.3 Building the C Shared Library
+
+The SDK includes build support for creating C shared libraries that expose core functionality to non-Go applications.
+
+To build the library run:
+
+```bash
+make build-c-lib
+```
+
+This creates:
+- `build/libgowalletsdk.dylib` (macOS) or `build/libgowalletsdk.so` (Linux)
+- `build/libgowalletsdk.h` (C header file)
+
 ## 6. Limitations & Future Improvements
 
 - 
