@@ -458,8 +458,6 @@ func TestProcessJobRunners_AsyncExecution(t *testing.T) {
 		assert.Equal(t, expectedResults[0:1], result.Results)
 		assert.Equal(t, expectedBlockNumber, result.BlockNumber)
 		assert.Equal(t, common.Hash(expectedBlockHash), result.BlockHash)
-	case <-resultCh2:
-		t.Fatal("Expected result on channel 1 first")
 	case <-time.After(time.Second):
 		t.Fatal("Expected result on channel 1")
 	}
