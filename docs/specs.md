@@ -7,10 +7,11 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 
 | Component             | Purpose                                                                                                                                                                                                                                                    |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pkg/balance/fetcher` | High‑performance balance fetcher for EVM‑compatible chains.  The package can fetch native token balances or ERC‑20 balances for multiple addresses in batches using smart fallback strategies. It includes automatic fallback strategies (`BalanceScanner` contract or standard RPC batching) and exposes simple APIs to fetch balances for many addresses or tokens                                                             |
+| `pkg/balance/fetcher` | High‑performance balance fetcher for EVM‑compatible chains. Fetches native and token balances across many addresses. It prefers Multicall3 for maximum efficiency and falls back to standard JSON‑RPC batching when Multicall3 is unavailable. |
+| `pkg/multicall`       | Utilities around the Multicall3 contract: call builders for native/`ERC20`/`ERC721`/`ERC1155` balance queries and a job runner that batches calls into as few on‑chain multicalls as possible and processes results. |
+| `pkg/contracts`       | Auto‑generated Go bindings for on‑chain contracts used by the SDK, including `erc20`, `erc721`, `erc1155`, and `multicall3` (with a registry of deployments across 250+ chains). |
 | `pkg/ethclient`       | Chain‑agnostic Ethereum JSON‑RPC client.  It provides two method sets: a drop‑in replacement compatible with go‑ethereum’s `ethclient` and a custom implementation that follows the Ethereum JSON‑RPC specification without assuming chain‑specific types. It supports JSON‑RPC methods covering `eth_`, `net_` and `web3_` namespace |
 | `pkg/common`          | Shared types and constants. Such as canonical chain IDs (e.g., Ethereum Mainnet, Optimism, Arbitrum, BSC, Base). Developers use these values when configuring the SDK or examples.                               |
-| `pkg/balance/contracts` | Solidity contracts (not part of the published source) used by the balance fetcher when interacting with on‑chain balance scanning contracts. |
 | `cshared/`            | C shared library bindings that expose core SDK functionality to C applications. |
 | `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), and `c-app` (a C application demonstranting usage of the C library usage).                                             |                                                                                                                                                 |
 
@@ -29,8 +30,8 @@ The SDK emphasises chain agnosticism: methods do not assume particular transacti
 
 The balance fetcher is designed to efficiently query balances for many addresses and tokens. Its design includes:
 
-- **Dual fetch strategies** – The package first attempts to use a BalanceScanner contract capable of retrieving multiple balances in a single call. If the contract is unavailable on a given chain or the call fails, it falls back to batch RPC calls that iterate through addresses/tokens. Both strategies are exposed transparently through the same API.
-- **Batching and concurrency** – When falling back to RPC, the fetcher groups requests into batches (configurable `batchSize`) to reduce the number of round‑trips. It does batches in parallel when possible and aggregates results into a map keyed by address and token
+- **Dual fetch strategies** – The package prefers Multicall3 to aggregate many reads into a small number of on‑chain calls. If Multicall3 is unavailable on a given chain, it falls back to standard JSON‑RPC batching (`eth_getBalance` and `eth_call`). Both strategies are exposed transparently through the same API.
+- **Batching and concurrency** – With Multicall3, the job runner batches heterogeneous calls (native/`ERC20`/`ERC721`/`ERC1155`) and anchors all chunks to a single block using `tryBlockAndAggregate` for the first chunk and `tryAggregate` for subsequent chunks. In standard mode, the fetcher groups RPC requests into chunks (`batchSize`) to reduce round‑trips and aggregates results into maps keyed by address and token.
 - **Chain‑agnostic** – The logic is unaware of specific chain parameters; it accepts any RPC endpoint and optionally a block number. A `ChainID` from `pkg/common` can be used to label results, but the fetcher does not require it.
 
 ### 2.3 Ethereum Client Design
@@ -51,6 +52,17 @@ The `pkg/common` package defines shared types and enumerations. The main export 
 At `cshared/lib.go` the library functions are exposed to be used as C bindings for core SDK functionality, enabling integration with C applications and other languages that can interface with C libraries.
 The shared library is built using Go's `c-shared` build mode (e.g `go build -buildmode=c-shared -o lib.so lib.go`), which generates both the library file (`.so` on Linux, `.dylib` on macOS) and a corresponding C header file with function declarations and type definitions.
 
+### 2.6 Multicall Utilities
+
+`pkg/multicall` provides:
+
+- Call builders: `BuildNativeBalanceCall`, `BuildERC20BalanceCall`, `BuildERC721BalanceCall`, `BuildERC1155BalanceCall`, plus `Process*Result` helpers to decode `IMulticall3.Result` payloads into `*big.Int` balances.
+- A job runner to execute many calls efficiently against Multicall3:
+  - `RunSync(ctx, jobs, atBlock, caller, batchSize) []JobResult`
+  - `ProcessJobRunners(ctx, jobRunners, atBlock, caller, batchSize)`
+
+The runner uses `tryBlockAndAggregate` to return `(blockNumber, blockHash, results)` on the first chunk and `tryAggregate` for subsequent chunks pinned to the same block, ensuring all results are consistent to a single block.
+
 ## 3. API Description
 
 ### 3.1 Balance Fetcher API (`pkg/balance/fetcher`)
@@ -59,42 +71,56 @@ The balance fetcher exposes two primary functions:
 
 | Function                                                                            | Purpose                                                                                                                                                                                                | Parameters                                                                                                                                                                                                                                              | Returns                                                                                                                                                     |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FetchNativeBalances(ctx, addresses, atBlock, rpcClient, batchSize)`                | Retrieves native token balances (e.g., ETH) for multiple addresses.  The function first tries to call the BalanceScanner contract; if unavailable it sends batched `eth_getBalance` RPC calls.         | `ctx`: context; `addresses`: slice of addresses; `atBlock`: block number or `nil` for latest; `rpcClient`: implements `RPCClient`; `batchSize`: maximum addresses per batch.                                                                            | A map `map[common.Address]*big.Int` associating each address with its balance.  Errors indicate network issues or RPC failures.                             |
-| `FetchErc20Balances(ctx, addresses, tokenAddresses, atBlock, rpcClient, batchSize)` | Retrieves ERC‑20 token balances for multiple addresses and tokens.  Uses the BalanceScanner contract when available or falls back to batched `eth_call` of `balanceOf` for each (address, token) pair. | `ctx`: context; `addresses`: slice of account addresses; `tokenAddresses`: slice of ERC‑20 contract addresses; `atBlock`: block number or `nil`; `rpcClient`: implements `RPCClient` and `BatchCaller`; `batchSize`: maximum number of calls per batch. | A nested map `map[address]map[token]*big.Int` where `balances[account][token]` is the token balance.  Errors indicate RPC failures or contract call errors. |
+| `FetchNativeBalances(ctx, addresses, atBlock, rpcClient, batchSize)`                | Retrieves native token balances (e.g., ETH) for multiple addresses. Prefers Multicall3 when available and falls back to batched `eth_getBalance` RPC calls.                                           | `ctx`: context; `addresses`: slice of addresses; `atBlock`: block number or `nil` for latest; `rpcClient`: implements `RPCClient`; `batchSize`: maximum addresses per batch.                                                                            | A map `map[common.Address]*big.Int` associating each address with its balance.  Errors indicate network issues or RPC failures.                             |
+| `FetchErc20Balances(ctx, addresses, tokenAddresses, atBlock, rpcClient, batchSize)` | Retrieves ERC‑20 token balances for multiple addresses and tokens. Prefers Multicall3 when available and falls back to batched `eth_call` of `balanceOf` for each (address, token) pair.               | `ctx`: context; `addresses`: slice of account addresses; `tokenAddresses`: slice of ERC‑20 contract addresses; `atBlock`: block number or `nil`; `rpcClient`: implements `RPCClient` and `BatchCaller`; `batchSize`: maximum number of calls per batch. | A nested map `map[address]map[token]*big.Int` where `balances[account][token]` is the token balance.  Errors indicate RPC failures or contract call errors. |
 
 More specific functions are also available:
 
 | Function                                                                                                          | Description                                                                                                                                                                                                                  |
 | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FetchNativeBalancesWithBalanceScanner(ctx, addresses, atBlock, balanceScanner, batchSize)`                       | Batches addresses into groups (`batchSize`) and calls the contract’s `EtherBalances` method; decodes results into big.Int balances.                                                                                          |
-| `FetchErc20BalancesWithBalanceScanner(ctx, accountAddresses, tokenAddresses, atBlock, balanceScanner, batchSize)` | Uses the contract’s `TokenBalances` or `TokensBalance` methods depending on whether there are more accounts or tokens.                                                                                                       |
+| `FetchNativeBalancesWithMulticall(ctx, addresses, atBlock, multicallCaller, multicallAddress, batchSize)`        | Builds `getEthBalance` calls and executes them via Multicall3; decodes results to balances. The first chunk uses `tryBlockAndAggregate` to return the block number/hash.                                                      |
+| `FetchErc20BalancesWithMulticall(ctx, accountAddresses, tokenAddresses, atBlock, multicallCaller, batchSize)`    | Builds `ERC20.balanceOf` calls for each (account, token) and executes them via Multicall3; decodes results to balances.                                                                                                      |
 | `FetchNativeBalancesStandard(ctx, addresses, atBlock, batchCaller, batchSize)`                                    | Constructs `eth_getBalance` batch requests using the provided `BatchCaller`; decodes hex strings into big.Int balances.                                                                                                      |
 | `FetchErc20BalancesStandard(ctx, addresses, tokenAddresses, atBlock, batchCaller, batchSize)`                     | Builds `eth_call` requests for each account/token pair using the ERC‑20 ABI and sends them in batches.                                                                                                                       |
 
-**BalanceScanner Deployments**
+**Multicall3 Deployments and Usage**
 
-The BalanceScanner is deployed in most chains and BalanceFetcher uses the following addresses:
+Multicall3 is widely deployed across 250+ EVM chains, commonly at `0xCA11bde05977b3631167028862bE2a173976CA11` (case insensitive). The SDK provides a generated registry at `pkg/contracts/multicall3/deployments.go` with helpers:
 
-| Chain | ChainID | Address |
-| ----- | ------- | ------- |
-| Ethereum Mainnet | 1 | 0x08A8fDBddc160A7d5b957256b903dCAb1aE512C5 |
-| Optimism Mainnet | 10 | 0x9e5076df494fc949abc4461f4e57592b81517d81 |
-| Arbitrum Mainnet | 42161 | 0xbb85398092b83a016935a17fc857507b7851a071 |
-| Base Mainnet | 8453 | 0xc68c1e011cfE059EB94C8915c291502288704D89 |
-| BSC Mainnet | 56 | 0x71cfeb2ab5a3505f80b4c86f8ccd0a4b29f62447 |
-| Ethereum Sepolia | 11155111 | 0xec21ebe1918e8975fc0cd0c7747d318c00c0acd5 |
-| Arbitrum Sepolia | 421614 | 0xec21Ebe1918E8975FC0CD0c7747D318C00C0aCd5 |
-| Optimism Sepolia | 11155420 | 0xec21ebe1918e8975fc0cd0c7747d318c00c0acd5 |
-| Base Sepolia | 84532 | 0xc68c1e011cfE059EB94C8915c291502288704D89 |
-| Status Network Sepolia | 1660990954 | 0xc68c1e011cfE059EB94C8915c291502288704D89 |
-| BSC Testnet | 97 | 0x71cfeb2ab5a3505f80b4c86f8ccd0a4b29f62447 |
+- `multicall3.GetMulticall3Address(chainID int64) (common.Address, bool)`
+- `multicall3.IsChainSupported(chainID int64) bool`
+- `multicall3.GetSupportedChainIDs() []int64`
 
-These are defined at `pkg/contracts/balancescanner/addresses.go`
+See `pkg/contracts/multicall3/deployments/` for the generator that ingests upstream deployment metadata.
 
-**ERC-20 ABI Usage**
+Within `pkg/multicall`, the `Caller` interface abstracts the `multicall3` view methods used by the job runner:
 
-- Uses generated bindings in `pkg/contracts/erc20` or packs `balanceOf(address)` via the ABI for `eth_call` in standard mode.
-- In standard mode, `balanceOf` is encoded with `abi.Pack("balanceOf", accountAddress)` and sent as `input` to the token contract `to` address.
+```12:26:pkg/multicall/runner.go
+type Caller interface {
+    ViewTryBlockAndAggregate(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error)
+    ViewTryAggregate(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error)
+}
+```
+
+The balance fetcher integrates with the job runner, e.g. native balances:
+
+```14:46:pkg/balance/fetcher/fetcher_multicall.go
+func FetchNativeBalancesWithMulticall(
+    ctx context.Context,
+    accountAddresses []common.Address,
+    atBlock gethrpc.BlockNumber,
+    multicallCaller multicall.Caller,
+    multicallAddress common.Address,
+    batchSize int,
+) (BalancePerAccountAddress, error) {
+    // builds getEthBalance calls, runs RunSync, decodes results
+}
+```
+
+**ERC‑20/721/1155 ABI Usage**
+
+- Uses generated bindings in `pkg/contracts/erc20`, `pkg/contracts/erc721`, and `pkg/contracts/erc1155` or packs `balanceOf(...)` via the ABI for `eth_call` in standard mode.
+- In standard mode, `balanceOf` is encoded with `abi.Pack("balanceOf", accountAddress)` (and `tokenID` for `ERC1155`) and sent as `input` to the token contract `to` address.
 
 **Regenerating Bindings**
 
@@ -103,14 +129,20 @@ The SDK uses auto-generated Go bindings to interact with smart contracts. These 
 Use `abigen` to regenerate bindings when contract sources are updated:
 
 ```bash
-# BalanceScanner from Solidity source
-abigen --sol pkg/contracts/balancescanner/BalanceScanner.sol --pkg balancescanner --out pkg/contracts/balancescanner/balancescanner.go
-
 # ERC-20 from Solidity interface  
 abigen --sol pkg/contracts/erc20/IERC20.sol --pkg erc20 --out pkg/contracts/erc20/erc20.go
 
+# ERC-721 from Solidity interface
+abigen --sol pkg/contracts/erc721/IERC721.sol --pkg erc721 --out pkg/contracts/erc721/erc721.go
+
+# ERC-1155 from Solidity interface
+abigen --sol pkg/contracts/erc1155/IERC1155.sol --pkg erc1155 --out pkg/contracts/erc1155/erc1155.go
+
 # Alternative: Generate from ABI JSON (if available)
 abigen --abi IERC20.abi.json --pkg erc20 --out pkg/contracts/erc20/erc20.go
+
+# Multicall3 bindings are generated from `IMulticall3.sol` and the deployments registry is generated via:
+cd pkg/contracts/multicall3/deployments && go run .
 ```
 
 Ensure the ABI/Solidity sources match the deployed contract versions. Regeneration is needed when contracts are upgraded, ABIs change, or new functionality is added.
@@ -313,7 +345,7 @@ All string returns from the library are allocated with `malloc` and must be free
 ### 4.1 Web‑Based Balance Fetcher
 
 The `examples/balance-fetcher-web` folder contains a complete web application that demonstrates how to use the balance fetcher. Key aspects include:
-- **Features** – The web UI allows users to specify custom chains (chain ID and RPC URL), enter multiple Ethereum addresses and an optional block number, then fetch balances across chains. It supports batch fetching for native tokens, automatic fallback to standard RPC, and displays balances in both ETH and wei. The example pre‑populates common chains such as Ethereum, Optimism, Arbitrum and Polygon.
+- **Features** – The web UI allows users to specify custom chains (chain ID and RPC URL), enter multiple Ethereum addresses and an optional block number, then fetch balances across chains. It prefers Multicall3 for aggregation (often querying thousands of balances in a single RPC call) and automatically falls back to standard RPC. It displays balances in both ETH and wei. The example pre‑populates common chains such as Ethereum, Optimism, Arbitrum and Polygon.
 - **Usage** – Running `go run .` in the example directory starts an HTTP server on `localhost:8080`. Users can configure chains, input addresses and click Fetch Balances. The backend sends a `POST /fetch` request containing a JSON payload with chains, addresses and block number.
 - **Project Structure** – The example is organised into `main.go` (entry point), `types.go` (data structures), `rpc_client.go` (custom RPC client), `utils.go`, `templates.go` (HTML/JS templates), and `handlers.go` (HTTP handlers).
 - **Security Considerations** – The example warns that it is for demonstration only. Production deployments should secure RPC endpoints, implement authentication, validate user input and add rate‑limiting.
@@ -349,6 +381,23 @@ cd examples/c-app && make build
 make
 cd bin/
 ./c-app
+```
+
+### 4.4 Multicall3 Example Output
+
+The multicall‑powered flow can fetch thousands of ERC‑20 balances in a single RPC call while pinning all results to the same block:
+
+```
+Found 5333 tokens for chain ID 1
+Using Multicall3 contract at: 0xcA11bde05977b3631167028862bE2a173976CA11
+Prepared 5335 balance calls for multicall
+
+=== Multicall3 Results ===
+Block Number: 23275719
+
+ETH (Ethereum): 26.332052548639873000
+...
+Summary: total tokens queried: 5333, tokens with non-zero balance: 507, success rate: 100%
 ```
 
 ## 5. Testing & Development
