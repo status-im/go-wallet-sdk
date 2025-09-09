@@ -8,12 +8,11 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/status-im/go-wallet-sdk/pkg/contracts/erc20"
 	"github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
+	"github.com/status-im/go-wallet-sdk/pkg/multicall"
 )
 
 // Token represents a token from the all.json file
@@ -88,7 +87,7 @@ func main() {
 
 	log.Printf("Using Multicall3 contract at: %s", multicallAddr.Hex())
 
-	// Create multicall3 contract instance
+	// Create multicall3 contract instance for the caller interface
 	multicallContract, err := multicall3.NewMulticall3(multicallAddr, client)
 	if err != nil {
 		log.Fatalf("Failed to create multicall3 contract instance: %v", err)
@@ -96,26 +95,18 @@ func main() {
 
 	// Execute multicall for batch balance reads
 	ctx := context.Background()
-	callOpts := &bind.CallOpts{Context: ctx}
 
-	// Prepare calls for multicall3 contract
-	calls := prepareMulticall3Calls(multicallAddr, walletAddress)
-	multicall3ResultsCount := len(calls)
-
-	// Prepare calls for balanceOf function
-	calls = append(calls, prepareBalanceCalls(chainTokens, walletAddress)...)
+	// Prepare calls using the new multicall package
+	calls := prepareMulticallCalls(multicallAddr, walletAddress, chainTokens)
 
 	log.Printf("Prepared %d balance calls for multicall", len(calls))
 
-	// Execute multicall using the view method
-	results, err := multicallContract.ViewAggregate3(callOpts, calls)
-	if err != nil {
-		log.Fatalf("Failed to execute multicall: %v", err)
-	}
+	// Execute multicall using the new RunSync function
+	results := multicall.RunSync(ctx, [][]multicall3.IMulticall3Call{calls}, nil, multicallContract, 100)
 
 	// Process results
-	blockNumber, nativeBalance := processMulticall3Results(results[:multicall3ResultsCount])
-	balanceResults := processBalanceResults(chainTokens, results[multicall3ResultsCount:])
+	blockNumber := results[0].BlockNumber
+	nativeBalance, balanceResults := processResults(chainTokens, results[0])
 
 	// Display results
 	displayResults(blockNumber, nativeBalance, balanceResults, walletAddress)
@@ -135,85 +126,42 @@ func loadTokenList(filename string) ([]Token, error) {
 	return tokenList.Tokens, nil
 }
 
-func prepareMulticall3Calls(contractAddress common.Address, walletAddress string) []multicall3.IMulticall3Call3 {
-	var calls []multicall3.IMulticall3Call3
+func prepareMulticallCalls(contractAddress common.Address, walletAddress string, tokens []Token) []multicall3.IMulticall3Call {
+	var calls []multicall3.IMulticall3Call
 
-	abi, err := multicall3.Multicall3MetaData.GetAbi()
-	if err != nil {
-		log.Fatalf("Failed to get Multicall3 ABI: %v", err)
-	}
+	// Add native ETH balance call
+	calls = append(calls, multicall.BuildNativeBalanceCall(common.HexToAddress(walletAddress), contractAddress))
 
-	if callData, err := abi.Pack("getBlockNumber"); err != nil {
-		log.Fatalf("Failed to pack getBlockNumber call data: %v", err)
-	} else {
-		calls = append(calls, multicall3.IMulticall3Call3{
-			Target:       contractAddress,
-			AllowFailure: true,
-			CallData:     callData,
-		})
-	}
-
-	if callData, err := abi.Pack("getEthBalance", common.HexToAddress(walletAddress)); err != nil {
-		log.Fatalf("Failed to pack getEthBalance call data: %v", err)
-	} else {
-		calls = append(calls, multicall3.IMulticall3Call3{
-			Target:       contractAddress,
-			AllowFailure: true,
-			CallData:     callData,
-		})
-	}
-
-	return calls
-}
-
-func prepareBalanceCalls(tokens []Token, walletAddress string) []multicall3.IMulticall3Call3 {
-	var calls []multicall3.IMulticall3Call3
-
-	abi, err := erc20.Erc20MetaData.GetAbi()
-	if err != nil {
-		log.Fatalf("Failed to get Multicall3 ABI: %v", err)
-	}
-
-	callData, err := abi.Pack("balanceOf", common.HexToAddress(walletAddress))
-	if err != nil {
-		log.Fatalf("Failed to pack balanceOf call data: %v", err)
-	}
-
+	// Add ERC20 balance calls for each token
 	for _, token := range tokens {
-		tokenAddr := common.HexToAddress(token.Address)
-
-		call := multicall3.IMulticall3Call3{
-			Target:       tokenAddr,
-			AllowFailure: true, // Allow individual calls to fail
-			CallData:     callData,
-		}
-
-		calls = append(calls, call)
+		calls = append(calls, multicall.BuildERC20BalanceCall(common.HexToAddress(walletAddress), common.HexToAddress(token.Address)))
 	}
 
 	return calls
 }
 
-func processMulticall3Results(results []multicall3.IMulticall3Result) (blockNumber *big.Int, nativeBalance *big.Int) {
-	if len(results) != 2 {
-		log.Fatalf("Expected 2 results, got %d", len(results))
-	}
-
-	for i, result := range results {
-		switch i {
-		case 0:
-			blockNumber = new(big.Int).SetBytes(result.ReturnData)
-		case 1:
-			nativeBalance = new(big.Int).SetBytes(result.ReturnData)
-		}
-	}
-	return
-}
-
-func processBalanceResults(tokens []Token, results []multicall3.IMulticall3Result) []BalanceResult {
+func processResults(tokens []Token, jobResult multicall.JobResult) (*big.Int, []BalanceResult) {
 	var balanceResults []BalanceResult
 
-	for i, result := range results {
+	// Check for errors
+	if jobResult.Err != nil {
+		log.Fatalf("Multicall execution failed: %v", jobResult.Err)
+	}
+
+	results := jobResult.Results
+	if len(results) == 0 {
+		log.Fatalf("No results returned from multicall")
+	}
+
+	// First result is the native ETH balance
+	nativeBalance, err := multicall.ProcessNativeBalanceResult(results[0])
+	if err != nil {
+		log.Printf("Failed to process native balance: %v", err)
+		nativeBalance = big.NewInt(0)
+	}
+
+	// Process ERC20 token balances
+	for i, result := range results[1:] {
 		if i >= len(tokens) {
 			break
 		}
@@ -224,10 +172,14 @@ func processBalanceResults(tokens []Token, results []multicall3.IMulticall3Resul
 			Success: result.Success,
 		}
 
-		if result.Success && len(result.ReturnData) >= 32 {
-			// Parse the balance from return data
-			balance := new(big.Int).SetBytes(result.ReturnData)
-			balanceResult.Balance = balance
+		if result.Success {
+			balance, err := multicall.ProcessERC20BalanceResult(result)
+			if err != nil {
+				log.Printf("Failed to process balance for token %s: %v", token.Symbol, err)
+				balanceResult.Balance = big.NewInt(0)
+			} else {
+				balanceResult.Balance = balance
+			}
 		} else {
 			balanceResult.Balance = big.NewInt(0)
 		}
@@ -235,7 +187,7 @@ func processBalanceResults(tokens []Token, results []multicall3.IMulticall3Resul
 		balanceResults = append(balanceResults, balanceResult)
 	}
 
-	return balanceResults
+	return nativeBalance, balanceResults
 }
 
 func displayResults(blockNumber *big.Int, nativeBalance *big.Int, results []BalanceResult, walletAddress string) {
