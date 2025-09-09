@@ -16,7 +16,7 @@ Access: http://localhost:8080
 - 🌐 Web interface for easy interaction
 - 🔗 Support for any EVM-compatible chain
 - 📊 Batch balance fetching for multiple addresses
-- 📦 Automatic fallback between BalanceScanner and standard RPC calls
+- 📦 Automatic fallback between Multicall3 and standard RPC calls
 - 💰 Display balances in both ETH and Wei
 - ⚡ Prepopulated with popular chains (Ethereum, Optimism, Arbitrum, Polygon)
 
