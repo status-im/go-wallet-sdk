@@ -9,10 +9,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
 	"github.com/status-im/go-wallet-sdk/pkg/multicall"
 	mock_multicall "github.com/status-im/go-wallet-sdk/pkg/multicall/mock"
+
 	"github.com/stretchr/testify/assert"
+
 	"go.uber.org/mock/gomock"
 )
 
