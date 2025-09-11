@@ -11,7 +11,8 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/ethclient`       | Chain‑agnostic Ethereum JSON‑RPC client.  It provides two method sets: a drop‑in replacement compatible with go‑ethereum’s `ethclient` and a custom implementation that follows the Ethereum JSON‑RPC specification without assuming chain‑specific types. It supports JSON‑RPC methods covering `eth_`, `net_` and `web3_` namespace |
 | `pkg/common`          | Shared types and constants. Such as canonical chain IDs (e.g., Ethereum Mainnet, Optimism, Arbitrum, BSC, Base). Developers use these values when configuring the SDK or examples.                               |
 | `pkg/balance/contracts` | Solidity contracts (not part of the published source) used by the balance fetcher when interacting with on‑chain balance scanning contracts. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching) and `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints).                                             |                                                                                                                                                 |
+| `cshared/`            | C shared library bindings that expose core SDK functionality to C applications. |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), and `c-app` (a C application demonstranting usage of the C library usage).                                             |                                                                                                                                                 |
 
 ## 2. Architecture
 
@@ -44,6 +45,11 @@ Internally, the client stores a reference to an RPC client and implements each m
 ### 2.4 Common Utilities
 
 The `pkg/common` package defines shared types and enumerations. The main export is `type ChainID uint64` with constants for well‑known networks such as `EthereumMainnet`, `EthereumSepolia`, `OptimismMainnet`, `ArbitrumMainnet`, `BSCMainnet`, `BaseMainnet`, `BaseSepolia` and a custom `StatusNetworkSepolia`. These constants allow the examples to pre‑populate supported chains and label results without repeating numeric IDs.
+
+### 2.5 C Library
+
+At `cshared/lib.go` the library functions are exposed to be used as C bindings for core SDK functionality, enabling integration with C applications and other languages that can interface with C libraries.
+The shared library is built using Go's `c-shared` build mode (e.g `go build -buildmode=c-shared -o lib.so lib.go`), which generates both the library file (`.so` on Linux, `.dylib` on macOS) and a corresponding C header file with function declarations and type definitions.
 
 ## 3. API Description
 
@@ -255,6 +261,53 @@ Converts Go `ethereum.FilterQuery` structs into JSON-RPC filter objects:
 
 This enables `EthGetLogs`, `EthNewFilter`, and other event filtering methods to work correctly across all EVM chains.
 
+### 3.3 C Shared Library API (`cshared/`)
+
+The C shared library provides a minimal but complete interface for blockchain operations from C applications. All functions use consistent patterns for error handling and memory management.
+
+| Function | Description | Parameters | Returns |
+| -------- | ----------- | ---------- | ------- |
+| `GoWSK_NewClient(rpcURL, errOut)` | Creates a new Ethereum client connected to the specified RPC endpoint | `rpcURL`: null-terminated string with RPC URL; `errOut`: optional double pointer for error message | Opaque client handle (0 on failure) |
+| `GoWSK_CloseClient(handle)` | Closes an Ethereum client and releases its resources | `handle`: client handle from `GoWSK_NewClient` | None |
+| `GoWSK_ChainID(handle, errOut)` | Retrieves the chain ID for the connected network | `handle`: client handle; `errOut`: optional double pointer for error message | Chain ID as null-terminated string (must be freed) |
+| `GoWSK_GetBalance(handle, address, errOut)` | Fetches the native token balance for an address | `handle`: client handle; `address`: hex-encoded Ethereum address; `errOut`: optional double pointer for error message | Balance in wei as null-terminated string (must be freed) |
+| `GoWSK_FreeCString(s)` | Frees a string allocated by the library | `s`: string pointer returned by other functions | None |
+
+**Usage Pattern**
+
+All C applications follow the same basic pattern:
+
+```c
+#include "libgowalletsdk.h"
+
+// Create client
+char* err = NULL;
+unsigned long long client = GoWSK_NewClient("https://mainnet.infura.io/v3/KEY", &err);
+if (client == 0) {
+    fprintf(stderr, "Error: %s\n", err);
+    GoWSK_FreeCString(err);
+    return 1;
+}
+
+// Use client APIs
+char* chainID = GoWSK_ChainID(client, &err);
+if (chainID) {
+    printf("Chain ID: %s\n", chainID);
+    GoWSK_FreeCString(chainID);
+}
+
+char* balance = GoWSK_GetBalance(client, "0x...", &err);
+if (balance) {
+    printf("Balance: %s wei\n", balance);
+    GoWSK_FreeCString(balance);
+}
+
+// Always close client
+GoWSK_CloseClient(client);
+```
+
+All string returns from the library are allocated with `malloc` and must be freed using `GoWSK_FreeCString`. Also Error messages returned via `errOut` parameters must also be freed
+
 ## 4. Example Applications
 
 ### 4.1 Web‑Based Balance Fetcher
@@ -277,6 +330,27 @@ The `examples/ethclient-usage` folder shows how to use the Ethereum client acros
 
 - **Code Structure** – The example is split into `main.go`, which loops over endpoints, and helper functions such as `testRPC()` that call various methods and handle errors.
 
+### 4.3 C Application Example
+
+At `examples/c-app` there is a simple app demonstrating how to use the C library.
+
+**usage**
+
+At the root do to create the library:
+
+```bash
+make build-c-lib
+```
+
+Run the example:
+
+```bash
+cd examples/c-app && make build
+make
+cd bin/
+./c-app
+```
+
 ## 5. Testing & Development
 
 ### 5.1 Fetching  SDK
@@ -296,6 +370,20 @@ go test ./...
 ```
 
 This executes unit tests for the balance fetcher and Ethereum client. The balance fetcher includes a `mock` package to simulate RPC responses. The repository also includes continuous integration workflows (`.github/workflows`) and static analysis configurations (`.golangci.yml`).
+
+### 5.3 Building the C Shared Library
+
+The SDK includes build support for creating C shared libraries that expose core functionality to non-Go applications.
+
+To build the library run:
+
+```bash
+make build-c-lib
+```
+
+This creates:
+- `build/libgowalletsdk.dylib` (macOS) or `build/libgowalletsdk.so` (Linux)
+- `build/libgowalletsdk.h` (C header file)
 
 ## 6. Limitations & Future Improvements
 
