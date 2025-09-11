@@ -38,6 +38,9 @@ var codeJSON string
 //go:embed proof.json
 var proofJSON string
 
+//go:embed logs.json
+var logsJSON string
+
 func TestGethMethods(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -627,4 +630,23 @@ func TestBlockReceipts(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, receipts, 1)
 	assert.Equal(t, uint64(1), receipts[0].Status)
+}
+
+func TestLogs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
+
+	client := ethclient.NewClient(mockRPC)
+
+	mockRPC.EXPECT().
+		CallContext(gomock.Any(), gomock.Any(), "eth_getLogs", gomock.Any()).
+		DoAndReturn(func(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+			return json.Unmarshal([]byte(logsJSON), &result)
+		})
+
+	logs, err := client.EthGetLogs(context.Background(), ethereum.FilterQuery{})
+	assert.NoError(t, err)
+	assert.Len(t, logs, 2)
 }
