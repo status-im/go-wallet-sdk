@@ -22,7 +22,7 @@ func FetchNativeBalancesStandard(
 	atBlock gethrpc.BlockNumber,
 	batchCaller BatchCaller,
 	batchSize int,
-) (map[common.Address]*big.Int, error) {
+) (BalancePerAccountAddress, error) {
 	balances := make(BalancePerAccountAddress)
 
 	for chunk := range slices.Chunk(accountAddresses, batchSize) {

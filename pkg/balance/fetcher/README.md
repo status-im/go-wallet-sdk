@@ -69,21 +69,12 @@ for accountAddr, tokenBalances := range balances {
 
 - `RPCClient`: Minimal interface for RPC calls (compatible with go-ethereum clients)
 - `BatchCaller`: Interface for batch RPC calls
-- `BalanceScanner`: Interface for BalanceScanner contract calls
-
-## Testing
-
-```go
-import "github.com/status-im/go-wallet-sdk/pkg/balance/fetcher/mock"
-
-mockRPC := mock.NewMockRPCClient(ctrl)
-// Configure mock as needed for your tests
-```
+- `multicall.Caller`: Interface for Multicall3 contract calls
 
 ## File Structure
 
 - `fetcher.go` - Main interface and entry point
-- `fetcher_balancescanner.go` - BalanceScanner contract implementation
+- `fetcher_multicall.go` - Multicall3 contract implementation
 - `fetcher_standard.go` - Standard RPC implementation
 - `types.go` - Shared types/interfaces
 - `utils.go` - Helper functions

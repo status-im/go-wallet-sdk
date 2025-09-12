@@ -1,6 +1,6 @@
 package fetcher
 
-//go:generate mockgen -destination=mock/fetcher.go . RPCClient,BatchCaller,BalanceScanner
+//go:generate mockgen -destination=mock/fetcher.go . RPCClient,BatchCaller
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
 )
 
 type RPCClient interface {
@@ -29,9 +31,13 @@ func FetchNativeBalances(
 		return nil, err
 	}
 
-	// For efficiency, try to use balancescanner first if available for this chain
-	if balanceScanner := getBalanceScanner(chainID.Uint64(), atBlock, rpcClient); balanceScanner != nil {
-		return FetchNativeBalancesWithBalanceScanner(ctx, addresses, atBlock, balanceScanner, batchSize)
+	// For efficiency, try to use multicall first if available for this chain
+	multicallAddress, exists := multicall3.GetMulticall3Address(chainID.Int64())
+	if exists {
+		multicallCaller, err := multicall3.NewMulticall3Caller(multicallAddress, rpcClient)
+		if err == nil {
+			return FetchNativeBalancesWithMulticall(ctx, addresses, atBlock, multicallCaller, multicallAddress, batchSize)
+		}
 	}
 
 	// As last resort, use less efficient batch call
@@ -51,9 +57,13 @@ func FetchErc20Balances(
 		return nil, err
 	}
 
-	// For efficiency, try to use balancescanner first if available for this chain
-	if balanceScanner := getBalanceScanner(chainID.Uint64(), atBlock, rpcClient); balanceScanner != nil {
-		return FetchErc20BalancesWithBalanceScanner(ctx, addresses, tokenAddresses, atBlock, balanceScanner, batchSize)
+	// For efficiency, try to use multicall first if available for this chain
+	multicallAddress, exists := multicall3.GetMulticall3Address(chainID.Int64())
+	if exists {
+		multicallCaller, err := multicall3.NewMulticall3Caller(multicallAddress, rpcClient)
+		if err == nil {
+			return FetchErc20BalancesWithMulticall(ctx, addresses, tokenAddresses, atBlock, multicallCaller, batchSize)
+		}
 	}
 
 	// As last resort, use less efficient batch call
