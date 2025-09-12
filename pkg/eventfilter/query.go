@@ -37,25 +37,34 @@ func (c *TransferQueryConfig) ToFilterQueries() []ethereum.FilterQuery {
 	// FilterQuery should match Transfer events of the given types, with
 	// any of the given addresses in the from/to fields
 
-	var queries []ethereum.FilterQuery
-
-	// Event signatures for transfer events (using constants from eventlog package)
-	erc20_721TransferSig := eventlog.ERC20TransferID // Same signature for ERC20 and ERC721
-	erc1155TransferSingleSig := eventlog.ERC1155TransferSingleID
-	erc1155TransferBatchSig := eventlog.ERC1155TransferBatchID
-
 	// Convert addresses to topic format (32-byte padded)
 	var addressTopics []common.Hash
 	for _, addr := range c.Accounts {
 		addressTopics = append(addressTopics, common.BytesToHash(addr.Bytes()))
 	}
 
-	// Group transfer types by their event signatures for optimization
-	hasERC20 := false
-	hasERC721 := false
-	hasERC1155 := false
+	// Create optimized queries based on transfer types and direction
+	switch c.Direction {
+	case Send:
+		return buildSendQueries(c.FromBlock, c.ToBlock, addressTopics, c.TransferTypes)
+	case Receive:
+		return buildReceiveQueries(c.FromBlock, c.ToBlock, addressTopics, c.TransferTypes)
+	case Both:
+		return buildBothQueries(c.FromBlock, c.ToBlock, addressTopics, c.TransferTypes)
+	}
+	return nil
+}
 
-	for _, transferType := range c.TransferTypes {
+func buildFilterQuery(fromBlock *big.Int, toBlock *big.Int, topics [][]common.Hash) ethereum.FilterQuery {
+	return ethereum.FilterQuery{
+		FromBlock: fromBlock,
+		ToBlock:   toBlock,
+		Topics:    topics,
+	}
+}
+
+func unpackTransferTypes(transferTypes []TransferType) (hasERC20 bool, hasERC721 bool, hasERC1155 bool) {
+	for _, transferType := range transferTypes {
 		switch transferType {
 		case TransferTypeERC20:
 			hasERC20 = true
@@ -65,119 +74,108 @@ func (c *TransferQueryConfig) ToFilterQueries() []ethereum.FilterQuery {
 			hasERC1155 = true
 		}
 	}
+	return
+}
 
-	// Create optimized queries based on transfer types and direction
-	switch c.Direction {
-	case Send:
-		// Send direction: separate queries for each transfer type
-		// - ERC20/ERC721: [eventSignature, address] (2 topics)
-		// - ERC1155: [eventSignature, {}, address] (3 topics, omitting empty last topic)
+func buildSendQueries(fromBlock *big.Int, toBlock *big.Int, addressTopics []common.Hash, transferTypes []TransferType) []ethereum.FilterQuery {
+	var queries []ethereum.FilterQuery
 
+	// Send direction: separate queries for each transfer type
+	// - ERC20/ERC721: [eventSignature, address] (2 topics)
+	// - ERC1155: [eventSignature, {}, address] (3 topics, omitting empty last topic)
+
+	hasERC20, hasERC721, hasERC1155 := unpackTransferTypes(transferTypes)
+
+	if hasERC20 || hasERC721 {
+		queries = append(queries, buildFilterQuery(fromBlock, toBlock, [][]common.Hash{
+			{eventlog.ERC20TransferID}, // Match Transfer event signature (same for ERC20 and ERC721)
+			addressTopics,              // Match any of our addresses in 'from' field
+		}))
+	}
+
+	if hasERC1155 {
+		queries = append(queries, buildFilterQuery(fromBlock, toBlock, [][]common.Hash{
+			{eventlog.ERC1155TransferSingleID, eventlog.ERC1155TransferBatchID}, // Match either TransferSingle OR TransferBatch
+			{},            // Any operator
+			addressTopics, // Match any of our addresses in 'from' field
+		}))
+	}
+
+	return queries
+}
+
+func buildReceiveQueries(fromBlock *big.Int, toBlock *big.Int, addressTopics []common.Hash, transferTypes []TransferType) []ethereum.FilterQuery {
+	var queries []ethereum.FilterQuery
+
+	// Receive direction: separate queries for each transfer type
+	// - ERC20/ERC721: [eventSignature, {}, address] (3 topics)
+	// - ERC1155: [eventSignature, {}, {}, address] (4 topics)
+
+	hasERC20, hasERC721, hasERC1155 := unpackTransferTypes(transferTypes)
+
+	if hasERC20 || hasERC721 {
+		queries = append(queries, buildFilterQuery(fromBlock, toBlock, [][]common.Hash{
+			{eventlog.ERC20TransferID}, // Match Transfer event signature (same for ERC20 and ERC721)
+			{},                         // Any 'from' address
+			addressTopics,              // Match any of our addresses in 'to' field
+		}))
+	}
+
+	if hasERC1155 {
+		queries = append(queries, buildFilterQuery(fromBlock, toBlock, [][]common.Hash{
+			{eventlog.ERC1155TransferSingleID, eventlog.ERC1155TransferBatchID}, // Match either TransferSingle OR TransferBatch
+			{},            // Any operator
+			{},            // Any 'from' address
+			addressTopics, // Match any of our addresses in 'to' field
+		}))
+	}
+
+	return queries
+}
+
+func buildBothQueries(fromBlock *big.Int, toBlock *big.Int, addressTopics []common.Hash, transferTypes []TransferType) []ethereum.FilterQuery {
+	var queries []ethereum.FilterQuery
+
+	// Both direction: optimized with merging where possible
+	// - ERC20/ERC721 Send: [eventSignature, address] (2 topics)
+	// - Merged ERC20/ERC721 Receive + ERC1155 Send: [eventSignature, {}, address] (3 topics)
+	// - ERC1155 Receive: [eventSignature, {}, {}, address] (4 topics)
+
+	hasERC20, hasERC721, hasERC1155 := unpackTransferTypes(transferTypes)
+
+	// ERC20/ERC721 Send query
+	if hasERC20 || hasERC721 {
+		queries = append(queries, buildFilterQuery(fromBlock, toBlock, [][]common.Hash{
+			{eventlog.ERC20TransferID}, // Match Transfer event signature (same for ERC20 and ERC721)
+			addressTopics,              // Match any of our addresses in 'from' field
+		}))
+	}
+
+	// Merged ERC20/ERC721 Receive + ERC1155 Send query (only if we have both)
+	{
+		var eventSignatures []common.Hash
 		if hasERC20 || hasERC721 {
-			queries = append(queries, ethereum.FilterQuery{
-				FromBlock: c.FromBlock,
-				ToBlock:   c.ToBlock,
-				Topics: [][]common.Hash{
-					{erc20_721TransferSig}, // Match Transfer event signature
-					addressTopics,          // Match any of our addresses in 'from' field
-				},
-			})
+			eventSignatures = append(eventSignatures, eventlog.ERC20TransferID) // Transfer event signature (same for ERC20 and ERC721)
 		}
-
 		if hasERC1155 {
-			queries = append(queries, ethereum.FilterQuery{
-				FromBlock: c.FromBlock,
-				ToBlock:   c.ToBlock,
-				Topics: [][]common.Hash{
-					{erc1155TransferSingleSig, erc1155TransferBatchSig}, // Match either TransferSingle OR TransferBatch
-					{},            // Any operator
-					addressTopics, // Match any of our addresses in 'from' field
-				},
-			})
+			eventSignatures = append(eventSignatures, eventlog.ERC1155TransferSingleID, eventlog.ERC1155TransferBatchID)
 		}
 
-	case Receive:
-		// Receive direction: separate queries for each transfer type
-		// - ERC20/ERC721: [eventSignature, {}, address] (3 topics)
-		// - ERC1155: [eventSignature, {}, {}, address] (4 topics)
+		queries = append(queries, buildFilterQuery(fromBlock, toBlock, [][]common.Hash{
+			eventSignatures, // Match any of the event signatures
+			{},              // Any 'from' address (or operator for ERC1155)
+			addressTopics,   // Match any of our addresses in 'to' field
+		}))
+	}
 
-		if hasERC20 || hasERC721 {
-			queries = append(queries, ethereum.FilterQuery{
-				FromBlock: c.FromBlock,
-				ToBlock:   c.ToBlock,
-				Topics: [][]common.Hash{
-					{erc20_721TransferSig}, // Match Transfer event signature
-					{},                     // Any 'from' address
-					addressTopics,          // Match any of our addresses in 'to' field
-				},
-			})
-		}
-
-		if hasERC1155 {
-			queries = append(queries, ethereum.FilterQuery{
-				FromBlock: c.FromBlock,
-				ToBlock:   c.ToBlock,
-				Topics: [][]common.Hash{
-					{erc1155TransferSingleSig, erc1155TransferBatchSig}, // Match either TransferSingle OR TransferBatch
-					{},            // Any operator
-					{},            // Any 'from' address
-					addressTopics, // Match any of our addresses in 'to' field
-				},
-			})
-		}
-
-	case Both:
-		// Both directions: optimized with merging where possible
-		// - ERC20/ERC721 Send: [eventSignature, address] (2 topics)
-		// - Merged ERC20/ERC721 Receive + ERC1155 Send: [eventSignature, {}, address] (3 topics)
-		// - ERC1155 Receive: [eventSignature, {}, {}, address] (4 topics)
-
-		// ERC20/ERC721 Send query
-		if hasERC20 || hasERC721 {
-			queries = append(queries, ethereum.FilterQuery{
-				FromBlock: c.FromBlock,
-				ToBlock:   c.ToBlock,
-				Topics: [][]common.Hash{
-					{erc20_721TransferSig}, // Match Transfer event signature
-					addressTopics,          // Match any of our addresses in 'from' field
-				},
-			})
-		}
-
-		// Merged ERC20/ERC721 Receive + ERC1155 Send query (only if we have both)
-		{
-			var eventSignatures []common.Hash
-			if hasERC20 || hasERC721 {
-				eventSignatures = append(eventSignatures, erc20_721TransferSig)
-			}
-			if hasERC1155 {
-				eventSignatures = append(eventSignatures, erc1155TransferSingleSig, erc1155TransferBatchSig)
-			}
-
-			queries = append(queries, ethereum.FilterQuery{
-				FromBlock: c.FromBlock,
-				ToBlock:   c.ToBlock,
-				Topics: [][]common.Hash{
-					eventSignatures, // Match any of the event signatures
-					{},              // Any 'from' address (or operator for ERC1155)
-					addressTopics,   // Match any of our addresses in 'to' field
-				},
-			})
-		}
-
-		// ERC1155 Receive query
-		if hasERC1155 {
-			queries = append(queries, ethereum.FilterQuery{
-				FromBlock: c.FromBlock,
-				ToBlock:   c.ToBlock,
-				Topics: [][]common.Hash{
-					{erc1155TransferSingleSig, erc1155TransferBatchSig}, // Match either TransferSingle OR TransferBatch
-					{},            // Any operator
-					{},            // Any 'from' address
-					addressTopics, // Match any of our addresses in 'to' field
-				},
-			})
-		}
+	// ERC1155 Receive query
+	if hasERC1155 {
+		queries = append(queries, buildFilterQuery(fromBlock, toBlock, [][]common.Hash{
+			{eventlog.ERC1155TransferSingleID, eventlog.ERC1155TransferBatchID}, // Match either TransferSingle OR TransferBatch
+			{},            // Any operator
+			{},            // Any 'from' address
+			addressTopics, // Match any of our addresses in 'to' field
+		}))
 	}
 
 	return queries
