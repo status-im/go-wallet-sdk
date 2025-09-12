@@ -10,9 +10,11 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/balance/fetcher` | High‑performance balance fetcher for EVM‑compatible chains.  The package can fetch native token balances or ERC‑20 balances for multiple addresses in batches using smart fallback strategies. It includes automatic fallback strategies (Multicall3 contract or standard RPC batching) and exposes simple APIs to fetch balances for many addresses or tokens                                                             |
 | `pkg/multicall`       | Efficient batching of multiple Ethereum contract calls into single transactions using Multicall3. Supports native ETH, ERC20, ERC721, and ERC1155 balance queries with chunked processing, error handling, and both synchronous and asynchronous execution modes. |
 | `pkg/ethclient`       | Chain‑agnostic Ethereum JSON‑RPC client.  It provides two method sets: a drop‑in replacement compatible with go‑ethereum's `ethclient` and a custom implementation that follows the Ethereum JSON‑RPC specification without assuming chain‑specific types. It supports JSON‑RPC methods covering `eth_`, `net_` and `web3_` namespace |
+| `pkg/eventfilter`     | Efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls while capturing all relevant transfers involving specified addresses with optimized query generation and direction-based filtering. |
+| `pkg/eventlog`        | Ethereum event log parser for ERC20, ERC721, and ERC1155 events. Automatically detects and parses token events with type-safe access to event data, supporting Transfer, Approval, and other standard token events. |
 | `pkg/common`          | Shared types and constants. Such as canonical chain IDs (e.g., Ethereum Mainnet, Optimism, Arbitrum, BSC, Base). Developers use these values when configuring the SDK or examples.                               |
 | `pkg/contracts/`      | Solidity contracts and Go bindings for smart contract interactions. Includes Multicall3, ERC20, ERC721, and ERC1155 contracts with deployment addresses for multiple chains. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), and `multiclient3-usage` (demonstrates multicall functionality).                                             |                                                                                                                                                 |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), and `eventfilter-example` (shows event filtering and parsing capabilities).                                             |                                                                                                                                                 |
 
 ## 2. Architecture
 
@@ -22,6 +24,8 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Balance Fetcher** – Provides efficient methods to retrieve account balances (native or ERC‑20) across many addresses and tokens. It abstracts over RPC batch calls and Multicall3 contract calls. Developers supply a minimal RPC client interface (`RPCClient` and optionally `BatchCaller`) and the package returns a map of balances
 - **Multicall** – Efficiently batches multiple Ethereum contract calls into single transactions using Multicall3. Supports native ETH, ERC20, ERC721, and ERC1155 balance queries with automatic chunking, error handling, and both synchronous and asynchronous execution modes. Provides call builders and result processors for different token types.
 - **Ethereum Client** – Exposes the full Ethereum JSON‑RPC API. It wraps a standard RPC client and offers two sets of methods: chain‑agnostic versions prefixed with `Eth*` and a drop‑in `BalanceAt`, `BlockNumber` etc. that mirror go‑ethereum's ethclient. The client covers methods including network info, block and transaction queries, account state, contract code and gas estimation
+- **Event Filter** – Efficiently filters Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls through optimized query generation and supports direction-based filtering (send, receive, or both). Uses intelligent query merging to reduce the number of RPC calls required.
+- **Event Log Parser** – Automatically detects and parses Ethereum event logs for ERC20, ERC721, and ERC1155 tokens. Provides type-safe access to event data with support for Transfer, Approval, and other standard token events. Works seamlessly with the Event Filter package.
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
 
@@ -58,7 +62,27 @@ Internally, the client stores a reference to an RPC client and implements each m
 
 The `pkg/common` package defines shared types and enumerations. The main export is `type ChainID uint64` with constants for well‑known networks such as `EthereumMainnet`, `EthereumSepolia`, `OptimismMainnet`, `ArbitrumMainnet`, `BSCMainnet`, `BaseMainnet`, `BaseSepolia` and a custom `StatusNetworkSepolia`. These constants allow the examples to pre‑populate supported chains and label results without repeating numeric IDs.
 
-### 2.6 Contract Bindings
+### 2.6 Event Filter Design
+
+The event filter package (`pkg/eventfilter`) is designed to efficiently query Ethereum transfer events while minimizing API calls:
+
+- **Multi-Token Support** – Supports ERC20, ERC721, and ERC1155 transfer events through a unified interface. Uses standardized event signatures from the `eventlog` package for consistent event detection.
+- **Direction-Based Filtering** – Allows filtering by transfer direction (send, receive, or both) by constructing appropriate topic filters. Send direction queries match addresses in the 'from' field, while receive direction queries match addresses in the 'to' field.
+- **Query Optimization** – Intelligently merges compatible queries to minimize the number of `eth_getLogs` calls. ERC20 and ERC721 transfers share the same event signature and can be combined in single queries. The package uses OR operations to merge multiple event types when possible.
+- **Topic Structure Optimization** – Constructs efficient topic filters by omitting empty trailing topics and using appropriate topic positions for different event types. ERC20/ERC721 transfers use 2-3 topics while ERC1155 transfers use 3-4 topics depending on direction.
+- **Chain-Agnostic** – Works with any EVM-compatible chain by using standard event signatures and topic structures. No chain-specific logic or assumptions.
+
+### 2.7 Event Log Parser Design
+
+The event log parser package (`pkg/eventlog`) provides automatic detection and parsing of Ethereum event logs:
+
+- **Multi-Contract Support** – Automatically detects and parses events from ERC20, ERC721, and ERC1155 contracts using a registry-based approach. Each contract type has dedicated parsers that handle their specific event structures.
+- **Type-Safe Access** – Provides strongly-typed access to parsed event data through the `Unpacked` field. Each event type is parsed into its corresponding Go struct (e.g., `Erc20Transfer`, `Erc721Transfer`, `Erc1155TransferSingle`).
+- **Event Detection** – Uses event signatures and topic patterns to identify event types. Supports all standard token events including Transfer, Approval, ApprovalForAll, and URI events.
+- **Integration** – Designed to work seamlessly with the Event Filter package. The `FilterTransfers` function returns parsed events ready for application use.
+- **Error Handling** – Gracefully handles unknown or malformed events by returning empty slices. Safe to use with any log data without causing panics.
+
+### 2.8 Contract Bindings
 
 The `pkg/contracts` package provides Go bindings for smart contracts and deployment utilities:
 
@@ -330,6 +354,94 @@ Converts Go `ethereum.FilterQuery` structs into JSON-RPC filter objects:
 
 This enables `EthGetLogs`, `EthNewFilter`, and other event filtering methods to work correctly across all EVM chains.
 
+### 3.3 Event Filter API (`pkg/eventfilter`)
+
+The event filter package provides efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens.
+
+#### 3.3.1 Configuration
+
+| Type | Description | Values |
+|------|-------------|---------|
+| `TransferType` | Token type to filter | `TransferTypeERC20`, `TransferTypeERC721`, `TransferTypeERC1155` |
+| `Direction` | Transfer direction | `Send`, `Receive`, `Both` |
+| `TransferQueryConfig` | Main configuration struct | See below |
+
+#### 3.3.2 TransferQueryConfig
+
+```go
+type TransferQueryConfig struct {
+    FromBlock     *big.Int           // Start block number
+    ToBlock       *big.Int           // End block number  
+    Accounts      []common.Address   // Addresses to filter for
+    TransferTypes []TransferType     // Token types to include
+    Direction     Direction          // Transfer direction filter
+}
+```
+
+#### 3.3.3 Core Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `FilterTransfers(client, config)` | Filter and parse transfer events | `client`: `FilterClient`, `config`: `TransferQueryConfig` | `[]eventlog.Event`, `error` |
+| `config.ToFilterQueries()` | Generate optimized filter queries | `config`: `TransferQueryConfig` | `[]ethereum.FilterQuery` |
+
+#### 3.3.4 FilterClient Interface
+
+```go
+type FilterClient interface {
+    FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error)
+}
+```
+
+#### 3.3.5 Query Optimization
+
+The package minimizes API calls through intelligent query merging:
+
+- **Single Transfer Types**: 1-2 queries (Send + Receive)
+- **Mixed Transfer Types**: 2-3 queries maximum
+- **Event Signature Merging**: Multiple event types in single query using OR operations
+- **Topic Structure Optimization**: Merges compatible queries by omitting empty trailing topics
+
+### 3.4 Event Log Parser API (`pkg/eventlog`)
+
+The event log parser package provides automatic detection and parsing of Ethereum event logs.
+
+#### 3.4.1 Core Types
+
+```go
+type Event struct {
+    ContractKey ContractKey  // "erc20", "erc721", or "erc1155"
+    ContractABI *abi.ABI     // Full contract ABI
+    EventKey    EventKey     // Specific event type
+    ABIEvent    *abi.Event   // ABI event definition
+    Unpacked    any          // Type-safe parsed event data
+}
+
+type ContractKey string
+type EventKey string
+```
+
+#### 3.4.2 Core Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `ParseLog(log)` | Parse a single log into events | `log`: `types.Log` | `[]Event` |
+
+#### 3.4.3 Supported Events
+
+| Contract | Event Types | Unpacked Type |
+|----------|-------------|---------------|
+| ERC20 | Transfer, Approval | `erc20.Erc20Transfer`, `erc20.Erc20Approval` |
+| ERC721 | Transfer, Approval, ApprovalForAll | `erc721.Erc721Transfer`, `erc721.Erc721Approval`, `erc721.Erc721ApprovalForAll` |
+| ERC1155 | TransferSingle, TransferBatch, ApprovalForAll, URI | `erc1155.Erc1155TransferSingle`, `erc1155.Erc1155TransferBatch`, `erc1155.Erc1155ApprovalForAll`, `erc1155.Erc1155URI` |
+
+#### 3.4.4 Event Signatures
+
+Uses standardized signatures from the `eventlog` package:
+- **ERC20/ERC721 Transfer**: `0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef`
+- **ERC1155 TransferSingle**: `0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62`
+- **ERC1155 TransferBatch**: `0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb`
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -436,6 +548,18 @@ The `examples/ethclient-usage` folder shows how to use the Ethereum client acros
 - **Configuration** – The example includes defaults for Ethereum Mainnet, Optimism, Arbitrum and Sepolia but can be configured to use Infura, Alchemy or local nodes by setting `ETH_RPC_ENDPOINTS` ENV variable.
 
 - **Code Structure** – The example is split into `main.go`, which loops over endpoints, and helper functions such as `testRPC()` that call various methods and handle errors.
+
+### 4.4 Event Filter Example
+
+The `examples/eventfilter-example` folder demonstrates how to use the event filter and event log parser packages to detect and display transfer events for specific accounts.
+
+- **Features** – The example provides a command-line interface with flexible options for filtering transfer events. It supports multi-token filtering (ERC20, ERC721, and ERC1155), direction-based filtering (send, receive, or both), and comprehensive transfer details extraction. The example shows enhanced formatting with shortened addresses and scientific notation for large numbers, raw event metadata including event signatures and log properties, and debug information showing contract keys and unpacked types.
+
+- **Usage** – Users can specify an account address, block range, and optional RPC endpoint. The example supports filtering by direction and displays detailed information about each transfer event found. Command-line options include `-account` (required), `-start` and `-end` block numbers (required), `-rpc` for custom endpoints, and `-direction` for filtering.
+
+- **Output Format** – The example displays transfers grouped by token type with comprehensive details extracted from the `Unpacked` field. It shows block numbers, transaction hashes, addresses, amounts, token IDs, contract addresses, log indices, event signatures, and other metadata. Raw event data is also displayed for debugging purposes.
+
+- **Integration** – The example demonstrates the seamless integration between the `eventfilter` and `eventlog` packages, showing how to filter events and parse them into type-safe Go structs for application use.
 
 ## 5. Testing & Development
 
