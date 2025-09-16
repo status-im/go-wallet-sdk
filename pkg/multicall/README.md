@@ -14,11 +14,21 @@ calls := []multicall3.IMulticall3Call{
     multicall.BuildERC721BalanceCall(account, nftAddr),
 }
 
+// Create job with call result function
+job := multicall.Job{
+    Calls: calls,
+    CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+        return multicall.ProcessNativeBalanceResult(result)
+    },
+}
+
 // Execute synchronously
-results := multicall.RunSync(ctx, [][]multicall3.IMulticall3Call{calls}, blockNumber, caller, batchSize)
+results := multicall.RunSync(ctx, []multicall.Job{job}, blockNumber, caller, batchSize)
 
 // Process results
-balance, err := multicall.ProcessNativeBalanceResult(results[0].Results[0])
+if len(results) > 0 && len(results[0].Results) > 0 {
+    balance, err := results[0].Results[0].Value.(*big.Int), results[0].Results[0].Err
+}
 ```
 
 ## Features
@@ -28,8 +38,15 @@ balance, err := multicall.ProcessNativeBalanceResult(results[0].Results[0])
 - **Chunked Processing**: Automatic batching for large call sets
 - **Error Handling**: Graceful failure handling with detailed error reporting
 - **Async Support**: Both synchronous and asynchronous execution modes
+- **Job-based API**: Flexible job system with custom result processing functions
 
 ## API
+
+### Types
+- `Job` - Contains calls and a result processing function
+- `JobResult` - Contains processed results, block info, and errors
+- `CallResult` - Individual call result with value and error
+- `Caller` - Interface for executing multicall operations
 
 ### Call Builders
 - `BuildNativeBalanceCall()` - Get ETH balance
@@ -38,8 +55,9 @@ balance, err := multicall.ProcessNativeBalanceResult(results[0].Results[0])
 - `BuildERC1155BalanceCall()` - Get ERC1155 token balance
 
 ### Execution
-- `RunSync()` - Execute calls synchronously, returns results
-- `ProcessJobRunners()` - Used to execute calls asynchronously, get results via channels
+- `RunSync()` - Execute jobs synchronously, returns `[]JobResult`
+- `RunAsync()` - Execute jobs asynchronously, returns channel of `JobsResult`
+- `ProcessJobs()` - Internal function for processing jobs
 
 ### Result Processing
 - `ProcessNativeBalanceResult()` - Parse ETH balance from result
@@ -65,18 +83,81 @@ tokenCalls := []multicall3.IMulticall3Call{
     multicall.BuildERC20BalanceCall(account3, daiAddr),
 }
 
-results := multicall.RunSync(ctx, [][]multicall3.IMulticall3Call{nativeCalls, tokenCalls}, blockNum, caller, 100)
+// Create jobs with appropriate result processing functions
+jobs := []multicall.Job{
+    {
+        Calls: nativeCalls,
+        CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+            return multicall.ProcessNativeBalanceResult(result)
+        },
+    },
+    {
+        Calls: tokenCalls,
+        CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+            return multicall.ProcessERC20BalanceResult(result)
+        },
+    },
+}
+
+results := multicall.RunSync(ctx, jobs, blockNum, caller, 100)
 
 // Process native balances
-for _, result := results[0] {
-  nativeBalance, err := multicall.ProcessNativeBalanceResult(result)
-  // Do something
+for _, callResult := range results[0].Results {
+    if callResult.Err != nil {
+        // Handle error
+        continue
+    }
+    nativeBalance := callResult.Value.(*big.Int)
+    // Do something with balance
 }
 
 // Process token balances
-for _, result := results[1] {
-  tokenBalance, err := multicall.ProcessERC20BalanceResult(result)
-  // Do something
+for _, callResult := range results[1].Results {
+    if callResult.Err != nil {
+        // Handle error
+        continue
+    }
+    tokenBalance := callResult.Value.(*big.Int)
+    // Do something with balance
 }
 
+// Access block information
+blockNumber := results[0].BlockNumber
+blockHash := results[0].BlockHash
+```
+
+## Async Example
+
+```go
+// Execute jobs asynchronously
+resultsCh := multicall.RunAsync(ctx, jobs, blockNum, caller, 100)
+
+// Process results as they come in
+for result := range resultsCh {
+    jobIdx := result.JobIdx
+    jobResult := result.JobResult
+    
+    if jobResult.Err != nil {
+        // Handle job-level error
+        continue
+    }
+    
+    // Process individual call results
+    for _, callResult := range jobResult.Results {
+        if callResult.Err != nil {
+            // Handle call-level error
+            continue
+        }
+        
+        // Process the result based on job type
+        switch jobIdx {
+        case 0: // Native balance job
+            balance := callResult.Value.(*big.Int)
+            // Process native balance
+        case 1: // Token balance job
+            balance := callResult.Value.(*big.Int)
+            // Process token balance
+        }
+    }
+}
 ```

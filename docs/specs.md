@@ -44,9 +44,9 @@ The balance fetcher is designed to efficiently query balances for many addresses
 The multicall package is designed to efficiently batch multiple Ethereum contract calls into single transactions using Multicall3. Its design includes:
 
 - **Call Builders** – Provides functions to build calls for different token types (native ETH, ERC20, ERC721, ERC1155). Each builder creates properly encoded call data for the specific contract function.
-- **Job Runner System** – Supports both synchronous (`RunSync`) and asynchronous (`ProcessJobRunners`) execution modes. The system automatically chunks large call sets into manageable batches to avoid transaction size limits.
-- **Error Handling** – Graceful failure handling with detailed error reporting. Individual call failures don't cause the entire batch to fail, allowing partial results to be processed.
-- **Result Processing** – Provides dedicated result processors for each token type that decode the raw return data into appropriate Go types (`*big.Int` for balances).
+- **Job-based System** – Uses a flexible job system where each job contains a set of calls and a result processing function. Supports both synchronous (`RunSync`) and asynchronous (`RunAsync`) execution modes. The system automatically chunks large call sets into manageable batches to avoid transaction size limits.
+- **Error Handling** – Graceful failure handling with detailed error reporting. Individual call failures don't cause the entire batch to fail, allowing partial results to be processed. Each job can have its own error handling strategy.
+- **Result Processing** – Each job specifies its own result processing function (`CallResultFn`) that decodes the raw return data into appropriate Go types. Provides dedicated result processors for each token type that decode the raw return data into appropriate Go types (`*big.Int` for balances).
 - **Chain Support** – Works with any EVM-compatible chain that has Multicall3 deployed, with automatic address resolution based on chain ID.
 
 ### 2.4 Ethereum Client Design
@@ -109,8 +109,8 @@ The multicall package provides efficient batching of multiple Ethereum contract 
 
 | Function | Purpose | Parameters | Returns |
 |----------|---------|------------|---------|
-| `RunSync(ctx, jobs, atBlock, caller, batchSize)` | Execute calls synchronously | `ctx`: `context.Context`, `jobs`: `[][]multicall3.IMulticall3Call`, `atBlock`: `*big.Int`, `caller`: `Caller`, `batchSize`: `int` | `[]JobResult` |
-| `ProcessJobRunners(ctx, jobRunners, atBlock, caller, batchSize)` | Execute calls asynchronously | `ctx`: `context.Context`, `jobRunners`: `[]JobRunner`, `atBlock`: `*big.Int`, `caller`: `Caller`, `batchSize`: `int` | `void` |
+| `RunSync(ctx, jobs, atBlock, caller, batchSize)` | Execute jobs synchronously | `ctx`: `context.Context`, `jobs`: `[]Job`, `atBlock`: `*big.Int`, `caller`: `Caller`, `batchSize`: `int` | `[]JobResult` |
+| `RunAsync(ctx, jobs, atBlock, caller, batchSize)` | Execute jobs asynchronously | `ctx`: `context.Context`, `jobs`: `[]Job`, `atBlock`: `*big.Int`, `caller`: `Caller`, `batchSize`: `int` | `<-chan JobsResult` |
 
 #### 3.1.3 Result Processing
 
@@ -124,16 +124,26 @@ The multicall package provides efficient batching of multiple Ethereum contract 
 #### 3.1.4 Types
 
 ```go
+type Job struct {
+    Calls        []multicall3.IMulticall3Call
+    CallResultFn func(multicall3.IMulticall3Result) (any, error)
+}
+
+type CallResult struct {
+    Value any
+    Err   error
+}
+
 type JobResult struct {
-    Results     []multicall3.IMulticall3Result
+    Results     []CallResult
     Err         error
     BlockNumber *big.Int
     BlockHash   common.Hash
 }
 
-type JobRunner struct {
-    Job      []multicall3.IMulticall3Call
-    ResultCh chan<- JobResult
+type JobsResult struct {
+    JobIdx    int
+    JobResult JobResult
 }
 
 type Caller interface {
@@ -494,30 +504,43 @@ func main() {
         common.HexToAddress("0x6B175474E89094C44Da98b954EedeAC495271d0F"), // DAI
     }
     
-    // Build native balance calls
+    // Create native balance job
     nativeCalls := make([]multicall3.IMulticall3Call, 0, len(accounts))
     for _, account := range accounts {
         nativeCalls = append(nativeCalls, multicall.BuildNativeBalanceCall(account, multicallAddr))
     }
+    nativeJob := multicall.Job{
+        Calls: nativeCalls,
+        CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+            return multicall.ProcessNativeBalanceResult(result)
+        },
+    }
     
-    // Build ERC20 balance calls
+    // Create ERC20 balance job
     tokenCalls := make([]multicall3.IMulticall3Call, 0, len(accounts)*len(tokens))
     for _, account := range accounts {
         for _, token := range tokens {
             tokenCalls = append(tokenCalls, multicall.BuildERC20BalanceCall(account, token))
         }
     }
+    tokenJob := multicall.Job{
+        Calls: tokenCalls,
+        CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+            return multicall.ProcessERC20BalanceResult(result)
+        },
+    }
     
-    // Execute calls synchronously
-    results := multicall.RunSync(ctx, [][]multicall3.IMulticall3Call{nativeCalls, tokenCalls}, nil, caller, 100)
+    // Execute jobs synchronously
+    jobs := []multicall.Job{nativeJob, tokenJob}
+    results := multicall.RunSync(ctx, jobs, nil, caller, 100)
     
     // Process native balance results
-    for i, result := range results[0].Results {
-        balance, err := multicall.ProcessNativeBalanceResult(result)
-        if err != nil {
-            fmt.Printf("Error processing native balance for account %d: %v\n", i, err)
+    for i, callResult := range results[0].Results {
+        if callResult.Err != nil {
+            fmt.Printf("Error processing native balance for account %d: %v\n", i, callResult.Err)
             continue
         }
+        balance := callResult.Value.(*big.Int)
         fmt.Printf("Account %s native balance: %s wei\n", accounts[i].Hex(), balance.String())
     }
     
@@ -525,17 +548,25 @@ func main() {
     callIndex := 0
     for _, account := range accounts {
         for _, token := range tokens {
-            result := results[1].Results[callIndex]
-            balance, err := multicall.ProcessERC20BalanceResult(result)
-            if err != nil {
-                fmt.Printf("Error processing token balance: %v\n", err)
+            callResult := results[1].Results[callIndex]
+            if callResult.Err != nil {
+                fmt.Printf("Error processing token balance: %v\n", callResult.Err)
                 callIndex++
                 continue
             }
+            balance := callResult.Value.(*big.Int)
             fmt.Printf("Account %s token %s balance: %s\n", account.Hex(), token.Hex(), balance.String())
             callIndex++
         }
     }
+    
+    // Alternative: Execute jobs asynchronously
+    // resultsCh := multicall.RunAsync(ctx, jobs, nil, caller, 100)
+    // for result := range resultsCh {
+    //     jobIdx := result.JobIdx
+    //     jobResult := result.JobResult
+    //     // Process results as they become available
+    // }
 }
 ```
 

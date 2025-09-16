@@ -3,7 +3,7 @@ module github.com/status-im/go-wallet-sdk/examples/multiclient3-usage
 go 1.23.0
 
 require (
-	github.com/ethereum/go-ethereum v1.16.0
+	github.com/ethereum/go-ethereum v1.16.3
 	github.com/status-im/go-wallet-sdk v0.0.0
 )
 
