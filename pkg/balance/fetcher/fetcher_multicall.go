@@ -41,7 +41,11 @@ func FetchNativeBalancesWithMulticall(
 			return nil, result.Err
 		}
 		for i, accountAddress := range accountAddresses {
-			balance, ok := result.Results[i].Value.(*big.Int)
+			callResult := result.Results[i]
+			if callResult.Err != nil {
+				continue // Skip failed individual calls
+			}
+			balance, ok := callResult.Value.(*big.Int)
 			if !ok {
 				continue
 			}
@@ -86,8 +90,14 @@ func FetchErc20BalancesWithMulticall(
 		idx := 0
 		for _, accountAddress := range accountAddresses {
 			for _, tokenAddress := range tokenAddresses {
-				balance, ok := result.Results[idx].Value.(*big.Int)
+				callResult := result.Results[idx]
+				if callResult.Err != nil {
+					idx++
+					continue // Skip failed individual calls
+				}
+				balance, ok := callResult.Value.(*big.Int)
 				if !ok {
+					idx++
 					continue
 				}
 				balances[accountAddress][tokenAddress] = balance

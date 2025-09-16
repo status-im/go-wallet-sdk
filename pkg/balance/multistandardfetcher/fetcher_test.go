@@ -276,9 +276,10 @@ func TestFetchBalances_ERC20Balances_MultipleAccounts(t *testing.T) {
 	var account1Result, account2Result multistandardfetcher.FetchResult
 	for _, result := range results {
 		erc20Result := result.Result.(multistandardfetcher.ERC20Result)
-		if erc20Result.Account == account1 {
+		switch erc20Result.Account {
+		case account1:
 			account1Result = result
-		} else if erc20Result.Account == account2 {
+		case account2:
 			account2Result = result
 		}
 	}
@@ -443,9 +444,10 @@ func TestFetchBalances_ERC1155Balances_Success(t *testing.T) {
 	// Find the correct hashable collectible IDs
 	var collectibleID1, collectibleID2 multistandardfetcher.HashableCollectibleID
 	for hashableID := range erc1155Result.Results {
-		if hashableID.ContractAddress == contract1 {
+		switch hashableID.ContractAddress {
+		case contract1:
 			collectibleID1 = hashableID
-		} else if hashableID.ContractAddress == contract2 {
+		case contract2:
 			collectibleID2 = hashableID
 		}
 	}
