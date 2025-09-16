@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/status-im/go-wallet-sdk/pkg/balance/multistandardfetcher"
@@ -47,9 +48,12 @@ func TestFetchBalances_NativeBalances_Success(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
-		Return(expectedBlockNumber, expectedBlockHash, expectedResults, nil)
+		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
+			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
+		})
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -112,9 +116,12 @@ func TestFetchBalances_NativeBalances_Error(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
-		Return(nil, [32]byte{}, nil, expectedError)
+		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
+			return nil, [32]byte{}, nil, expectedError
+		})
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -175,9 +182,12 @@ func TestFetchBalances_ERC20Balances_Success(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
-		Return(expectedBlockNumber, expectedBlockHash, expectedResults, nil)
+		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
+			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
+		})
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -247,9 +257,12 @@ func TestFetchBalances_ERC20Balances_MultipleAccounts(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
-		Return(expectedBlockNumber, expectedBlockHash, expectedResults, nil)
+		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
+			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
+		})
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -332,9 +345,12 @@ func TestFetchBalances_ERC721Balances_Success(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
-		Return(expectedBlockNumber, expectedBlockHash, expectedResults, nil)
+		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
+			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
+		})
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -403,9 +419,12 @@ func TestFetchBalances_ERC1155Balances_Success(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
-		Return(expectedBlockNumber, expectedBlockHash, expectedResults, nil)
+		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
+			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
+		})
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -492,9 +511,12 @@ func TestFetchBalances_MixedBalanceTypes(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
-		Return(expectedBlockNumber, expectedBlockHash, expectedResults, nil)
+		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
+			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
+		})
 
 	// Create config with mixed balance types
 	config := multistandardfetcher.FetchConfig{
@@ -623,9 +645,10 @@ func TestFetchBalances_ContextCancellation(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
 		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
 			cancel() // Cancel the context during the call
 			return nil, [32]byte{}, nil, context.Canceled
 		})
@@ -680,9 +703,12 @@ func TestFetchBalances_CallFailure(t *testing.T) {
 		ViewTryBlockAndAggregate(
 			gomock.Any(),
 			false,
-			expectedCalls,
+			gomock.Any(),
 		).
-		Return(expectedBlockNumber, expectedBlockHash, expectedResults, nil)
+		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			require.ElementsMatch(t, calls, expectedCalls)
+			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
+		})
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
