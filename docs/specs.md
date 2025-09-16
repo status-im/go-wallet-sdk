@@ -14,7 +14,7 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/eventlog`        | Ethereum event log parser for ERC20, ERC721, and ERC1155 events. Automatically detects and parses token events with type-safe access to event data, supporting Transfer, Approval, and other standard token events. |
 | `pkg/common`          | Shared types and constants. Such as canonical chain IDs (e.g., Ethereum Mainnet, Optimism, Arbitrum, BSC, Base). Developers use these values when configuring the SDK or examples.                               |
 | `pkg/contracts/`      | Solidity contracts and Go bindings for smart contract interactions. Includes Multicall3, ERC20, ERC721, and ERC1155 contracts with deployment addresses for multiple chains. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), and `eventfilter-example` (shows event filtering and parsing capabilities).                                             |                                                                                                                                                 |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), and `eventfilter-example` (shows event filtering and parsing capabilities).                                             |                                                                                                                                                 |
 
 ## 2. Architecture
 
@@ -590,7 +590,21 @@ The `examples/ethclient-usage` folder shows how to use the Ethereum client acros
 
 - **Code Structure** – The example is split into `main.go`, which loops over endpoints, and helper functions such as `testRPC()` that call various methods and handle errors.
 
-### 4.4 Event Filter Example
+### 4.4 Multi-Standard Fetcher Example
+
+The `examples/multistandardfetcher-example` folder demonstrates how to use the multistandardfetcher package to fetch balances across all token standards (Native ETH, ERC20, ERC721, ERC1155) for a specific address using Multicall3 batched calls.
+
+- **Features** – The example fetches native ETH balance, queries ERC20 token balances for popular tokens (USDC, DAI, USDT, WBTC, LINK, UNI, MATIC, SHIB), checks ERC721 NFT balances for well-known collections (BAYC, MAYC, CryptoPunks, Azuki, Moonbirds, Doodles), and retrieves ERC1155 collectible balances from popular contracts. It displays results in a formatted report with token symbols and readable balances.
+
+- **Usage** – Users set the `RPC_URL` environment variable and run the example. The program automatically queries vitalik.eth's balances across all token standards and displays a comprehensive report showing native ETH, ERC20 tokens, ERC721 NFTs, and ERC1155 collectibles with non-zero balances.
+
+- **Multi-Standard Support** – Demonstrates the unified interface for fetching balances across different token standards in a single operation, leveraging the underlying multicall package for efficient batching.
+
+- **Output Format** – The example displays a clean, formatted report with sections for each token type, showing token symbols, balances, and summary statistics. It includes proper error handling and graceful degradation when calls fail.
+
+- **Integration** – The example demonstrates the seamless integration between the `multistandardfetcher` and `multicall` packages, showing how to efficiently fetch balances across multiple token standards with minimal RPC calls.
+
+### 4.5 Event Filter Example
 
 The `examples/eventfilter-example` folder demonstrates how to use the event filter and event log parser packages to detect and display transfer events for specific accounts with concurrent processing.
 
