@@ -38,6 +38,16 @@ func (c *TransferQueryConfig) ToFilterQueries() []ethereum.FilterQuery {
 	// FilterQuery should match Transfer events of the given types, with
 	// any of the given addresses in the from/to fields
 
+	// Transfer types need to be specified
+	if len(c.TransferTypes) == 0 {
+		return nil
+	}
+
+	// If both are specified, FromBlock must not be greater than ToBlock
+	if c.FromBlock != nil && c.ToBlock != nil && c.FromBlock.Cmp(c.ToBlock) > 0 {
+		return nil
+	}
+
 	// Convert addresses to topic format (32-byte padded)
 	var addressTopics []common.Hash
 	for _, addr := range c.Accounts {

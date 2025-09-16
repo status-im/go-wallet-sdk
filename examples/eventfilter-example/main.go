@@ -150,9 +150,9 @@ func main() {
 		Direction: dir,
 	}
 
-	// Filter transfer events
+	// Filter transfer events with concurrent processing
 	fmt.Println("Filtering transfer events...")
-	events, err := eventfilter.FilterTransfers(client, config)
+	events, err := eventfilter.FilterTransfers(context.Background(), client, config)
 	if err != nil {
 		log.Fatalf("Failed to filter events: %v", err)
 	}

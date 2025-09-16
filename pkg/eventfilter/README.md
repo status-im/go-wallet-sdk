@@ -1,26 +1,31 @@
 # EventFilter
 
-Efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls while capturing all relevant transfers involving specified addresses.
+Efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls while capturing all relevant transfers involving specified addresses with concurrent processing capabilities.
 
 ## Features
 
 - **Multi-Token Support**: ERC20, ERC721, and ERC1155 transfers
 - **Direction Filtering**: Send, receive, or both directions
+- **Concurrent Processing**: Parallel execution of multiple filter queries for improved performance
 - **Optimized Queries**: Uses FilterQuery OR operations to minimize API calls
 - **Address-Based Filtering**: Capture transfers involving any specified addresses
+- **Contract Filtering**: Optional filtering by specific contract addresses
 - **Clean API**: Simple switch-based implementation for easy maintenance
 
 ## Usage
 
+### Basic Usage with FilterTransfers
+
 ```go
 import (
+    "context"
     "math/big"
     "github.com/ethereum/go-ethereum/common"
     "github.com/status-im/go-wallet-sdk/pkg/eventfilter"
 )
 
 // Create filter configuration
-config := &eventfilter.TransferQueryConfig{
+config := eventfilter.TransferQueryConfig{
     FromBlock:     big.NewInt(18000000),
     ToBlock:       big.NewInt(18001000),
     Accounts:      []common.Address{common.HexToAddress("0x1234...")},
@@ -32,11 +37,45 @@ config := &eventfilter.TransferQueryConfig{
     Direction: eventfilter.Both, // Send, Receive, or Both
 }
 
-// Generate optimized filter queries
+// Filter and parse events with concurrent processing
+events, err := eventfilter.FilterTransfers(ctx, client, config)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Process events...
+for _, event := range events {
+    // Access parsed event data via event.Unpacked
+}
+```
+
+### Manual Query Generation
+
+```go
+// Generate optimized filter queries manually
 queries := config.ToFilterQueries()
+
+// Execute queries manually
+for _, query := range queries {
+    logs, err := client.FilterLogs(ctx, query)
+    // Process logs...
+}
 ```
 
 ## Configuration Options
+
+### TransferQueryConfig
+
+```go
+type TransferQueryConfig struct {
+    FromBlock         *big.Int           // Start block number
+    ToBlock           *big.Int           // End block number  
+    ContractAddresses []common.Address   // Optional contract addresses to filter
+    Accounts          []common.Address   // Addresses to filter for
+    TransferTypes     []TransferType     // Token types to include
+    Direction         Direction          // Transfer direction filter
+}
+```
 
 ### Direction
 - **`Send`**: Only transfers where specified addresses are the sender
@@ -47,6 +86,11 @@ queries := config.ToFilterQueries()
 - **`TransferTypeERC20`**: ERC20 token transfers
 - **`TransferTypeERC721`**: ERC721 NFT transfers
 - **`TransferTypeERC1155`**: ERC1155 multi-token transfers
+
+### Contract Filtering
+- **`ContractAddresses`**: Optional slice of contract addresses to filter by
+- If empty, searches all contracts
+- If specified, only events from these contracts are returned
 
 ## Query Efficiency
 
@@ -83,9 +127,36 @@ The package minimizes API calls through intelligent query merging:
 
 ## Integration
 
+### With go-ethereum client
+
 ```go
-// Use with go-ethereum client
+import (
+    "github.com/ethereum/go-ethereum/ethclient"
+    "github.com/status-im/go-wallet-sdk/pkg/eventfilter"
+)
+
+// Create client
 client, _ := ethclient.Dial("https://mainnet.infura.io/v3/YOUR_KEY")
+
+// Use FilterTransfers for concurrent processing
+events, err := eventfilter.FilterTransfers(ctx, client, config)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Process events
+for _, event := range events {
+    // Access parsed event data via event.Unpacked
+}
+```
+
+### Manual query execution
+
+```go
+// Generate queries manually
+queries := config.ToFilterQueries()
+
+// Execute queries sequentially
 for _, query := range queries {
     logs, err := client.FilterLogs(context.Background(), query)
     // Process logs...

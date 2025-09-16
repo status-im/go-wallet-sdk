@@ -356,7 +356,7 @@ This enables `EthGetLogs`, `EthNewFilter`, and other event filtering methods to 
 
 ### 3.3 Event Filter API (`pkg/eventfilter`)
 
-The event filter package provides efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens.
+The event filter package provides efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens with concurrent processing capabilities.
 
 #### 3.3.1 Configuration
 
@@ -370,11 +370,12 @@ The event filter package provides efficient filtering for Ethereum transfer even
 
 ```go
 type TransferQueryConfig struct {
-    FromBlock     *big.Int           // Start block number
-    ToBlock       *big.Int           // End block number  
-    Accounts      []common.Address   // Addresses to filter for
-    TransferTypes []TransferType     // Token types to include
-    Direction     Direction          // Transfer direction filter
+    FromBlock         *big.Int           // Start block number
+    ToBlock           *big.Int           // End block number  
+    ContractAddresses []common.Address   // Optional contract addresses to filter
+    Accounts          []common.Address   // Addresses to filter for
+    TransferTypes     []TransferType     // Token types to include
+    Direction         Direction          // Transfer direction filter
 }
 ```
 
@@ -382,7 +383,7 @@ type TransferQueryConfig struct {
 
 | Function | Purpose | Parameters | Returns |
 |----------|---------|------------|---------|
-| `FilterTransfers(client, config)` | Filter and parse transfer events | `client`: `FilterClient`, `config`: `TransferQueryConfig` | `[]eventlog.Event`, `error` |
+| `FilterTransfers(ctx, client, config)` | Filter and parse transfer events with concurrent processing | `ctx`: `context.Context`, `client`: `FilterClient`, `config`: `TransferQueryConfig` | `[]eventlog.Event`, `error` |
 | `config.ToFilterQueries()` | Generate optimized filter queries | `config`: `TransferQueryConfig` | `[]ethereum.FilterQuery` |
 
 #### 3.3.4 FilterClient Interface
@@ -393,7 +394,16 @@ type FilterClient interface {
 }
 ```
 
-#### 3.3.5 Query Optimization
+#### 3.3.5 Concurrent Processing
+
+The `FilterTransfers` function provides concurrent processing of filter queries:
+
+- **Parallel Execution**: Multiple filter queries are executed concurrently using goroutines
+- **Error Aggregation**: All query errors are collected and returned as a single joined error
+- **Event Collection**: Results from all queries are merged into a single event slice
+- **Resource Management**: Proper cleanup of goroutines and channels
+
+#### 3.3.6 Query Optimization
 
 The package minimizes API calls through intelligent query merging:
 
@@ -551,15 +561,17 @@ The `examples/ethclient-usage` folder shows how to use the Ethereum client acros
 
 ### 4.4 Event Filter Example
 
-The `examples/eventfilter-example` folder demonstrates how to use the event filter and event log parser packages to detect and display transfer events for specific accounts.
+The `examples/eventfilter-example` folder demonstrates how to use the event filter and event log parser packages to detect and display transfer events for specific accounts with concurrent processing.
 
-- **Features** – The example provides a command-line interface with flexible options for filtering transfer events. It supports multi-token filtering (ERC20, ERC721, and ERC1155), direction-based filtering (send, receive, or both), and comprehensive transfer details extraction. The example shows enhanced formatting with shortened addresses and scientific notation for large numbers, raw event metadata including event signatures and log properties, and debug information showing contract keys and unpacked types.
+- **Features** – The example provides a command-line interface with flexible options for filtering transfer events. It supports multi-token filtering (ERC20, ERC721, and ERC1155), direction-based filtering (send, receive, or both), and comprehensive transfer details extraction. The example uses the new `FilterTransfers` function for concurrent processing of multiple filter queries, enhanced formatting with shortened addresses and scientific notation for large numbers, raw event metadata including event signatures and log properties, and debug information showing contract keys and unpacked types.
 
 - **Usage** – Users can specify an account address, block range, and optional RPC endpoint. The example supports filtering by direction and displays detailed information about each transfer event found. Command-line options include `-account` (required), `-start` and `-end` block numbers (required), `-rpc` for custom endpoints, and `-direction` for filtering.
 
+- **Concurrent Processing** – The example leverages the `FilterTransfers` function which automatically handles concurrent execution of multiple filter queries, improving performance when scanning large block ranges or multiple token types.
+
 - **Output Format** – The example displays transfers grouped by token type with comprehensive details extracted from the `Unpacked` field. It shows block numbers, transaction hashes, addresses, amounts, token IDs, contract addresses, log indices, event signatures, and other metadata. Raw event data is also displayed for debugging purposes.
 
-- **Integration** – The example demonstrates the seamless integration between the `eventfilter` and `eventlog` packages, showing how to filter events and parse them into type-safe Go structs for application use.
+- **Integration** – The example demonstrates the seamless integration between the `eventfilter` and `eventlog` packages, showing how to filter events and parse them into type-safe Go structs for application use with improved performance through concurrent processing.
 
 ## 5. Testing & Development
 
