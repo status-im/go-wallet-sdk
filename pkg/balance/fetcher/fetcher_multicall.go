@@ -91,17 +91,15 @@ func FetchErc20BalancesWithMulticall(
 		for _, accountAddress := range accountAddresses {
 			for _, tokenAddress := range tokenAddresses {
 				callResult := result.Results[idx]
+				idx++
 				if callResult.Err != nil {
-					idx++
 					continue // Skip failed individual calls
 				}
 				balance, ok := callResult.Value.(*big.Int)
 				if !ok {
-					idx++
 					continue
 				}
 				balances[accountAddress][tokenAddress] = balance
-				idx++
 			}
 		}
 	}
