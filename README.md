@@ -54,6 +54,12 @@ go get github.com/status-im/go-wallet-sdk
   - Token list metadata and versioning
   - Type-safe address handling and validation
 
+- **`pkg/tokens/parsers`**: Token list parsing from multiple formats
+  - Standard token list format (Uniswap-style)
+  - Status-specific format with chain grouping
+  - CoinGecko API format with platform mappings
+  - List-of-token-lists metadata parsing
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -107,6 +113,12 @@ cd examples/eventfilter-example
 go run . -account 0xYourAddress -start 19000000 -end 19100000
 ```
 
+### Token Management Examples
+# Token Parser - Parse different token list formats
+cd examples/token-parser
+go run .
+```
+
 ## Testing
 
 ```bash
@@ -126,6 +138,7 @@ go-wallet-sdk/
 │   ├── eventlog/          # Event log parsing
 │   ├── tokens/            # Token management system
 │   │   ├── types/         # Core token data structures
+│   │   ├── parsers/       # Token list format parsers
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── examples/              # Usage examples
@@ -134,7 +147,8 @@ go-wallet-sdk/
 │   ├── gas-comparison/            # Gas fee comparison tool
 │   ├── multiclient3-usage/        # Multicall examples
 │   ├── multistandardfetcher-example/  # Multi-standard balance fetching
-│   └── eventfilter-example/       # Event filtering examples
+│   ├── eventfilter-example/       # Event filtering examples
+│   └── token-parser/              # Token list parsing
 └── README.md              # This file
 ```
 
@@ -148,6 +162,7 @@ go-wallet-sdk/
 - [Event Filter](pkg/eventfilter/README.md) - Event filtering for transfers
 - [Event Log Parser](pkg/eventlog/README.md) - Event log parsing
 - [Token Types](pkg/tokens/types/README.md) - Core token data structures
+- [Token Parsers](pkg/tokens/parsers/README.md) - Token list format parsers
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -155,6 +170,7 @@ go-wallet-sdk/
 - [Gas Comparison](examples/gas-comparison/README.md) - Gas fee comparison tool
 - [Multicall Usage](examples/multiclient3-usage/README.md) - Multicall examples
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
+- [Token Parser](examples/token-parser/README.md) - Token list parsing
 
 ### Specifications
 - [Technical Specifications](docs/specs.md) - Complete SDK specifications and architecture
