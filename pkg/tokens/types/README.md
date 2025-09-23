@@ -47,7 +47,7 @@ type TokenList struct {
     Source           string                 `json:"source"`           // Source URL or identifier
     Version          Version                `json:"version"`          // Semantic version
     Tags             map[string]interface{} `json:"tags"`             // Custom metadata tags
-    LogoURI          string                 `json:"logoURI"`          // List logo URL
+    LogoURI          string                 `json:"logoUri"`          // List logo URL
     Keywords         []string               `json:"keywords"`         // Search keywords
     Tokens           []*Token               `json:"tokens"`           // List of tokens
 }
