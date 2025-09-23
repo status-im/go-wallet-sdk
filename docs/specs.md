@@ -36,6 +36,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
 - **C Shared Library** – Exposes core SDK functionality to non-Go applications through C-compatible bindings. The `cshared` package can be compiled as a shared library (.so/.dylib) with a generated C header file, enabling integration with C, C++, and other languages that can call C functions. Provides memory-safe wrappers for Ethereum client operations with proper resource management.
+- **Token Types** – Core data structures for tokens and token lists with unified representation, cross-chain support, type-safe address handling, and validation. Provides Token and TokenList types that serve as the foundation for all token-related operations.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -126,24 +127,24 @@ The `pkg/gas` package provides comprehensive gas fee estimation and suggestions 
   - **ArbStack (Arbitrum)**: Fast 0.25s block times with fixed multipliers (1.025x, 4.1x, 10.25x) for L2 optimization
   - **OPStack (Optimism, Base)**: Fixed base fee multipliers (1.025x, 4.1x, 10.25x) for predictable fees
   - **LineaStack (Linea)**: Uses dedicated `linea_estimateGas` RPC method with 2x base fee for all levels
-  
+
 - **Fee Calculation** – Analyzes historical fee data from `eth_feeHistory` to calculate three priority levels:
   - **Low Priority**: Uses 10th percentile of historical priority fees, base fee with 1.025x multiplier (no congestion adjustment on L1)
   - **Medium Priority**: Uses 45th percentile with configurable base fee multipliers (1.025x for L1, 4.1x for L2) and optional congestion adjustment (10x factor on L1)
   - **High Priority**: Uses 90th percentile with higher base fee multipliers (1.025x for L1, 10.25x for L2) and optional congestion adjustment (10x factor on L1)
-  
+
 - **Inclusion Time Estimation** – Estimates transaction inclusion time based on:
   - Historical base fees and priority fees from recent blocks
   - Chain-specific block times (12s for Ethereum, 2s for L2s, 0.25s for Arbitrum)
   - Fee competitiveness relative to network conditions
   - Returns min/max blocks and min/max seconds until inclusion
-  
+
 - **Network Congestion** – Calculates congestion score (0-1 scale) for L1 chains by analyzing:
   - Average base fee trends
   - Average priority fee levels
   - Gas usage ratios across recent blocks
   - Weighted scoring of priority fees (70%) and gas usage (30%)
-  
+
 - **Configurable Parameters** – Developers can customize:
   - Number of blocks for congestion analysis (default: 10)
   - Number of blocks for gas price estimation (default: 10 for L1, 50 for L2)
@@ -151,6 +152,16 @@ The `pkg/gas` package provides comprehensive gas fee estimation and suggestions 
   - Base fee multipliers per priority level (default: 1.025 for L1, 1.025/4.1/10.25 for L2)
   - Congestion-based adjustment factors for L1 chains (default: 0.0/10.0/10.0)
   - Fine-grained control over fee calculation for each priority level
+
+### 2.12 Token Types Design
+
+The `pkg/tokens/types` package provides the foundational data structures for the entire token management system:
+
+- **Unified Token Representation** – The `Token` struct represents tokens across all blockchain networks with cross-chain support through `CrossChainID`, allowing tokens to be grouped across different chains (e.g., USDC on Ethereum and BSC).
+- **Type-Safe Address Handling** – Uses `gethcommon.Address` for Ethereum addresses with automatic validation and normalization, ensuring addresses are properly formatted and checksummed.
+- **Token List Metadata** – The `TokenList` struct includes comprehensive metadata including name, timestamp, version, source URL, and schema information for validation and origin tracking.
+- **Custom Token Support** – Distinguishes between official tokens from curated lists and user-added custom tokens through the `CustomToken` flag, enabling personalized token management.
+- **Deterministic Key Generation** – Tokens are uniquely identified using `TokenKey(chainID, address)` which creates consistent keys for deduplication and lookup operations.
 
 ## 3. API Description
 
@@ -265,7 +276,7 @@ The SDK uses auto-generated Go bindings to interact with smart contracts. These 
 Use `abigen` to regenerate bindings when contract sources are updated:
 
 ```bash
-# ERC-20 from Solidity interface  
+# ERC-20 from Solidity interface
 abigen --sol pkg/contracts/erc20/IERC20.sol --pkg erc20 --out pkg/contracts/erc20/erc20.go
 
 # ERC-721 from Solidity interface
@@ -397,7 +408,7 @@ Converts Go `*big.Int` block numbers into proper JSON-RPC format:
 - Positive numbers → hex-encoded strings (e.g., `big.NewInt(12345)` → `"0x3039"`)
 - Special negative values → sentinel strings:
   - `-1` → `"pending"` (pending block)
-  - `-2` → `"latest"` (latest mined block)  
+  - `-2` → `"latest"` (latest mined block)
   - `-3` → `"finalized"` (finalized block)
   - `-4` → `"safe"` (safe block)
   - `-5` → `"earliest"` (genesis block)
@@ -408,7 +419,7 @@ This is used by all block-parameter methods like `EthGetBalance`, `EthGetCode`, 
 
 Converts Go `ethereum.CallMsg` structs into JSON-RPC call objects with proper hex encoding:
 - Addresses → hex strings
-- Data/input → hex-encoded bytes  
+- Data/input → hex-encoded bytes
 - Gas values → hex-encoded numbers
 - Wei amounts → hex-encoded big integers
 - EIP-1559 fee fields → properly formatted fee caps
@@ -486,12 +497,12 @@ type FeeSuggestions struct {
     Low    Fee // Low priority fee
     Medium Fee // Medium priority fee
     High   Fee // High priority fee
-    
+
     // Inclusion time estimates
     LowInclusion    Inclusion // Low priority inclusion estimate
     MediumInclusion Inclusion // Medium priority inclusion estimate
     HighInclusion   Inclusion // High priority inclusion estimate
-    
+
     // Network state
     EstimatedBaseFee      *big.Int // Next block's estimated base fee (wei)
     PriorityFeeLowerBound *big.Int // Recommended min priority fee (wei)
@@ -516,7 +527,7 @@ type Inclusion struct {
 
 ```go
 type EthClient interface {
-    FeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int, 
+    FeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int,
                rewardPercentiles []float64) (*ethereum.FeeHistory, error)
     EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
     LineaEstimateGas(ctx context.Context, msg ethereum.CallMsg) (*LineaEstimateGasResult, error)
@@ -643,7 +654,7 @@ The event filter package provides efficient filtering for Ethereum transfer even
 ```go
 type TransferQueryConfig struct {
     FromBlock         *big.Int           // Start block number
-    ToBlock           *big.Int           // End block number  
+    ToBlock           *big.Int           // End block number
     ContractAddresses []common.Address   // Optional contract addresses to filter
     Accounts          []common.Address   // Addresses to filter for
     TransferTypes     []TransferType     // Token types to include
@@ -778,10 +789,47 @@ import (
 // Generate mnemonic and import into keystore
 phrase, _ := mnemonic.CreateRandomMnemonic(12)
 extKey, _ := mnemonic.CreateExtendedKeyFromMnemonic(phrase, "")
-keystore := extkeystore.NewKeyStore("/path/to/keystore", 
+keystore := extkeystore.NewKeyStore("/path/to/keystore",
     extkeystore.LightScryptN, extkeystore.LightScryptP)
 account, _ := keystore.ImportExtendedKey(extKey, "passphrase")
 ```
+
+### 3.8 Token Types API (`pkg/tokens/types`)
+
+The token types package provides core data structures for the token management system.
+
+#### 3.8.1 Core Types
+
+```go
+type Token struct {
+    CrossChainID string             `json:"crossChainId"` // Cross-chain identifier
+    ChainID      uint64             `json:"chainId"`      // Blockchain network ID
+    Address      gethcommon.Address `json:"address"`      // Contract address
+    Decimals     uint               `json:"decimals"`     // Number of decimal places
+    Name         string             `json:"name"`         // Full token name
+    Symbol       string             `json:"symbol"`       // Token symbol/ticker
+    LogoURI      string             `json:"logoUri"`      // URL to token logo
+    CustomToken  bool               `json:"custom"`       // Whether this is a custom user token
+}
+
+type TokenList struct {
+    ID               string                 `json:"id"`               // Token list ID
+    Name             string                 `json:"name"`             // Display name
+    Timestamp        time.Time              `json:"timestamp"`        // Last update time
+    Version          *types.Version         `json:"version"`          // Version information
+    SourceURL        string                 `json:"sourceUrl"`        // Source URL
+    Schema           string                 `json:"schema"`            // JSON schema URL
+    Tokens           []*Token               `json:"tokens"`            // List of tokens
+}
+```
+
+#### 3.8.2 Utility Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `TokenKey(chainID, addr)` | Creates unique token key | `chainID`: `uint64`, `addr`: `common.Address` | `string` |
+| `ChainAndAddressFromTokenKey(key)` | Extracts chain ID and address from key | `key`: `string` | `uint64`, `common.Address`, `bool` |
+| `token.IsNative()` | Checks if token is native | `token`: `*Token` | `bool` |
 
 ## 4. Example Applications
 
@@ -796,7 +844,7 @@ import (
     "context"
     "fmt"
     "math/big"
-    
+
     "github.com/ethereum/go-ethereum/common"
     "github.com/status-im/go-wallet-sdk/pkg/multicall"
     "github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
@@ -804,27 +852,27 @@ import (
 
 func main() {
     ctx := context.Background()
-    
+
     // Get Multicall3 address for Ethereum Mainnet
     multicallAddr, exists := multicall3.GetMulticall3Address(1)
     if !exists {
         panic("Multicall3 not available on Ethereum Mainnet")
     }
-    
+
     // Create caller (you would use your RPC client here)
     // caller := multicall3.NewMulticall3Caller(multicallAddr, rpcClient)
-    
+
     // Build calls for multiple accounts and tokens
     accounts := []common.Address{
         common.HexToAddress("0x1234..."),
         common.HexToAddress("0x5678..."),
     }
-    
+
     tokens := []common.Address{
         common.HexToAddress("0xA0b86a33E6441b8C4C8C0C4C0C4C0C4C0C4C0C4C0"), // USDC
         common.HexToAddress("0x6B175474E89094C44Da98b954EedeAC495271d0F"), // DAI
     }
-    
+
     // Create native balance job
     nativeCalls := make([]multicall3.IMulticall3Call, 0, len(accounts))
     for _, account := range accounts {
@@ -836,7 +884,7 @@ func main() {
             return multicall.ProcessNativeBalanceResult(result)
         },
     }
-    
+
     // Create ERC20 balance job
     tokenCalls := make([]multicall3.IMulticall3Call, 0, len(accounts)*len(tokens))
     for _, account := range accounts {
@@ -850,11 +898,11 @@ func main() {
             return multicall.ProcessERC20BalanceResult(result)
         },
     }
-    
+
     // Execute jobs synchronously
     jobs := []multicall.Job{nativeJob, tokenJob}
     results := multicall.RunSync(ctx, jobs, nil, caller, 100)
-    
+
     // Process native balance results
     for i, callResult := range results[0].Results {
         if callResult.Err != nil {
@@ -864,7 +912,7 @@ func main() {
         balance := callResult.Value.(*big.Int)
         fmt.Printf("Account %s native balance: %s wei\n", accounts[i].Hex(), balance.String())
     }
-    
+
     // Process token balance results
     callIndex := 0
     for _, account := range accounts {
@@ -880,7 +928,7 @@ func main() {
             callIndex++
         }
     }
-    
+
     // Alternative: Execute jobs asynchronously
     // resultsCh := multicall.RunAsync(ctx, jobs, nil, caller, 100)
     // for result := range resultsCh {
@@ -1068,7 +1116,7 @@ The shared library exports the following functions:
 
 int main() {
     char* err = NULL;
-    
+
     // Create client
     uintptr_t handle = GoWSK_ethclient_NewClient("https://ethereum-rpc.publicnode.com", &err);
     if (handle == 0) {
@@ -1076,7 +1124,7 @@ int main() {
         if (err) GoWSK_FreeCString(err);
         return 1;
     }
-    
+
     // Get chain ID
     char* chainID = GoWSK_ethclient_ChainID(handle, &err);
     if (chainID == NULL) {
@@ -1087,7 +1135,7 @@ int main() {
     }
     printf("ChainID: %s\n", chainID);
     GoWSK_FreeCString(chainID);
-    
+
     // Get balance
     char* balance = GoWSK_ethclient_GetBalance(handle, "0x0000000000000000000000000000000000000000", &err);
     if (balance == NULL) {
@@ -1098,7 +1146,7 @@ int main() {
     }
     printf("Balance (wei): %s\n", balance);
     GoWSK_FreeCString(balance);
-    
+
     // Clean up
     GoWSK_ethclient_CloseClient(handle);
     return 0;
@@ -1113,4 +1161,4 @@ All string values returned by GoWSK functions are allocated in C memory and must
 
 ## 6. Limitations & Future Improvements
 
-- 
+-
