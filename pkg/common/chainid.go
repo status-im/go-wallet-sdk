@@ -16,3 +16,17 @@ const (
 	BaseSepolia          ChainID = 84532
 	StatusNetworkSepolia ChainID = 1660990954
 )
+
+var AllChains = []ChainID{
+	EthereumMainnet,
+	EthereumSepolia,
+	OptimismMainnet,
+	OptimismSepolia,
+	ArbitrumMainnet,
+	ArbitrumSepolia,
+	BSCMainnet,
+	BSCTestnet,
+	BaseMainnet,
+	BaseSepolia,
+	StatusNetworkSepolia,
+}

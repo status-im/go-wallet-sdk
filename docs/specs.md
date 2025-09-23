@@ -37,6 +37,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
 - **C Shared Library** – Exposes core SDK functionality to non-Go applications through C-compatible bindings. The `cshared` package can be compiled as a shared library (.so/.dylib) with a generated C header file, enabling integration with C, C++, and other languages that can call C functions. Provides memory-safe wrappers for Ethereum client operations with proper resource management.
 - **Token Types** – Core data structures for tokens and token lists with unified representation, cross-chain support, type-safe address handling, and validation. Provides Token and TokenList types that serve as the foundation for all token-related operations.
+- **Token Parsers** – Token list parsing implementations for multiple formats including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing. Supports chain filtering and validation with extensible parser architecture.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -162,6 +163,16 @@ The `pkg/tokens/types` package provides the foundational data structures for the
 - **Token List Metadata** – The `TokenList` struct includes comprehensive metadata including name, timestamp, version, source URL, and schema information for validation and origin tracking.
 - **Custom Token Support** – Distinguishes between official tokens from curated lists and user-added custom tokens through the `CustomToken` flag, enabling personalized token management.
 - **Deterministic Key Generation** – Tokens are uniquely identified using `TokenKey(chainID, address)` which creates consistent keys for deduplication and lookup operations.
+
+### 2.13 Token Parsers Design
+
+The `pkg/tokens/parsers` package provides extensible parsing for multiple token list formats:
+
+- **Multi-Format Support** – Supports Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing through pluggable parser interfaces.
+- **Chain Filtering** – All parsers accept a `supportedChains` parameter to filter tokens by blockchain network, enabling applications to focus on relevant chains only.
+- **Address Validation** – Comprehensive Ethereum address validation including checksummed, lowercase, and uppercase formats with proper error reporting for invalid addresses.
+- **Extensible Architecture** – Parser interfaces (`TokenListParser`, `ListOfTokenListsParser`) allow easy addition of new formats without modifying existing code.
+- **Error Resilience** – Graceful handling of malformed data, missing fields, and invalid JSON with detailed error messages for debugging.
 
 ## 3. API Description
 
@@ -831,6 +842,41 @@ type TokenList struct {
 | `ChainAndAddressFromTokenKey(key)` | Extracts chain ID and address from key | `key`: `string` | `uint64`, `common.Address`, `bool` |
 | `token.IsNative()` | Checks if token is native | `token`: `*Token` | `bool` |
 
+### 3.9 Token Parsers API (`pkg/tokens/parsers`)
+
+The token parsers package provides parsing for multiple token list formats.
+
+#### 3.9.1 Parser Interfaces
+
+```go
+type TokenListParser interface {
+    Parse(raw []byte, supportedChains []uint64) (*types.TokenList, error)
+}
+
+type ListOfTokenListsParser interface {
+    Parse(raw []byte) (*types.ListOfTokenLists, error)
+}
+```
+
+#### 3.9.2 Available Parsers
+
+| Parser | Format | Use Case |
+|--------|--------|----------|
+| `StandardTokenListParser` | Uniswap-style | General purpose, most common |
+| `StatusTokenListParser` | Status-specific with chain grouping | Multi-chain optimization |
+| `CoinGeckoAllTokensParser` | CoinGecko API with platform mappings | Cross-platform discovery |
+| `StatusListOfTokenListsParser` | List-of-token-lists metadata | Managing multiple token list sources |
+
+#### 3.9.3 Usage Example
+
+```go
+parser := &parsers.StandardTokenListParser{}
+tokenList, err := parser.Parse(jsonData, supportedChains)
+if err != nil {
+    return err
+}
+```
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -1045,6 +1091,15 @@ The `examples/c-app` folder demonstrates how to use the Go Wallet SDK from C app
 - **Memory Management** – The example demonstrates critical memory management practices: all string values returned by GoWSK functions must be freed using `GoWSK_FreeCString` to prevent memory leaks. Error messages passed through `errOut` parameters must also be freed if they are not NULL.
 
 - **Code Structure** – The example consists of `main.c` (the C application), `Makefile` (build configuration), and `README.md` (usage instructions). It shows a minimal but complete integration of the SDK's C API.
+
+### 4.9 Token Parser Example
+
+The `examples/token-parser` folder demonstrates parsing different token list formats from various sources:
+
+- **Features** – Shows multiple parser types including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing, with comprehensive input validation and error handling.
+- **Usage** – Running `go run .` demonstrates parser selection strategies, chain filtering, error handling for various scenarios, and format comparison showing different token list structures and their use cases.
+- **Performance** – Includes performance characteristics comparison between parsers, memory usage patterns, and processing speed benchmarks for different formats.
+- **Integration** – Shows integration with token manager and token fetcher, batch processing patterns, and parser selection strategies for different data sources.
 
 ## 5. Testing & Development
 
