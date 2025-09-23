@@ -48,6 +48,12 @@ go get github.com/status-im/go-wallet-sdk
   - Support for Transfer, Approval, and other standard events
   - Works seamlessly with eventfilter
 
+### Token Management
+- **`pkg/tokens/types`**: Core data structures for tokens and token lists
+  - Unified token representation with cross-chain support
+  - Token list metadata and versioning
+  - Type-safe address handling and validation
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -118,6 +124,8 @@ go-wallet-sdk/
 │   ├── gas/               # Gas estimation and fee suggestions
 │   ├── eventfilter/       # Event filtering for transfers
 │   ├── eventlog/          # Event log parsing
+│   ├── tokens/            # Token management system
+│   │   ├── types/         # Core token data structures
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── examples/              # Usage examples
@@ -139,6 +147,7 @@ go-wallet-sdk/
 - [Gas Estimation](pkg/gas/README.md) - Gas fee estimation and suggestions
 - [Event Filter](pkg/eventfilter/README.md) - Event filtering for transfers
 - [Event Log Parser](pkg/eventlog/README.md) - Event log parsing
+- [Token Types](pkg/tokens/types/README.md) - Core token data structures
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
