@@ -62,6 +62,12 @@ go get github.com/status-im/go-wallet-sdk
   - BIP39 passphrase support for seed extension
   - Seamless integration with extkeystore
 
+### Token Management
+- **`pkg/tokens/types`**: Core data structures for tokens and token lists
+  - Unified token representation with cross-chain support
+  - Token list metadata and versioning
+  - Type-safe address handling and validation
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -173,6 +179,8 @@ go-wallet-sdk/
 │   ├── eventfilter/       # Event filtering for transfers
 │   ├── eventlog/          # Event log parsing
 │   ├── accounts/          # Account management (extkeystore, mnemonic)
+│   ├── tokens/            # Token management system
+│   │   └── types/         # Core token data structures
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── cshared/              # C shared library bindings
@@ -202,6 +210,7 @@ go-wallet-sdk/
 - [Event Log Parser](pkg/eventlog/README.md) - Event log parsing
 - [Extended Keystore](pkg/accounts/extkeystore/README.md) - HD wallet keystore with BIP32 support
 - [Mnemonic](pkg/accounts/mnemonic/README.md) - BIP39 mnemonic phrase utilities
+- [Token Types](pkg/tokens/types/README.md) - Core token data structures
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
