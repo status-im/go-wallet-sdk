@@ -86,6 +86,12 @@ go get github.com/status-im/go-wallet-sdk
   - Pluggable storage backends
   - Error reporting via channels
 
+- **`pkg/tokens/builder`**: Incremental token collection building
+  - Builder pattern for stateful construction
+  - Automatic deduplication by chain ID and address
+  - Native token generation for supported chains
+  - Multiple format support through parsers
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -180,6 +186,12 @@ This creates:
 The shared library exposes Ethereum client functionality through a C-compatible API. See [examples/c-app](examples/c-app/README.md) for a complete C usage example.
 
 ### Token Management Examples
+
+```bash
+# Token Builder - Incremental token collection building
+cd examples/token-builder
+go run .
+
 # Token Fetcher - HTTP-based token list fetching
 cd examples/token-fetcher
 go run .
@@ -211,7 +223,8 @@ go-wallet-sdk/
 │   │   ├── types/         # Core token data structures
 │   │   ├── parsers/       # Token list format parsers
 │   │   ├── fetcher/       # HTTP token list fetching
-│   │   └── autofetcher/   # Automated background fetching
+│   │   ├── autofetcher/   # Automated background fetching
+│   │   └── builder/       # Incremental token collection building
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── cshared/              # C shared library bindings
@@ -227,6 +240,7 @@ go-wallet-sdk/
 │   ├── eventfilter-example/       # Event filtering examples
 │   ├── accounts/                  # Keystore management web interface
 │   ├── c-app/                    # C application example
+│   ├── token-builder/             # Token collection building
 │   ├── token-fetcher/            # Token list fetching
 │   └── token-parser/              # Token list parsing
 └── README.md              # This file
@@ -247,6 +261,7 @@ go-wallet-sdk/
 - [Token Parsers](pkg/tokens/parsers/README.md) - Token list format parsers
 - [Token Fetcher](pkg/tokens/fetcher/README.md) - HTTP token list fetching
 - [Token AutoFetcher](pkg/tokens/autofetcher/README.md) - Automated background fetching
+- [Token Builder](pkg/tokens/builder/README.md) - Incremental token collection building
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -256,6 +271,7 @@ go-wallet-sdk/
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
 - [Accounts Example](examples/accounts/README.md) - Keystore management web interface
 - [C Application Example](examples/c-app/README.md) - C application using the shared library
+- [Token Builder](examples/token-builder/README.md) - Token collection building
 - [Token Fetcher](examples/token-fetcher/README.md) - Token list fetching
 - [Token Parser](examples/token-parser/README.md) - Token list parsing
 
