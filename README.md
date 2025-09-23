@@ -68,6 +68,12 @@ go get github.com/status-im/go-wallet-sdk
   - Token list metadata and versioning
   - Type-safe address handling and validation
 
+- **`pkg/tokens/parsers`**: Token list parsing from multiple formats
+  - Standard token list format (Uniswap-style)
+  - Status-specific format with chain grouping
+  - CoinGecko API format with platform mappings
+  - List-of-token-lists metadata parsing
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -161,6 +167,12 @@ This creates:
 
 The shared library exposes Ethereum client functionality through a C-compatible API. See [examples/c-app](examples/c-app/README.md) for a complete C usage example.
 
+### Token Management Examples
+# Token Parser - Parse different token list formats
+cd examples/token-parser
+go run .
+```
+
 ## Testing
 
 ```bash
@@ -180,7 +192,8 @@ go-wallet-sdk/
 │   ├── eventlog/          # Event log parsing
 │   ├── accounts/          # Account management (extkeystore, mnemonic)
 │   ├── tokens/            # Token management system
-│   │   └── types/         # Core token data structures
+│   │   ├── types/         # Core token data structures
+│   │   └── parsers/       # Token list format parsers
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── cshared/              # C shared library bindings
@@ -195,7 +208,8 @@ go-wallet-sdk/
 │   ├── multistandardfetcher-example/  # Multi-standard balance fetching
 │   ├── eventfilter-example/       # Event filtering examples
 │   ├── accounts/                  # Keystore management web interface
-│   └── c-app/                    # C application example
+│   ├── c-app/                    # C application example
+│   └── token-parser/              # Token list parsing
 └── README.md              # This file
 ```
 
@@ -211,6 +225,7 @@ go-wallet-sdk/
 - [Extended Keystore](pkg/accounts/extkeystore/README.md) - HD wallet keystore with BIP32 support
 - [Mnemonic](pkg/accounts/mnemonic/README.md) - BIP39 mnemonic phrase utilities
 - [Token Types](pkg/tokens/types/README.md) - Core token data structures
+- [Token Parsers](pkg/tokens/parsers/README.md) - Token list format parsers
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -220,6 +235,7 @@ go-wallet-sdk/
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
 - [Accounts Example](examples/accounts/README.md) - Keystore management web interface
 - [C Application Example](examples/c-app/README.md) - C application using the shared library
+- [Token Parser](examples/token-parser/README.md) - Token list parsing
 
 ### Specifications
 - [Technical Specifications](docs/specs.md) - Complete SDK specifications and architecture
