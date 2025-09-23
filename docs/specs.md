@@ -41,6 +41,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Token Fetcher** – HTTP-based token list fetching with concurrent operations, HTTP ETag caching for bandwidth efficiency, JSON schema validation support, and robust error handling with timeout management. Designed for production use with configurable HTTP client settings.
 - **Token AutoFetcher** – Automated background token list management with configurable refresh intervals, thread-safe operations with context support, pluggable storage backends, and error reporting via channels. Supports both direct token list fetching and remote list-of-token-lists discovery patterns.
 - **Token Builder** – Incremental token collection building using the Builder pattern with automatic deduplication by chain ID and address, native token generation for supported chains, and multiple format support through parsers. Provides stateful construction with deterministic ordering.
+- **Token Manager** – High-level token management interface providing multi-source token integration (native, remote, local, custom), thread-safe concurrent access, rich query capabilities by chain/address/list ID, and automatic refresh with state management. Centralizes token operations for wallet applications.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -206,6 +207,17 @@ The `pkg/tokens/builder` package implements the Builder pattern for incremental 
 - **Native Token Generation** – Automatically generates native tokens (ETH, BNB, etc.) for supported blockchain networks, ensuring comprehensive token coverage.
 - **Multiple Format Support** – Integrates with parsers to handle various token list formats, providing a unified interface regardless of source format.
 - **Stateful Construction** – Maintains both individual token lists and unified token collection, enabling applications to track origin and build complex token hierarchies.
+
+### 2.17 Token Manager Design
+
+The `pkg/tokens/manager` package provides a high-level interface for comprehensive token management:
+
+- **Multi-Source Integration** – Combines tokens from native generation, remote token lists, local token lists, and custom user tokens into a unified collection.
+- **Thread-Safe Concurrent Access** – Optimized for concurrent read operations using RWMutex, allowing multiple goroutines to access token data simultaneously.
+- **Rich Query Capabilities** – Provides methods to find tokens by chain ID, address, list ID, or token keys, enabling efficient token discovery and lookup.
+- **Automatic Refresh Management** – Integrates with AutoFetcher to provide background refresh capabilities with configurable intervals and error handling.
+- **Deterministic Processing Order** – Processes token sources in a consistent order (native → main list → additional lists → custom tokens) ensuring predictable results across runs.
+- **Error Resilience** – Graceful handling of network failures, parsing errors, and storage issues with fallback mechanisms to maintain core functionality.
 
 ## 3. API Description
 
@@ -1023,6 +1035,49 @@ builder.AddTokenList("uniswap", uniswapList)
 tokens := builder.GetTokens()
 ```
 
+### 3.13 Token Manager API (`pkg/tokens/manager`)
+
+The token manager package provides a high-level interface for comprehensive token management.
+
+#### 3.13.1 Core Interface
+
+```go
+type Manager interface {
+    // Lifecycle Management
+    Start(ctx context.Context, enableAutoRefresh bool, notifyCh chan struct{}) error
+    Stop()
+    EnableAutoRefresh(ctx context.Context) error
+    DisableAutoRefresh(ctx context.Context) error
+    TriggerRefresh(ctx context.Context) error
+
+    // Token Operations
+    UniqueTokens() map[string]*types.Token
+    GetTokenByChainAddress(chainID uint64, address common.Address) (*types.Token, bool)
+    GetTokensByChain(chainID uint64) []*types.Token
+    GetTokensByKeys(keys []string) []*types.Token
+    TokenLists() map[string]*types.TokenList
+    TokenList(id string) (*types.TokenList, bool)
+}
+```
+
+#### 3.13.2 Configuration
+
+```go
+type Config struct {
+    MainListID      string                                    // Primary token list ID
+    InitialLists    map[string][]byte                         // Initial token list data
+    CustomParsers   map[string]parsers.TokenListParser       // Custom parsers
+    Chains          []uint64                                  // Supported chain IDs
+    AutoFetcherConfig interface{}                             // AutoFetcher configuration
+}
+```
+
+#### 3.13.3 Constructor
+
+```go
+func New(config *Config, fetcher fetcher.Fetcher, contentStore autofetcher.ContentStore, customTokenStore CustomTokenStore) (Manager, error)
+```
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -1257,7 +1312,16 @@ The `examples/token-fetcher` folder demonstrates HTTP-based token list fetching 
 - **Performance** – Includes benchmarks showing typical performance metrics, memory usage patterns, and optimization strategies for production deployments.
 - **Integration** – Demonstrates integration with token manager and background refresh services for automated token list management.
 
-### 4.11 Token Parser Example
+### 4.11 Token Manager Example
+
+The `examples/token-manager` folder demonstrates comprehensive token management across multiple blockchain networks:
+
+- **Features** – Shows complete token management with multi-source integration (native, remote, local, custom tokens), thread-safe concurrent access, rich query capabilities by chain/address/list ID, custom token support, and automatic refresh management with configurable intervals.
+- **Usage** – Running `go run .` demonstrates manager configuration with multiple token sources, HTTP fetcher setup, storage backend implementations, token operations including search and filtering, and custom token management.
+- **Production Considerations** – Includes examples of database-backed content stores, file-based custom token stores, dynamic auto-refresh management, and monitoring/observability patterns.
+- **Integration** – Shows wallet service integration patterns and demonstrates how the manager centralizes token operations for wallet applications.
+
+### 4.12 Token Parser Example
 
 The `examples/token-parser` folder demonstrates parsing different token list formats from various sources:
 
