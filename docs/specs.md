@@ -38,6 +38,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **C Shared Library** – Exposes core SDK functionality to non-Go applications through C-compatible bindings. The `cshared` package can be compiled as a shared library (.so/.dylib) with a generated C header file, enabling integration with C, C++, and other languages that can call C functions. Provides memory-safe wrappers for Ethereum client operations with proper resource management.
 - **Token Types** – Core data structures for tokens and token lists with unified representation, cross-chain support, type-safe address handling, and validation. Provides Token and TokenList types that serve as the foundation for all token-related operations.
 - **Token Parsers** – Token list parsing implementations for multiple formats including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing. Supports chain filtering and validation with extensible parser architecture.
+- **Token Fetcher** – HTTP-based token list fetching with concurrent operations, HTTP ETag caching for bandwidth efficiency, JSON schema validation support, and robust error handling with timeout management. Designed for production use with configurable HTTP client settings.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -173,6 +174,16 @@ The `pkg/tokens/parsers` package provides extensible parsing for multiple token 
 - **Address Validation** – Comprehensive Ethereum address validation including checksummed, lowercase, and uppercase formats with proper error reporting for invalid addresses.
 - **Extensible Architecture** – Parser interfaces (`TokenListParser`, `ListOfTokenListsParser`) allow easy addition of new formats without modifying existing code.
 - **Error Resilience** – Graceful handling of malformed data, missing fields, and invalid JSON with detailed error messages for debugging.
+
+### 2.14 Token Fetcher Design
+
+The `pkg/tokens/fetcher` package provides production-ready HTTP fetching capabilities:
+
+- **Concurrent Operations** – Uses goroutines for parallel fetching of multiple token lists with proper synchronization and error aggregation.
+- **HTTP ETag Caching** – Implements efficient caching using HTTP ETags to minimize bandwidth usage, returning empty data for 304 Not Modified responses.
+- **Configurable HTTP Client** – Customizable timeout, connection pooling, compression settings, and idle connection management for optimal performance.
+- **JSON Schema Validation** – Optional validation against JSON schemas with support for both inline schemas and remote schema URLs.
+- **Context Support** – Full context cancellation and timeout support for proper resource management and request lifecycle control.
 
 ## 3. API Description
 
@@ -877,6 +888,46 @@ if err != nil {
 }
 ```
 
+### 3.10 Token Fetcher API (`pkg/tokens/fetcher`)
+
+The token fetcher package provides HTTP-based token list fetching.
+
+#### 3.10.1 Configuration
+
+```go
+type Config struct {
+    Timeout            time.Duration // Request timeout (default: 5s)
+    IdleConnTimeout    time.Duration // Connection idle timeout (default: 90s)
+    MaxIdleConns       int           // Max idle connections (default: 10)
+    DisableCompression bool          // Disable gzip compression (default: false)
+}
+```
+
+#### 3.10.2 Core Interface
+
+```go
+type Fetcher interface {
+    Fetch(ctx context.Context, details FetchDetails) (FetchedData, error)
+    FetchConcurrent(ctx context.Context, details []FetchDetails) ([]FetchedData, error)
+}
+```
+
+#### 3.10.3 Data Types
+
+```go
+type FetchDetails struct {
+    types.ListDetails  // Embedded: ID, SourceURL, Schema
+    Etag string             // HTTP ETag for caching
+}
+
+type FetchedData struct {
+    FetchDetails           // Original fetch details
+    Fetched  time.Time     // Timestamp when fetched
+    JsonData []byte        // Raw JSON data (nil if 304 Not Modified)
+    Error    error         // Error that occurred during fetch
+}
+```
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -1092,7 +1143,16 @@ The `examples/c-app` folder demonstrates how to use the Go Wallet SDK from C app
 
 - **Code Structure** – The example consists of `main.c` (the C application), `Makefile` (build configuration), and `README.md` (usage instructions). It shows a minimal but complete integration of the SDK's C API.
 
-### 4.9 Token Parser Example
+### 4.9 Token Fetcher Example
+
+The `examples/token-fetcher` folder demonstrates HTTP-based token list fetching with production-ready features:
+
+- **Features** – Shows single token list fetching, concurrent fetching of multiple token lists using goroutines, HTTP ETag caching for bandwidth efficiency, list-of-token-lists fetching for discovery patterns, and robust error handling for network failures and invalid responses.
+- **Usage** – Running `go run .` demonstrates single fetch operations, concurrent fetching with performance improvements, ETag-based caching with 304 Not Modified responses, and list-of-token-lists processing for dynamic token list discovery.
+- **Performance** – Includes benchmarks showing typical performance metrics, memory usage patterns, and optimization strategies for production deployments.
+- **Integration** – Demonstrates integration with token manager and background refresh services for automated token list management.
+
+### 4.10 Token Parser Example
 
 The `examples/token-parser` folder demonstrates parsing different token list formats from various sources:
 

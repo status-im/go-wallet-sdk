@@ -74,6 +74,12 @@ go get github.com/status-im/go-wallet-sdk
   - CoinGecko API format with platform mappings
   - List-of-token-lists metadata parsing
 
+- **`pkg/tokens/fetcher`**: HTTP-based token list fetching
+  - Concurrent fetching with goroutines
+  - HTTP ETag caching for bandwidth efficiency
+  - JSON schema validation support
+  - Robust error handling and timeout management
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -168,6 +174,10 @@ This creates:
 The shared library exposes Ethereum client functionality through a C-compatible API. See [examples/c-app](examples/c-app/README.md) for a complete C usage example.
 
 ### Token Management Examples
+# Token Fetcher - HTTP-based token list fetching
+cd examples/token-fetcher
+go run .
+
 # Token Parser - Parse different token list formats
 cd examples/token-parser
 go run .
@@ -193,7 +203,8 @@ go-wallet-sdk/
 │   ├── accounts/          # Account management (extkeystore, mnemonic)
 │   ├── tokens/            # Token management system
 │   │   ├── types/         # Core token data structures
-│   │   └── parsers/       # Token list format parsers
+│   │   ├── parsers/       # Token list format parsers
+│   │   └── fetcher/       # HTTP token list fetching
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── cshared/              # C shared library bindings
@@ -209,6 +220,7 @@ go-wallet-sdk/
 │   ├── eventfilter-example/       # Event filtering examples
 │   ├── accounts/                  # Keystore management web interface
 │   ├── c-app/                    # C application example
+│   ├── token-fetcher/            # Token list fetching
 │   └── token-parser/              # Token list parsing
 └── README.md              # This file
 ```
@@ -226,6 +238,7 @@ go-wallet-sdk/
 - [Mnemonic](pkg/accounts/mnemonic/README.md) - BIP39 mnemonic phrase utilities
 - [Token Types](pkg/tokens/types/README.md) - Core token data structures
 - [Token Parsers](pkg/tokens/parsers/README.md) - Token list format parsers
+- [Token Fetcher](pkg/tokens/fetcher/README.md) - HTTP token list fetching
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -235,6 +248,7 @@ go-wallet-sdk/
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
 - [Accounts Example](examples/accounts/README.md) - Keystore management web interface
 - [C Application Example](examples/c-app/README.md) - C application using the shared library
+- [Token Fetcher](examples/token-fetcher/README.md) - Token list fetching
 - [Token Parser](examples/token-parser/README.md) - Token list parsing
 
 ### Specifications
