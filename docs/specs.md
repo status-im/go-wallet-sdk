@@ -39,6 +39,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Token Types** – Core data structures for tokens and token lists with unified representation, cross-chain support, type-safe address handling, and validation. Provides Token and TokenList types that serve as the foundation for all token-related operations.
 - **Token Parsers** – Token list parsing implementations for multiple formats including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing. Supports chain filtering and validation with extensible parser architecture.
 - **Token Fetcher** – HTTP-based token list fetching with concurrent operations, HTTP ETag caching for bandwidth efficiency, JSON schema validation support, and robust error handling with timeout management. Designed for production use with configurable HTTP client settings.
+- **Token AutoFetcher** – Automated background token list management with configurable refresh intervals, thread-safe operations with context support, pluggable storage backends, and error reporting via channels. Supports both direct token list fetching and remote list-of-token-lists discovery patterns.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -184,6 +185,16 @@ The `pkg/tokens/fetcher` package provides production-ready HTTP fetching capabil
 - **Configurable HTTP Client** – Customizable timeout, connection pooling, compression settings, and idle connection management for optimal performance.
 - **JSON Schema Validation** – Optional validation against JSON schemas with support for both inline schemas and remote schema URLs.
 - **Context Support** – Full context cancellation and timeout support for proper resource management and request lifecycle control.
+
+### 2.15 Token AutoFetcher Design
+
+The `pkg/tokens/autofetcher` package provides automated background token list management:
+
+- **Two Operation Modes** – Supports direct token list fetching for known lists and remote list-of-token-lists discovery for dynamic list management.
+- **Configurable Refresh Logic** – Flexible refresh intervals with separate check intervals, allowing fine-grained control over when refreshes occur.
+- **Thread-Safe Operations** – All operations are safe for concurrent access with proper synchronization and atomic state updates.
+- **Pluggable Storage** – ContentStore interface allows integration with various storage backends (memory, database, file system) for caching fetched content.
+- **Error Reporting** – Real-time error notifications via channels, enabling applications to monitor refresh operations and handle failures appropriately.
 
 ## 3. API Description
 
@@ -925,6 +936,51 @@ type FetchedData struct {
     Fetched  time.Time     // Timestamp when fetched
     JsonData []byte        // Raw JSON data (nil if 304 Not Modified)
     Error    error         // Error that occurred during fetch
+}
+```
+
+### 3.11 Token AutoFetcher API (`pkg/tokens/autofetcher`)
+
+The token autofetcher package provides automated background token list management.
+
+#### 3.11.1 Core Interface
+
+```go
+type AutoFetcher interface {
+    Start(ctx context.Context) (refreshCh chan error)
+    Stop()
+}
+```
+
+#### 3.11.2 Storage Interface
+
+```go
+type ContentStore interface {
+    GetEtag(id string) (string, error)
+    Get(id string) (Content, error)
+    Set(id string, content Content) error
+    GetAll() (map[string]Content, error)
+}
+```
+
+#### 3.11.3 Configuration Types
+
+```go
+type Config struct {
+    LastUpdate               time.Time     // When data was last updated
+    AutoRefreshInterval      time.Duration // How often to refresh
+    AutoRefreshCheckInterval time.Duration // How often to check if refresh is needed
+}
+
+type ConfigTokenLists struct {
+    Config
+    TokenLists []types.ListDetails
+}
+
+type ConfigRemoteListOfTokenLists struct {
+    Config
+    RemoteListOfTokenListsFetchDetails types.ListDetails
+    RemoteListOfTokenListsParser       parsers.ListOfTokenListsParser
 }
 ```
 
