@@ -31,6 +31,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
 - **Token Types** – Core data structures for tokens and token lists with unified representation, cross-chain support, type-safe address handling, and validation. Provides Token and TokenList types that serve as the foundation for all token-related operations.
+- **Token Parsers** – Token list parsing implementations for multiple formats including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing. Supports chain filtering and validation with extensible parser architecture.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -137,6 +138,16 @@ The `pkg/tokens/types` package provides the foundational data structures for the
 - **Token List Metadata** – The `TokenList` struct includes comprehensive metadata including name, timestamp, version, source URL, and schema information for validation and origin tracking.
 - **Custom Token Support** – Distinguishes between official tokens from curated lists and user-added custom tokens through the `CustomToken` flag, enabling personalized token management.
 - **Deterministic Key Generation** – Tokens are uniquely identified using `TokenKey(chainID, address)` which creates consistent keys for deduplication and lookup operations.
+
+### 2.11 Token Parsers Design
+
+The `pkg/tokens/parsers` package provides extensible parsing for multiple token list formats:
+
+- **Multi-Format Support** – Supports Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing through pluggable parser interfaces.
+- **Chain Filtering** – All parsers accept a `supportedChains` parameter to filter tokens by blockchain network, enabling applications to focus on relevant chains only.
+- **Address Validation** – Comprehensive Ethereum address validation including checksummed, lowercase, and uppercase formats with proper error reporting for invalid addresses.
+- **Extensible Architecture** – Parser interfaces (`TokenListParser`, `ListOfTokenListsParser`) allow easy addition of new formats without modifying existing code.
+- **Error Resilience** – Graceful handling of malformed data, missing fields, and invalid JSON with detailed error messages for debugging.
 
 ## 3. API Description
 
@@ -747,6 +758,41 @@ type TokenList struct {
 | `ChainAndAddressFromTokenKey(key)` | Extracts chain ID and address from key | `key`: `string` | `uint64`, `common.Address`, `bool` |
 | `token.IsNative()` | Checks if token is native | `token`: `*Token` | `bool` |
 
+### 3.7 Token Parsers API (`pkg/tokens/parsers`)
+
+The token parsers package provides parsing for multiple token list formats.
+
+#### 3.7.1 Parser Interfaces
+
+```go
+type TokenListParser interface {
+    Parse(raw []byte, supportedChains []uint64) (*types.TokenList, error)
+}
+
+type ListOfTokenListsParser interface {
+    Parse(raw []byte) (*types.ListOfTokenLists, error)
+}
+```
+
+#### 3.7.2 Available Parsers
+
+| Parser | Format | Use Case |
+|--------|--------|----------|
+| `StandardTokenListParser` | Uniswap-style | General purpose, most common |
+| `StatusTokenListParser` | Status-specific with chain grouping | Multi-chain optimization |
+| `CoinGeckoAllTokensParser` | CoinGecko API with platform mappings | Cross-platform discovery |
+| `StatusListOfTokenListsParser` | List-of-token-lists metadata | Managing multiple token list sources |
+
+#### 3.7.3 Usage Example
+
+```go
+parser := &parsers.StandardTokenListParser{}
+tokenList, err := parser.Parse(jsonData, supportedChains)
+if err != nil {
+    return err
+}
+```
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -925,6 +971,15 @@ The `examples/gas-comparison` folder demonstrates gas fee estimation across mult
 - **Output Format** – Displays comprehensive comparison results showing fee suggestions for three priority levels, time estimates with min/max ranges in seconds, network congestion scores (L1 only), and percentage differences between implementations. Results help validate estimation accuracy and identify optimization opportunities.
 
 - **Data Generator** – The `data/generator` tool captures real blockchain data for testing. Users run `go run main.go -rpc YOUR_RPC_URL` to fetch data from any EVM chain. The tool automatically detects chain ID and generates chain-specific Go code with embedded test data for reproducible offline testing.
+
+### 4.7 Token Parser Example
+
+The `examples/token-parser` folder demonstrates parsing different token list formats from various sources:
+
+- **Features** – Shows multiple parser types including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing, with comprehensive input validation and error handling.
+- **Usage** – Running `go run .` demonstrates parser selection strategies, chain filtering, error handling for various scenarios, and format comparison showing different token list structures and their use cases.
+- **Performance** – Includes performance characteristics comparison between parsers, memory usage patterns, and processing speed benchmarks for different formats.
+- **Integration** – Shows integration with token manager and token fetcher, batch processing patterns, and parser selection strategies for different data sources.
 
 ## 5. Testing & Development
 
