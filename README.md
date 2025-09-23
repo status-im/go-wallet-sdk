@@ -66,6 +66,12 @@ go get github.com/status-im/go-wallet-sdk
   - JSON schema validation support
   - Robust error handling and timeout management
 
+- **`pkg/tokens/autofetcher`**: Automated background token list management
+  - Configurable refresh intervals
+  - Thread-safe operations with context support
+  - Pluggable storage backends
+  - Error reporting via channels
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -150,6 +156,7 @@ go-wallet-sdk/
 │   │   ├── types/         # Core token data structures
 │   │   ├── parsers/       # Token list format parsers
 │   │   ├── fetcher/       # HTTP token list fetching
+│   │   ├── autofetcher/   # Automated background fetching
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── examples/              # Usage examples
@@ -176,6 +183,7 @@ go-wallet-sdk/
 - [Token Types](pkg/tokens/types/README.md) - Core token data structures
 - [Token Parsers](pkg/tokens/parsers/README.md) - Token list format parsers
 - [Token Fetcher](pkg/tokens/fetcher/README.md) - HTTP token list fetching
+- [Token AutoFetcher](pkg/tokens/autofetcher/README.md) - Automated background fetching
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
