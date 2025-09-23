@@ -40,6 +40,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Token Parsers** – Token list parsing implementations for multiple formats including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing. Supports chain filtering and validation with extensible parser architecture.
 - **Token Fetcher** – HTTP-based token list fetching with concurrent operations, HTTP ETag caching for bandwidth efficiency, JSON schema validation support, and robust error handling with timeout management. Designed for production use with configurable HTTP client settings.
 - **Token AutoFetcher** – Automated background token list management with configurable refresh intervals, thread-safe operations with context support, pluggable storage backends, and error reporting via channels. Supports both direct token list fetching and remote list-of-token-lists discovery patterns.
+- **Token Builder** – Incremental token collection building using the Builder pattern with automatic deduplication by chain ID and address, native token generation for supported chains, and multiple format support through parsers. Provides stateful construction with deterministic ordering.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -195,6 +196,16 @@ The `pkg/tokens/autofetcher` package provides automated background token list ma
 - **Thread-Safe Operations** – All operations are safe for concurrent access with proper synchronization and atomic state updates.
 - **Pluggable Storage** – ContentStore interface allows integration with various storage backends (memory, database, file system) for caching fetched content.
 - **Error Reporting** – Real-time error notifications via channels, enabling applications to monitor refresh operations and handle failures appropriately.
+
+### 2.16 Token Builder Design
+
+The `pkg/tokens/builder` package implements the Builder pattern for incremental token collection construction:
+
+- **Incremental Building** – Start with empty state and progressively add token lists, maintaining internal state throughout the building process.
+- **Automatic Deduplication** – Prevents duplicate tokens using chain ID and address combinations, ensuring each unique token appears only once in the final collection.
+- **Native Token Generation** – Automatically generates native tokens (ETH, BNB, etc.) for supported blockchain networks, ensuring comprehensive token coverage.
+- **Multiple Format Support** – Integrates with parsers to handle various token list formats, providing a unified interface regardless of source format.
+- **Stateful Construction** – Maintains both individual token lists and unified token collection, enabling applications to track origin and build complex token hierarchies.
 
 ## 3. API Description
 
@@ -984,6 +995,34 @@ type ConfigRemoteListOfTokenLists struct {
 }
 ```
 
+### 3.12 Token Builder API (`pkg/tokens/builder`)
+
+The token builder package implements the Builder pattern for incremental token collection construction.
+
+#### 3.12.1 Core Interface
+
+```go
+type Builder struct {
+    // Internal state - not directly accessible
+}
+
+func New(supportedChains []uint64) *Builder
+func (b *Builder) AddNativeTokenList() error
+func (b *Builder) AddTokenList(id string, tokenList *types.TokenList)
+func (b *Builder) AddRawTokenList(id string, rawData []byte, sourceURL string, timestamp time.Time, parser parsers.TokenListParser) error
+func (b *Builder) GetTokens() map[string]*types.Token
+func (b *Builder) GetTokenLists() map[string]*types.TokenList
+```
+
+#### 3.12.2 Usage Example
+
+```go
+builder := builder.New([]uint64{1, 56, 10, 137}) // Ethereum, BSC, Optimism, Polygon
+builder.AddNativeTokenList()
+builder.AddTokenList("uniswap", uniswapList)
+tokens := builder.GetTokens()
+```
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -1199,7 +1238,17 @@ The `examples/c-app` folder demonstrates how to use the Go Wallet SDK from C app
 
 - **Code Structure** – The example consists of `main.c` (the C application), `Makefile` (build configuration), and `README.md` (usage instructions). It shows a minimal but complete integration of the SDK's C API.
 
-### 4.9 Token Fetcher Example
+### 4.9 Token Builder Example
+
+The `examples/token-builder` folder demonstrates how to use the token builder package for incremental token collection building:
+
+- **Features** – The example shows incremental building starting with empty state, automatic native token generation for supported chains (ETH, BNB, etc.), automatic deduplication using chain ID and address combinations, raw token list processing with various parsers, and advanced builder patterns including validation and error handling.
+- **Usage** – Running `go run .` demonstrates basic builder usage, incremental building patterns, raw token list processing, token deduplication, and advanced builder patterns with comprehensive error handling examples.
+- **Key Concepts** – Demonstrates the Builder pattern with stateful construction, token deduplication using unique keys, native token support for multiple chains, and performance characteristics including time complexity and memory usage.
+- **Integration** – Shows how the builder integrates with parsers to handle different token list formats and provides a foundation for building token collections in blockchain applications.
+
+
+### 4.10 Token Fetcher Example
 
 The `examples/token-fetcher` folder demonstrates HTTP-based token list fetching with production-ready features:
 
@@ -1208,7 +1257,7 @@ The `examples/token-fetcher` folder demonstrates HTTP-based token list fetching 
 - **Performance** – Includes benchmarks showing typical performance metrics, memory usage patterns, and optimization strategies for production deployments.
 - **Integration** – Demonstrates integration with token manager and background refresh services for automated token list management.
 
-### 4.10 Token Parser Example
+### 4.11 Token Parser Example
 
 The `examples/token-parser` folder demonstrates parsing different token list formats from various sources:
 
