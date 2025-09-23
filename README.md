@@ -72,6 +72,12 @@ go get github.com/status-im/go-wallet-sdk
   - Pluggable storage backends
   - Error reporting via channels
 
+- **`pkg/tokens/builder`**: Incremental token collection building
+  - Builder pattern for stateful construction
+  - Automatic deduplication by chain ID and address
+  - Native token generation for supported chains
+  - Multiple format support through parsers
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -126,6 +132,12 @@ go run . -account 0xYourAddress -start 19000000 -end 19100000
 ```
 
 ### Token Management Examples
+
+```bash
+# Token Builder - Incremental token collection building
+cd examples/token-builder
+go run .
+
 # Token Fetcher - HTTP-based token list fetching
 cd examples/token-fetcher
 go run .
@@ -157,6 +169,7 @@ go-wallet-sdk/
 │   │   ├── parsers/       # Token list format parsers
 │   │   ├── fetcher/       # HTTP token list fetching
 │   │   ├── autofetcher/   # Automated background fetching
+│   │   ├── builder/       # Incremental token collection building
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── examples/              # Usage examples
@@ -166,6 +179,7 @@ go-wallet-sdk/
 │   ├── multiclient3-usage/        # Multicall examples
 │   ├── multistandardfetcher-example/  # Multi-standard balance fetching
 │   ├── eventfilter-example/       # Event filtering examples
+│   ├── token-builder/             # Token collection building
 │   ├── token-fetcher/            # Token list fetching
 │   └── token-parser/              # Token list parsing
 └── README.md              # This file
@@ -184,6 +198,7 @@ go-wallet-sdk/
 - [Token Parsers](pkg/tokens/parsers/README.md) - Token list format parsers
 - [Token Fetcher](pkg/tokens/fetcher/README.md) - HTTP token list fetching
 - [Token AutoFetcher](pkg/tokens/autofetcher/README.md) - Automated background fetching
+- [Token Builder](pkg/tokens/builder/README.md) - Incremental token collection building
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -191,6 +206,7 @@ go-wallet-sdk/
 - [Gas Comparison](examples/gas-comparison/README.md) - Gas fee comparison tool
 - [Multicall Usage](examples/multiclient3-usage/README.md) - Multicall examples
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
+- [Token Builder](examples/token-builder/README.md) - Token collection building
 - [Token Fetcher](examples/token-fetcher/README.md) - Token list fetching
 - [Token Parser](examples/token-parser/README.md) - Token list parsing
 
