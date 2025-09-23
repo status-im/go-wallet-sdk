@@ -92,6 +92,12 @@ go get github.com/status-im/go-wallet-sdk
   - Native token generation for supported chains
   - Multiple format support through parsers
 
+- **`pkg/tokens/manager`**: High-level token management interface
+  - Multi-source token integration (native, remote, local, custom)
+  - Thread-safe concurrent access
+  - Rich query capabilities by chain, address, or list ID
+  - Automatic refresh and state management
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -196,6 +202,10 @@ go run .
 cd examples/token-fetcher
 go run .
 
+# Token Manager - High-level token management
+cd examples/token-manager
+go run .
+
 # Token Parser - Parse different token list formats
 cd examples/token-parser
 go run .
@@ -224,7 +234,8 @@ go-wallet-sdk/
 │   │   ├── parsers/       # Token list format parsers
 │   │   ├── fetcher/       # HTTP token list fetching
 │   │   ├── autofetcher/   # Automated background fetching
-│   │   └── builder/       # Incremental token collection building
+│   │   ├── builder/       # Incremental token collection building
+│   │   └── manager/       # High-level token management
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── cshared/              # C shared library bindings
@@ -242,6 +253,7 @@ go-wallet-sdk/
 │   ├── c-app/                    # C application example
 │   ├── token-builder/             # Token collection building
 │   ├── token-fetcher/            # Token list fetching
+│   ├── token-manager/             # Token management
 │   └── token-parser/              # Token list parsing
 └── README.md              # This file
 ```
@@ -262,6 +274,7 @@ go-wallet-sdk/
 - [Token Fetcher](pkg/tokens/fetcher/README.md) - HTTP token list fetching
 - [Token AutoFetcher](pkg/tokens/autofetcher/README.md) - Automated background fetching
 - [Token Builder](pkg/tokens/builder/README.md) - Incremental token collection building
+- [Token Manager](pkg/tokens/manager/README.md) - High-level token management
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -273,6 +286,7 @@ go-wallet-sdk/
 - [C Application Example](examples/c-app/README.md) - C application using the shared library
 - [Token Builder](examples/token-builder/README.md) - Token collection building
 - [Token Fetcher](examples/token-fetcher/README.md) - Token list fetching
+- [Token Manager](examples/token-manager/README.md) - Token management
 - [Token Parser](examples/token-parser/README.md) - Token list parsing
 
 ### Specifications
