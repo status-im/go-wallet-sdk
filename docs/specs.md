@@ -14,7 +14,7 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/eventlog`        | Ethereum event log parser for ERC20, ERC721, and ERC1155 events. Automatically detects and parses token events with type-safe access to event data, supporting Transfer, Approval, and other standard token events. |
 | `pkg/common`          | Shared types and constants. Such as canonical chain IDs (e.g., Ethereum Mainnet, Optimism, Arbitrum, BSC, Base). Developers use these values when configuring the SDK or examples.                               |
 | `pkg/contracts/`      | Solidity contracts and Go bindings for smart contract interactions. Includes Multicall3, ERC20, ERC721, and ERC1155 contracts with deployment addresses for multiple chains. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), and `eventfilter-example` (shows event filtering and parsing capabilities).                                             |                                                                                                                                                 |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), and `eventfilter-example` (shows event filtering and parsing capabilities).                                             |                                                                                                                                                 |
 
 ## 2. Architecture
 
@@ -44,9 +44,9 @@ The balance fetcher is designed to efficiently query balances for many addresses
 The multicall package is designed to efficiently batch multiple Ethereum contract calls into single transactions using Multicall3. Its design includes:
 
 - **Call Builders** – Provides functions to build calls for different token types (native ETH, ERC20, ERC721, ERC1155). Each builder creates properly encoded call data for the specific contract function.
-- **Job Runner System** – Supports both synchronous (`RunSync`) and asynchronous (`ProcessJobRunners`) execution modes. The system automatically chunks large call sets into manageable batches to avoid transaction size limits.
-- **Error Handling** – Graceful failure handling with detailed error reporting. Individual call failures don't cause the entire batch to fail, allowing partial results to be processed.
-- **Result Processing** – Provides dedicated result processors for each token type that decode the raw return data into appropriate Go types (`*big.Int` for balances).
+- **Job-based System** – Uses a flexible job system where each job contains a set of calls and a result processing function. Supports both synchronous (`RunSync`) and asynchronous (`RunAsync`) execution modes. The system automatically chunks large call sets into manageable batches to avoid transaction size limits.
+- **Error Handling** – Graceful failure handling with detailed error reporting. Individual call failures don't cause the entire batch to fail, allowing partial results to be processed. Each job can have its own error handling strategy.
+- **Result Processing** – Each job specifies its own result processing function (`CallResultFn`) that decodes the raw return data into appropriate Go types. Provides dedicated result processors for each token type that decode the raw return data into appropriate Go types (`*big.Int` for balances).
 - **Chain Support** – Works with any EVM-compatible chain that has Multicall3 deployed, with automatic address resolution based on chain ID.
 
 ### 2.4 Ethereum Client Design
@@ -109,8 +109,8 @@ The multicall package provides efficient batching of multiple Ethereum contract 
 
 | Function | Purpose | Parameters | Returns |
 |----------|---------|------------|---------|
-| `RunSync(ctx, jobs, atBlock, caller, batchSize)` | Execute calls synchronously | `ctx`: `context.Context`, `jobs`: `[][]multicall3.IMulticall3Call`, `atBlock`: `*big.Int`, `caller`: `Caller`, `batchSize`: `int` | `[]JobResult` |
-| `ProcessJobRunners(ctx, jobRunners, atBlock, caller, batchSize)` | Execute calls asynchronously | `ctx`: `context.Context`, `jobRunners`: `[]JobRunner`, `atBlock`: `*big.Int`, `caller`: `Caller`, `batchSize`: `int` | `void` |
+| `RunSync(ctx, jobs, atBlock, caller, batchSize)` | Execute jobs synchronously | `ctx`: `context.Context`, `jobs`: `[]Job`, `atBlock`: `*big.Int`, `caller`: `Caller`, `batchSize`: `int` | `[]JobResult` |
+| `RunAsync(ctx, jobs, atBlock, caller, batchSize)` | Execute jobs asynchronously | `ctx`: `context.Context`, `jobs`: `[]Job`, `atBlock`: `*big.Int`, `caller`: `Caller`, `batchSize`: `int` | `<-chan JobsResult` |
 
 #### 3.1.3 Result Processing
 
@@ -124,16 +124,26 @@ The multicall package provides efficient batching of multiple Ethereum contract 
 #### 3.1.4 Types
 
 ```go
+type Job struct {
+    Calls        []multicall3.IMulticall3Call
+    CallResultFn func(multicall3.IMulticall3Result) (any, error)
+}
+
+type CallResult struct {
+    Value any
+    Err   error
+}
+
 type JobResult struct {
-    Results     []multicall3.IMulticall3Result
+    Results     []CallResult
     Err         error
     BlockNumber *big.Int
     BlockHash   common.Hash
 }
 
-type JobRunner struct {
-    Job      []multicall3.IMulticall3Call
-    ResultCh chan<- JobResult
+type JobsResult struct {
+    JobIdx    int
+    JobResult JobResult
 }
 
 type Caller interface {
@@ -494,30 +504,43 @@ func main() {
         common.HexToAddress("0x6B175474E89094C44Da98b954EedeAC495271d0F"), // DAI
     }
     
-    // Build native balance calls
+    // Create native balance job
     nativeCalls := make([]multicall3.IMulticall3Call, 0, len(accounts))
     for _, account := range accounts {
         nativeCalls = append(nativeCalls, multicall.BuildNativeBalanceCall(account, multicallAddr))
     }
+    nativeJob := multicall.Job{
+        Calls: nativeCalls,
+        CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+            return multicall.ProcessNativeBalanceResult(result)
+        },
+    }
     
-    // Build ERC20 balance calls
+    // Create ERC20 balance job
     tokenCalls := make([]multicall3.IMulticall3Call, 0, len(accounts)*len(tokens))
     for _, account := range accounts {
         for _, token := range tokens {
             tokenCalls = append(tokenCalls, multicall.BuildERC20BalanceCall(account, token))
         }
     }
+    tokenJob := multicall.Job{
+        Calls: tokenCalls,
+        CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+            return multicall.ProcessERC20BalanceResult(result)
+        },
+    }
     
-    // Execute calls synchronously
-    results := multicall.RunSync(ctx, [][]multicall3.IMulticall3Call{nativeCalls, tokenCalls}, nil, caller, 100)
+    // Execute jobs synchronously
+    jobs := []multicall.Job{nativeJob, tokenJob}
+    results := multicall.RunSync(ctx, jobs, nil, caller, 100)
     
     // Process native balance results
-    for i, result := range results[0].Results {
-        balance, err := multicall.ProcessNativeBalanceResult(result)
-        if err != nil {
-            fmt.Printf("Error processing native balance for account %d: %v\n", i, err)
+    for i, callResult := range results[0].Results {
+        if callResult.Err != nil {
+            fmt.Printf("Error processing native balance for account %d: %v\n", i, callResult.Err)
             continue
         }
+        balance := callResult.Value.(*big.Int)
         fmt.Printf("Account %s native balance: %s wei\n", accounts[i].Hex(), balance.String())
     }
     
@@ -525,17 +548,25 @@ func main() {
     callIndex := 0
     for _, account := range accounts {
         for _, token := range tokens {
-            result := results[1].Results[callIndex]
-            balance, err := multicall.ProcessERC20BalanceResult(result)
-            if err != nil {
-                fmt.Printf("Error processing token balance: %v\n", err)
+            callResult := results[1].Results[callIndex]
+            if callResult.Err != nil {
+                fmt.Printf("Error processing token balance: %v\n", callResult.Err)
                 callIndex++
                 continue
             }
+            balance := callResult.Value.(*big.Int)
             fmt.Printf("Account %s token %s balance: %s\n", account.Hex(), token.Hex(), balance.String())
             callIndex++
         }
     }
+    
+    // Alternative: Execute jobs asynchronously
+    // resultsCh := multicall.RunAsync(ctx, jobs, nil, caller, 100)
+    // for result := range resultsCh {
+    //     jobIdx := result.JobIdx
+    //     jobResult := result.JobResult
+    //     // Process results as they become available
+    // }
 }
 ```
 
@@ -559,7 +590,21 @@ The `examples/ethclient-usage` folder shows how to use the Ethereum client acros
 
 - **Code Structure** – The example is split into `main.go`, which loops over endpoints, and helper functions such as `testRPC()` that call various methods and handle errors.
 
-### 4.4 Event Filter Example
+### 4.4 Multi-Standard Fetcher Example
+
+The `examples/multistandardfetcher-example` folder demonstrates how to use the multistandardfetcher package to fetch balances across all token standards (Native ETH, ERC20, ERC721, ERC1155) for a specific address using Multicall3 batched calls.
+
+- **Features** – The example fetches native ETH balance, queries ERC20 token balances for popular tokens (USDC, DAI, USDT, WBTC, LINK, UNI, MATIC, SHIB), checks ERC721 NFT balances for well-known collections (BAYC, MAYC, CryptoPunks, Azuki, Moonbirds, Doodles), and retrieves ERC1155 collectible balances from popular contracts. It displays results in a formatted report with token symbols and readable balances.
+
+- **Usage** – Users set the `RPC_URL` environment variable and run the example. The program automatically queries vitalik.eth's balances across all token standards and displays a comprehensive report showing native ETH, ERC20 tokens, ERC721 NFTs, and ERC1155 collectibles with non-zero balances.
+
+- **Multi-Standard Support** – Demonstrates the unified interface for fetching balances across different token standards in a single operation, leveraging the underlying multicall package for efficient batching.
+
+- **Output Format** – The example displays a clean, formatted report with sections for each token type, showing token symbols, balances, and summary statistics. It includes proper error handling and graceful degradation when calls fail.
+
+- **Integration** – The example demonstrates the seamless integration between the `multistandardfetcher` and `multicall` packages, showing how to efficiently fetch balances across multiple token standards with minimal RPC calls.
+
+### 4.5 Event Filter Example
 
 The `examples/eventfilter-example` folder demonstrates how to use the event filter and event log parser packages to detect and display transfer events for specific accounts with concurrent processing.
 

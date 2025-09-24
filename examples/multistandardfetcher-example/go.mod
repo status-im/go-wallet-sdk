@@ -1,4 +1,4 @@
-module github.com/status-im/go-wallet-sdk/examples/multiclient3-usage
+module github.com/status-im/go-wallet-sdk/examples/multistandardfetcher-example
 
 go 1.23.0
 

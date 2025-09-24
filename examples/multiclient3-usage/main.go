@@ -96,17 +96,17 @@ func main() {
 	// Execute multicall for batch balance reads
 	ctx := context.Background()
 
-	// Prepare calls using the new multicall package
-	calls := prepareMulticallCalls(multicallAddr, walletAddress, chainTokens)
+	// Prepare jobs using the new multicall package
+	jobs := prepareMulticallJobs(multicallAddr, walletAddress, chainTokens)
 
-	log.Printf("Prepared %d balance calls for multicall", len(calls))
+	log.Printf("Prepared %d jobs for multicall", len(jobs))
 
 	// Execute multicall using the new RunSync function
-	results := multicall.RunSync(ctx, [][]multicall3.IMulticall3Call{calls}, nil, multicallContract, 100)
+	results := multicall.RunSync(ctx, jobs, nil, multicallContract, 100)
 
 	// Process results
 	blockNumber := results[0].BlockNumber
-	nativeBalance, balanceResults := processResults(chainTokens, results[0])
+	nativeBalance, balanceResults := processResults(chainTokens, results[0], results[1])
 
 	// Display results
 	displayResults(blockNumber, nativeBalance, balanceResults, walletAddress)
@@ -126,62 +126,113 @@ func loadTokenList(filename string) ([]Token, error) {
 	return tokenList.Tokens, nil
 }
 
-func prepareMulticallCalls(contractAddress common.Address, walletAddress string, tokens []Token) []multicall3.IMulticall3Call {
-	var calls []multicall3.IMulticall3Call
+func prepareMulticallJobs(contractAddress common.Address, walletAddress string, tokens []Token) []multicall.Job {
+	var jobs []multicall.Job
 
-	// Add native ETH balance call
-	calls = append(calls, multicall.BuildNativeBalanceCall(common.HexToAddress(walletAddress), contractAddress))
-
-	// Add ERC20 balance calls for each token
-	for _, token := range tokens {
-		calls = append(calls, multicall.BuildERC20BalanceCall(common.HexToAddress(walletAddress), common.HexToAddress(token.Address)))
+	// Create native ETH balance job
+	nativeCalls := []multicall3.IMulticall3Call{
+		multicall.BuildNativeBalanceCall(common.HexToAddress(walletAddress), contractAddress),
 	}
+	nativeJob := multicall.Job{
+		Calls: nativeCalls,
+		CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+			return multicall.ProcessNativeBalanceResult(result)
+		},
+	}
+	jobs = append(jobs, nativeJob)
 
-	return calls
+	// Create ERC20 balance job
+	erc20Calls := make([]multicall3.IMulticall3Call, 0, len(tokens))
+	for _, token := range tokens {
+		erc20Calls = append(erc20Calls, multicall.BuildERC20BalanceCall(common.HexToAddress(walletAddress), common.HexToAddress(token.Address)))
+	}
+	erc20Job := multicall.Job{
+		Calls: erc20Calls,
+		CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+			return multicall.ProcessERC20BalanceResult(result)
+		},
+	}
+	jobs = append(jobs, erc20Job)
+
+	return jobs
 }
 
-func processResults(tokens []Token, jobResult multicall.JobResult) (*big.Int, []BalanceResult) {
+func processResults(tokens []Token, nativeJobResult multicall.JobResult, erc20JobResult multicall.JobResult) (*big.Int, []BalanceResult) {
 	var balanceResults []BalanceResult
 
-	// Check for errors
-	if jobResult.Err != nil {
-		log.Fatalf("Multicall execution failed: %v", jobResult.Err)
-	}
-
-	results := jobResult.Results
-	if len(results) == 0 {
-		log.Fatalf("No results returned from multicall")
-	}
-
-	// First result is the native ETH balance
-	nativeBalance, err := multicall.ProcessNativeBalanceResult(results[0])
-	if err != nil {
-		log.Printf("Failed to process native balance: %v", err)
+	// Process native ETH balance
+	var nativeBalance *big.Int
+	if nativeJobResult.Err != nil {
+		log.Printf("Failed to process native balance job: %v", nativeJobResult.Err)
 		nativeBalance = big.NewInt(0)
+	} else if len(nativeJobResult.Results) == 0 {
+		log.Printf("No results returned from native balance job")
+		nativeBalance = big.NewInt(0)
+	} else {
+		callResult := nativeJobResult.Results[0]
+		if callResult.Err != nil {
+			log.Printf("Failed to process native balance: %v", callResult.Err)
+			nativeBalance = big.NewInt(0)
+		} else {
+			balance, ok := callResult.Value.(*big.Int)
+			if !ok || balance == nil {
+				log.Printf("Failed to parse native balance result")
+				nativeBalance = big.NewInt(0)
+			} else {
+				nativeBalance = balance
+			}
+		}
 	}
 
 	// Process ERC20 token balances
-	for i, result := range results[1:] {
-		if i >= len(tokens) {
-			break
+	if erc20JobResult.Err != nil {
+		log.Printf("Failed to process ERC20 balance job: %v", erc20JobResult.Err)
+		// Create empty results for all tokens
+		for _, token := range tokens {
+			balanceResults = append(balanceResults, BalanceResult{
+				Token:   token,
+				Balance: big.NewInt(0),
+				Success: false,
+			})
 		}
+		return nativeBalance, balanceResults
+	}
 
+	erc20Results := erc20JobResult.Results
+	if len(erc20Results) != len(tokens) {
+		log.Printf("Expected %d ERC20 results, got %d", len(tokens), len(erc20Results))
+		// Create empty results for all tokens
+		for _, token := range tokens {
+			balanceResults = append(balanceResults, BalanceResult{
+				Token:   token,
+				Balance: big.NewInt(0),
+				Success: false,
+			})
+		}
+		return nativeBalance, balanceResults
+	}
+
+	// Process each token balance
+	for i, callResult := range erc20Results {
 		token := tokens[i]
 		balanceResult := BalanceResult{
-			Token:   token,
-			Success: result.Success,
+			Token: token,
 		}
 
-		if result.Success {
-			balance, err := multicall.ProcessERC20BalanceResult(result)
-			if err != nil {
-				log.Printf("Failed to process balance for token %s: %v", token.Symbol, err)
+		if callResult.Err != nil {
+			log.Printf("Failed to process balance for token %s: %v", token.Symbol, callResult.Err)
+			balanceResult.Balance = big.NewInt(0)
+			balanceResult.Success = false
+		} else {
+			balance, ok := callResult.Value.(*big.Int)
+			if !ok || balance == nil {
+				log.Printf("Failed to parse balance for token %s", token.Symbol)
 				balanceResult.Balance = big.NewInt(0)
+				balanceResult.Success = false
 			} else {
 				balanceResult.Balance = balance
+				balanceResult.Success = true
 			}
-		} else {
-			balanceResult.Balance = big.NewInt(0)
 		}
 
 		balanceResults = append(balanceResults, balanceResult)

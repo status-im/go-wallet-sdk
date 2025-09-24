@@ -25,7 +25,14 @@ func FetchNativeBalancesWithMulticall(
 	for _, accountAddress := range accountAddresses {
 		calls = append(calls, multicall.BuildNativeBalanceCall(accountAddress, multicallAddress))
 	}
-	jobs := [][]multicall3.IMulticall3Call{calls}
+	jobs := []multicall.Job{
+		{
+			Calls: calls,
+			CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+				return multicall.ProcessNativeBalanceResult(result)
+			},
+		},
+	}
 
 	results := multicall.RunSync(ctx, jobs, big.NewInt(int64(atBlock)), multicallCaller, batchSize)
 
@@ -34,8 +41,12 @@ func FetchNativeBalancesWithMulticall(
 			return nil, result.Err
 		}
 		for i, accountAddress := range accountAddresses {
-			balance, err := multicall.ProcessNativeBalanceResult(result.Results[i])
-			if err != nil {
+			callResult := result.Results[i]
+			if callResult.Err != nil {
+				continue // Skip failed individual calls
+			}
+			balance, ok := callResult.Value.(*big.Int)
+			if !ok {
 				continue
 			}
 			balances[accountAddress] = balance
@@ -61,7 +72,14 @@ func FetchErc20BalancesWithMulticall(
 			calls = append(calls, multicall.BuildERC20BalanceCall(accountAddress, tokenAddress))
 		}
 	}
-	jobs := [][]multicall3.IMulticall3Call{calls}
+	jobs := []multicall.Job{
+		{
+			Calls: calls,
+			CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+				return multicall.ProcessERC20BalanceResult(result)
+			},
+		},
+	}
 
 	results := multicall.RunSync(ctx, jobs, big.NewInt(int64(atBlock)), multicallCaller, batchSize)
 
@@ -72,12 +90,16 @@ func FetchErc20BalancesWithMulticall(
 		idx := 0
 		for _, accountAddress := range accountAddresses {
 			for _, tokenAddress := range tokenAddresses {
-				balance, err := multicall.ProcessERC20BalanceResult(result.Results[idx])
-				if err != nil {
+				callResult := result.Results[idx]
+				idx++
+				if callResult.Err != nil {
+					continue // Skip failed individual calls
+				}
+				balance, ok := callResult.Value.(*big.Int)
+				if !ok {
 					continue
 				}
 				balances[accountAddress][tokenAddress] = balance
-				idx++
 			}
 		}
 	}
