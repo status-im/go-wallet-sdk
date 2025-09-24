@@ -55,8 +55,9 @@ func RunSync(ctx context.Context, jobs []Job, atBlock *big.Int, caller Caller, b
 }
 
 // Collects all jobs and runs them in batches in a non-blocking manner.
-// Returns immediately with a channel where a value will be sent for each job.
+// Returns immediately with a channel where a single JobResult will be sent for each job.
 // The received JobResult index matches the input Job index.
+// The channel is closed when all results have been sent.
 func RunAsync(ctx context.Context, jobs []Job, atBlock *big.Int, caller Caller, batchsize int) <-chan JobsResult {
 	resultsCh := make(chan JobsResult, len(jobs))
 

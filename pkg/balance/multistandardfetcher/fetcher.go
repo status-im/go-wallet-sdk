@@ -116,6 +116,8 @@ func FetchBalances(ctx context.Context, multicall3Address common.Address, caller
 
 	go func() {
 		defer close(resultsCh)
+		// jobResultsCh is closed when all results have been sent, causing the
+		// loop to exit and the goroutine to end.
 		for jobResult := range jobResultsCh {
 			resultsCh <- jobResultProcessors[jobResult.JobIdx](jobResult.JobResult)
 		}
