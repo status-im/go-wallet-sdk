@@ -10,11 +10,12 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/balance/fetcher` | High‑performance balance fetcher for EVM‑compatible chains.  The package can fetch native token balances or ERC‑20 balances for multiple addresses in batches using smart fallback strategies. It includes automatic fallback strategies (Multicall3 contract or standard RPC batching) and exposes simple APIs to fetch balances for many addresses or tokens                                                             |
 | `pkg/multicall`       | Efficient batching of multiple Ethereum contract calls into single transactions using Multicall3. Supports native ETH, ERC20, ERC721, and ERC1155 balance queries with chunked processing, error handling, and both synchronous and asynchronous execution modes. |
 | `pkg/ethclient`       | Chain‑agnostic Ethereum JSON‑RPC client.  It provides two method sets: a drop‑in replacement compatible with go‑ethereum's `ethclient` and a custom implementation that follows the Ethereum JSON‑RPC specification without assuming chain‑specific types. It supports JSON‑RPC methods covering `eth_`, `net_` and `web3_` namespace |
+| `pkg/gas`             | Comprehensive gas estimation and fee suggestion package for Ethereum and L2 networks. Provides smart fee estimation with priority fees, base fees, max fees, and inclusion time estimates. Supports multiple chain classes including L1 (Ethereum, Polygon, BSC), Arbitrum Stack, Optimism Stack, and Linea Stack with chain-specific optimizations. |
 | `pkg/eventfilter`     | Efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls while capturing all relevant transfers involving specified addresses with optimized query generation and direction-based filtering. |
 | `pkg/eventlog`        | Ethereum event log parser for ERC20, ERC721, and ERC1155 events. Automatically detects and parses token events with type-safe access to event data, supporting Transfer, Approval, and other standard token events. |
 | `pkg/common`          | Shared types and constants. Such as canonical chain IDs (e.g., Ethereum Mainnet, Optimism, Arbitrum, BSC, Base). Developers use these values when configuring the SDK or examples.                               |
 | `pkg/contracts/`      | Solidity contracts and Go bindings for smart contract interactions. Includes Multicall3, ERC20, ERC721, and ERC1155 contracts with deployment addresses for multiple chains. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), and `eventfilter-example` (shows event filtering and parsing capabilities).                                             |                                                                                                                                                 |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), and `gas-comparison` (compares gas estimation implementations across multiple networks).                                             |                                                                                                                                                 |
 
 ## 2. Architecture
 
@@ -24,6 +25,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Balance Fetcher** – Provides efficient methods to retrieve account balances (native or ERC‑20) across many addresses and tokens. It abstracts over RPC batch calls and Multicall3 contract calls. Developers supply a minimal RPC client interface (`RPCClient` and optionally `BatchCaller`) and the package returns a map of balances
 - **Multicall** – Efficiently batches multiple Ethereum contract calls into single transactions using Multicall3. Supports native ETH, ERC20, ERC721, and ERC1155 balance queries with automatic chunking, error handling, and both synchronous and asynchronous execution modes. Provides call builders and result processors for different token types.
 - **Ethereum Client** – Exposes the full Ethereum JSON‑RPC API. It wraps a standard RPC client and offers two sets of methods: chain‑agnostic versions prefixed with `Eth*` and a drop‑in `BalanceAt`, `BlockNumber` etc. that mirror go‑ethereum's ethclient. The client covers methods including network info, block and transaction queries, account state, contract code and gas estimation
+- **Gas Estimation** – Provides comprehensive gas fee estimation and suggestions for Ethereum and L2 networks. Analyzes historical fee data to suggest optimal priority fees, base fees, and max fees for three priority levels (low, medium, high). Estimates transaction inclusion time based on network congestion and chain parameters. Supports multiple chain classes with specific optimizations for L1, Arbitrum Stack, Optimism Stack, and Linea Stack.
 - **Event Filter** – Efficiently filters Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls through optimized query generation and supports direction-based filtering (send, receive, or both). Uses intelligent query merging to reduce the number of RPC calls required.
 - **Event Log Parser** – Automatically detects and parses Ethereum event logs for ERC20, ERC721, and ERC1155 tokens. Provides type-safe access to event data with support for Transfer, Approval, and other standard token events. Works seamlessly with the Event Filter package.
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
@@ -89,6 +91,41 @@ The `pkg/contracts` package provides Go bindings for smart contracts and deploym
 - **Multicall3** – Provides bindings for the Multicall3 contract with deployment addresses for 200+ chains. Includes utilities for address resolution and chain support checking.
 - **Token Standards** – ERC20, ERC721, and ERC1155 contract bindings with standard interface implementations.
 - **Deployment Management** – Automated deployment address management with utilities to regenerate addresses from official deployment lists.
+
+### 2.9 Gas Estimation Design
+
+The `pkg/gas` package provides comprehensive gas fee estimation and suggestions for Ethereum and L2 networks:
+
+- **Multi-Chain Support** – Supports four chain classes with specific optimization strategies:
+  - **L1 (Ethereum, Polygon, BSC)**: Uses congestion-based base fee multipliers for dynamic fee adjustment (1.025x base with 10x congestion factor for medium/high)
+  - **ArbStack (Arbitrum)**: Fast 0.25s block times with fixed multipliers (1.025x, 4.1x, 10.25x) for L2 optimization
+  - **OPStack (Optimism, Base)**: Fixed base fee multipliers (1.025x, 4.1x, 10.25x) for predictable fees
+  - **LineaStack (Linea)**: Uses dedicated `linea_estimateGas` RPC method with 2x base fee for all levels
+  
+- **Fee Calculation** – Analyzes historical fee data from `eth_feeHistory` to calculate three priority levels:
+  - **Low Priority**: Uses 10th percentile of historical priority fees, base fee with 1.025x multiplier (no congestion adjustment on L1)
+  - **Medium Priority**: Uses 45th percentile with configurable base fee multipliers (1.025x for L1, 4.1x for L2) and optional congestion adjustment (10x factor on L1)
+  - **High Priority**: Uses 90th percentile with higher base fee multipliers (1.025x for L1, 10.25x for L2) and optional congestion adjustment (10x factor on L1)
+  
+- **Inclusion Time Estimation** – Estimates transaction inclusion time based on:
+  - Historical base fees and priority fees from recent blocks
+  - Chain-specific block times (12s for Ethereum, 2s for L2s, 0.25s for Arbitrum)
+  - Fee competitiveness relative to network conditions
+  - Returns min/max blocks and min/max seconds until inclusion
+  
+- **Network Congestion** – Calculates congestion score (0-1 scale) for L1 chains by analyzing:
+  - Average base fee trends
+  - Average priority fee levels
+  - Gas usage ratios across recent blocks
+  - Weighted scoring of priority fees (70%) and gas usage (30%)
+  
+- **Configurable Parameters** – Developers can customize:
+  - Number of blocks for congestion analysis (default: 10)
+  - Number of blocks for gas price estimation (default: 10 for L1, 50 for L2)
+  - Reward percentiles for low/medium/high priority (10/45/90)
+  - Base fee multipliers per priority level (default: 1.025 for L1, 1.025/4.1/10.25 for L2)
+  - Congestion-based adjustment factors for L1 chains (default: 0.0/10.0/10.0)
+  - Fine-grained control over fee calculation for each priority level
 
 ## 3. API Description
 
@@ -364,11 +401,161 @@ Converts Go `ethereum.FilterQuery` structs into JSON-RPC filter objects:
 
 This enables `EthGetLogs`, `EthNewFilter`, and other event filtering methods to work correctly across all EVM chains.
 
-### 3.3 Event Filter API (`pkg/eventfilter`)
+### 3.3 Gas Estimation API (`pkg/gas`)
+
+The gas package provides comprehensive gas fee estimation and transaction inclusion time predictions for Ethereum and L2 networks.
+
+#### 3.3.1 Core Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `GetTxSuggestions(ctx, ethClient, params, config, callMsg)` | Get fee suggestions and gas limit for a transaction | `ctx`: `context.Context`, `ethClient`: `EthClient`, `params`: `ChainParameters`, `config`: `SuggestionsConfig`, `callMsg`: `*ethereum.CallMsg` | `*TxSuggestions`, `error` |
+| `EstimateInclusion(ctx, ethClient, params, config, fee)` | Estimate inclusion time for a specific fee | `ctx`: `context.Context`, `ethClient`: `EthClient`, `params`: `ChainParameters`, `config`: `SuggestionsConfig`, `fee`: `Fee` | `*Inclusion`, `error` |
+| `DefaultConfig(chainClass)` | Get default configuration for a chain class | `chainClass`: `ChainClass` | `SuggestionsConfig` |
+
+#### 3.3.2 Chain Parameters
+
+```go
+type ChainParameters struct {
+    ChainClass       ChainClass  // L1, ArbStack, OPStack, or LineaStack
+    NetworkBlockTime float64     // Average block time in seconds
+}
+```
+
+| ChainClass | Description | Example Networks | Block Time |
+|------------|-------------|------------------|------------|
+| `ChainClassL1` | Ethereum L1 chains | Ethereum, Polygon, BSC | 12s (Ethereum), 2.25s (Polygon), 0.75s (BSC) |
+| `ChainClassArbStack` | Arbitrum-based chains | Arbitrum One, Arbitrum Nova | 0.25s |
+| `ChainClassOPStack` | Optimism-based chains | Optimism, Base, OP Sepolia | 2s |
+| `ChainClassLineaStack` | Linea-based chains | Linea Mainnet, Status Network | 2s |
+
+#### 3.3.3 Configuration
+
+```go
+type SuggestionsConfig struct {
+    NetworkCongestionBlocks           int     // Blocks to analyze for congestion (default: 10)
+    GasPriceEstimationBlocks          int     // Blocks for gas price estimation (default: 10 for L1, 50 for L2)
+    LowRewardPercentile               float64 // Percentile for low priority (default: 10)
+    MediumRewardPercentile            float64 // Percentile for medium priority (default: 45)
+    HighRewardPercentile              float64 // Percentile for high priority (default: 90)
+    LowBaseFeeMultiplier              float64 // Base fee multiplier for low level (default: 1.025)
+    MediumBaseFeeMultiplier           float64 // Base fee multiplier for medium level (default: 1.025 for L1, 4.1 for L2)
+    HighBaseFeeMultiplier             float64 // Base fee multiplier for high level (default: 1.025 for L1, 10.25 for L2)
+    LowBaseFeeCongestionMultiplier    float64 // Congestion adjustment for low (L1 only, default: 0.0)
+    MediumBaseFeeCongestionMultiplier float64 // Congestion adjustment for medium (L1 only, default: 10.0)
+    HighBaseFeeCongestionMultiplier   float64 // Congestion adjustment for high (L1 only, default: 10.0)
+}
+```
+
+#### 3.3.4 Response Types
+
+```go
+type TxSuggestions struct {
+    GasLimit       *big.Int        // Estimated gas limit for the transaction
+    FeeSuggestions *FeeSuggestions // Fee suggestions for three priority levels
+}
+
+type FeeSuggestions struct {
+    // Fee suggestions for three priority levels
+    Low    Fee // Low priority fee
+    Medium Fee // Medium priority fee
+    High   Fee // High priority fee
+    
+    // Inclusion time estimates
+    LowInclusion    Inclusion // Low priority inclusion estimate
+    MediumInclusion Inclusion // Medium priority inclusion estimate
+    HighInclusion   Inclusion // High priority inclusion estimate
+    
+    // Network state
+    EstimatedBaseFee      *big.Int // Next block's estimated base fee (wei)
+    PriorityFeeLowerBound *big.Int // Recommended min priority fee (wei)
+    PriorityFeeUpperBound *big.Int // Recommended max priority fee (wei)
+    NetworkCongestion     float64  // Congestion score 0-1 (L1 only)
+}
+
+type Fee struct {
+    MaxPriorityFeePerGas *big.Int // Max priority fee per gas (wei)
+    MaxFeePerGas         *big.Int // Max fee per gas (wei)
+}
+
+type Inclusion struct {
+    MinBlocksUntilInclusion int     // Minimum blocks until inclusion
+    MaxBlocksUntilInclusion int     // Maximum blocks until inclusion
+    MinTimeUntilInclusion   float64 // Minimum time in seconds
+    MaxTimeUntilInclusion   float64 // Maximum time in seconds
+}
+```
+
+#### 3.3.5 EthClient Interface
+
+```go
+type EthClient interface {
+    FeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int, 
+               rewardPercentiles []float64) (*ethereum.FeeHistory, error)
+    EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
+    LineaEstimateGas(ctx context.Context, msg ethereum.CallMsg) (*LineaEstimateGasResult, error)
+}
+```
+
+#### 3.3.6 Usage Example
+
+```go
+import "github.com/status-im/go-wallet-sdk/pkg/gas"
+
+// Define chain parameters
+params := gas.ChainParameters{
+    ChainClass:       gas.ChainClassL1,
+    NetworkBlockTime: 12.0, // Ethereum block time
+}
+
+// Get default config or customize
+config := gas.DefaultConfig(params.ChainClass)
+
+// Create transaction call message
+callMsg := &ethereum.CallMsg{
+    From:  common.HexToAddress("0x..."),
+    To:    &toAddress,
+    Value: big.NewInt(0),
+    Data:  txData,
+}
+
+// Get fee suggestions
+suggestions, err := gas.GetTxSuggestions(ctx, ethClient, params, config, callMsg)
+if err != nil {
+    return err
+}
+
+// Use medium priority fees
+maxPriorityFee := suggestions.FeeSuggestions.Medium.MaxPriorityFeePerGas
+maxFee := suggestions.FeeSuggestions.Medium.MaxFeePerGas
+gasLimit := suggestions.GasLimit
+
+// Check estimated wait time
+minWait := suggestions.FeeSuggestions.MediumInclusion.MinTimeUntilInclusion
+maxWait := suggestions.FeeSuggestions.MediumInclusion.MaxTimeUntilInclusion
+
+// Estimate inclusion for custom fee
+customFee := gas.Fee{
+    MaxPriorityFeePerGas: big.NewInt(2000000000), // 2 gwei
+    MaxFeePerGas:         big.NewInt(30000000000), // 30 gwei
+}
+inclusion, err := gas.EstimateInclusion(ctx, ethClient, params, config, customFee)
+```
+
+#### 3.3.7 Chain-Specific Behavior
+
+| Chain Class | Base Fee Strategy | Priority Fee Source | Congestion Analysis |
+|-------------|-------------------|---------------------|---------------------|
+| L1 | Dynamic (1.025x base for all levels + congestion multiplier for medium/high) | Historical percentiles (10/45/90) | Yes (0-1 scale, 0x/10x/10x factors) |
+| ArbStack | Fixed (1.025x, 4.1x, 10.25x multipliers) | Historical percentiles (10/45/90) | No (0x/0x/0x factors) |
+| OPStack | Fixed (1.025x, 4.1x, 10.25x multipliers) | Historical percentiles (10/45/90) | No (0x/0x/0x factors) |
+| LineaStack | 2x base fee for all levels | `linea_estimateGas` RPC | No |
+
+### 3.4 Event Filter API (`pkg/eventfilter`)
 
 The event filter package provides efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens with concurrent processing capabilities.
 
-#### 3.3.1 Configuration
+#### 3.4.1 Configuration
 
 | Type | Description | Values |
 |------|-------------|---------|
@@ -376,7 +563,7 @@ The event filter package provides efficient filtering for Ethereum transfer even
 | `Direction` | Transfer direction | `Send`, `Receive`, `Both` |
 | `TransferQueryConfig` | Main configuration struct | See below |
 
-#### 3.3.2 TransferQueryConfig
+#### 3.4.2 TransferQueryConfig
 
 ```go
 type TransferQueryConfig struct {
@@ -389,14 +576,14 @@ type TransferQueryConfig struct {
 }
 ```
 
-#### 3.3.3 Core Functions
+#### 3.4.3 Core Functions
 
 | Function | Purpose | Parameters | Returns |
 |----------|---------|------------|---------|
 | `FilterTransfers(ctx, client, config)` | Filter and parse transfer events with concurrent processing | `ctx`: `context.Context`, `client`: `FilterClient`, `config`: `TransferQueryConfig` | `[]eventlog.Event`, `error` |
 | `config.ToFilterQueries()` | Generate optimized filter queries | `config`: `TransferQueryConfig` | `[]ethereum.FilterQuery` |
 
-#### 3.3.4 FilterClient Interface
+#### 3.4.4 FilterClient Interface
 
 ```go
 type FilterClient interface {
@@ -404,7 +591,7 @@ type FilterClient interface {
 }
 ```
 
-#### 3.3.5 Concurrent Processing
+#### 3.4.5 Concurrent Processing
 
 The `FilterTransfers` function provides concurrent processing of filter queries:
 
@@ -413,7 +600,7 @@ The `FilterTransfers` function provides concurrent processing of filter queries:
 - **Event Collection**: Results from all queries are merged into a single event slice
 - **Resource Management**: Proper cleanup of goroutines and channels
 
-#### 3.3.6 Query Optimization
+#### 3.4.6 Query Optimization
 
 The package minimizes API calls through intelligent query merging:
 
@@ -422,11 +609,11 @@ The package minimizes API calls through intelligent query merging:
 - **Event Signature Merging**: Multiple event types in single query using OR operations
 - **Topic Structure Optimization**: Merges compatible queries by omitting empty trailing topics
 
-### 3.4 Event Log Parser API (`pkg/eventlog`)
+### 3.5 Event Log Parser API (`pkg/eventlog`)
 
 The event log parser package provides automatic detection and parsing of Ethereum event logs.
 
-#### 3.4.1 Core Types
+#### 3.5.1 Core Types
 
 ```go
 type Event struct {
@@ -441,13 +628,13 @@ type ContractKey string
 type EventKey string
 ```
 
-#### 3.4.2 Core Functions
+#### 3.5.2 Core Functions
 
 | Function | Purpose | Parameters | Returns |
 |----------|---------|------------|---------|
 | `ParseLog(log)` | Parse a single log into events | `log`: `types.Log` | `[]Event` |
 
-#### 3.4.3 Supported Events
+#### 3.5.3 Supported Events
 
 | Contract | Event Types | Unpacked Type |
 |----------|-------------|---------------|
@@ -455,7 +642,7 @@ type EventKey string
 | ERC721 | Transfer, Approval, ApprovalForAll | `erc721.Erc721Transfer`, `erc721.Erc721Approval`, `erc721.Erc721ApprovalForAll` |
 | ERC1155 | TransferSingle, TransferBatch, ApprovalForAll, URI | `erc1155.Erc1155TransferSingle`, `erc1155.Erc1155TransferBatch`, `erc1155.Erc1155ApprovalForAll`, `erc1155.Erc1155URI` |
 
-#### 3.4.4 Event Signatures
+#### 3.5.4 Event Signatures
 
 Uses standardized signatures from the `eventlog` package:
 - **ERC20/ERC721 Transfer**: `0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef`
@@ -617,6 +804,29 @@ The `examples/eventfilter-example` folder demonstrates how to use the event filt
 - **Output Format** – The example displays transfers grouped by token type with comprehensive details extracted from the `Unpacked` field. It shows block numbers, transaction hashes, addresses, amounts, token IDs, contract addresses, log indices, event signatures, and other metadata. Raw event data is also displayed for debugging purposes.
 
 - **Integration** – The example demonstrates the seamless integration between the `eventfilter` and `eventlog` packages, showing how to filter events and parse them into type-safe Go structs for application use with improved performance through concurrent processing.
+
+### 4.6 Gas Comparison Example
+
+The `examples/gas-comparison` folder demonstrates gas fee estimation across multiple networks and compares different implementations with comprehensive analysis tools.
+
+- **Features** – The example provides a multi-network gas fee comparison tool that tests gas estimation accuracy across Ethereum, Arbitrum, Optimism, Base, Polygon, Linea, BSC, and Status Network Sepolia. It compares three implementations: the new `GetTxSuggestions` API, a legacy estimator, and Infura's Gas API. The tool displays comprehensive analysis including priority fees, max fees, base fees, wait times, and network congestion metrics.
+
+- **Usage** – Users can run with local mock data (`-fake` flag) for testing without network access, or with real networks by providing an Infura API key (`-infura-api-key YOUR_KEY`). The tool automatically configures chain-specific parameters including block times and estimation strategies for each network. Example output shows detailed comparisons in wei with percentage differences between implementations.
+
+- **Chain-Specific Parameters** – The example demonstrates proper configuration for different chain classes:
+  - **Ethereum Mainnet**: 12s block time, 10 blocks for estimation, L1 congestion analysis
+  - **Arbitrum One**: 0.25s block time, 50 blocks for estimation, ArbStack optimizations
+  - **Optimism/Base**: 2s block time, 50 blocks for estimation, OPStack fixed multipliers
+  - **Polygon**: 2.25s block time, 50 blocks for estimation, L1 congestion analysis
+  - **Linea/Status Network**: 2s block time, 50 blocks for estimation, LineaStack with `linea_estimateGas`
+
+- **Test Transaction** – Uses a simple 0-valued ETH transfer from Vitalik's address (`0xd8da6bf26964af9d7eed9e03e53415d37aa96045`) to the zero address for consistent testing across networks. This minimal transaction allows focus on fee estimation accuracy without contract complexity.
+
+- **Mock Data Support** – Includes pre-captured network data for offline testing. The `data/generator` subdirectory provides tools to regenerate test data by fetching fresh blockchain data including latest blocks with full transactions, 1024 blocks of fee history, current gas prices, and Infura fee suggestions.
+
+- **Output Format** – Displays comprehensive comparison results showing fee suggestions for three priority levels, time estimates with min/max ranges in seconds, network congestion scores (L1 only), and percentage differences between implementations. Results help validate estimation accuracy and identify optimization opportunities.
+
+- **Data Generator** – The `data/generator` tool captures real blockchain data for testing. Users run `go run main.go -rpc YOUR_RPC_URL` to fetch data from any EVM chain. The tool automatically detects chain ID and generates chain-specific Go code with embedded test data for reproducible offline testing.
 
 ## 5. Testing & Development
 

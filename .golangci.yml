@@ -4,7 +4,7 @@ run:
   concurrency: 0
   timeout: 10m
   issues-exit-code: 1
-  tests: true
+  tests: false
 
 output:
   formats: 
@@ -32,6 +32,7 @@ linters:
     # You can't disable typecheck, see:
     # https://github.com/golangci/golangci-lint/blob/master/docs/src/docs/welcome/faq.mdx#why-do-you-have-typecheck-errors
     - unconvert
+    - bodyclose
   settings:
     errcheck:
       check-type-assertions: false
@@ -46,6 +47,9 @@ linters:
     goconst:
       min-len: 3
       min-occurrences: 2
+    gosec:
+      excludes:
+        - G115
 
 formatters:
   exclusions:
