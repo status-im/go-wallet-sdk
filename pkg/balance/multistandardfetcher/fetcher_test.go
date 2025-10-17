@@ -1,6 +1,7 @@
 package multistandardfetcher_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"math/big"
@@ -240,17 +241,16 @@ func TestFetchBalances_ERC20Balances_MultipleAccounts(t *testing.T) {
 	expectedBlockHash := [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
 
 	// Mock the multicall execution - all calls in one batch
+	expectedCall_1 := multicall.BuildERC20BalanceCall(account1, token1)
+	expectedCall_2 := multicall.BuildERC20BalanceCall(account1, token2)
+	expectedCall_3 := multicall.BuildERC20BalanceCall(account2, token1)
+	expectedCall_4 := multicall.BuildERC20BalanceCall(account2, token2)
+
 	expectedCalls := []multicall3.IMulticall3Call{
-		multicall.BuildERC20BalanceCall(account1, token1),
-		multicall.BuildERC20BalanceCall(account1, token2),
-		multicall.BuildERC20BalanceCall(account2, token1),
-		multicall.BuildERC20BalanceCall(account2, token2),
-	}
-	expectedResults := []multicall3.IMulticall3Result{
-		{Success: true, ReturnData: big.NewInt(1000).Bytes()}, // account1, token1
-		{Success: true, ReturnData: big.NewInt(2000).Bytes()}, // account1, token2
-		{Success: true, ReturnData: big.NewInt(3000).Bytes()}, // account2, token1
-		{Success: true, ReturnData: big.NewInt(4000).Bytes()}, // account2, token2
+		expectedCall_1,
+		expectedCall_2,
+		expectedCall_3,
+		expectedCall_4,
 	}
 
 	mockCaller.EXPECT().
@@ -261,7 +261,32 @@ func TestFetchBalances_ERC20Balances_MultipleAccounts(t *testing.T) {
 		).
 		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
-			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
+			results := make([]multicall3.IMulticall3Result, len(calls))
+			for i := range calls {
+				call := calls[i]
+				if call.Target == expectedCall_1.Target && bytes.Equal(call.CallData, expectedCall_1.CallData) {
+					results[i] = multicall3.IMulticall3Result{
+						Success:    true,
+						ReturnData: big.NewInt(1000).Bytes(),
+					}
+				} else if call.Target == expectedCall_2.Target && bytes.Equal(call.CallData, expectedCall_2.CallData) {
+					results[i] = multicall3.IMulticall3Result{
+						Success:    true,
+						ReturnData: big.NewInt(2000).Bytes(),
+					}
+				} else if call.Target == expectedCall_3.Target && bytes.Equal(call.CallData, expectedCall_3.CallData) {
+					results[i] = multicall3.IMulticall3Result{
+						Success:    true,
+						ReturnData: big.NewInt(3000).Bytes(),
+					}
+				} else if call.Target == expectedCall_4.Target && bytes.Equal(call.CallData, expectedCall_4.CallData) {
+					results[i] = multicall3.IMulticall3Result{
+						Success:    true,
+						ReturnData: big.NewInt(4000).Bytes(),
+					}
+				}
+			}
+			return expectedBlockNumber, expectedBlockHash, results, nil
 		})
 
 	// Create config
