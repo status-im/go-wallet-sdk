@@ -409,6 +409,7 @@ The gas package provides comprehensive gas fee estimation and transaction inclus
 
 | Function | Purpose | Parameters | Returns |
 |----------|---------|------------|---------|
+| `GetChainSuggestions(ctx, ethClient, params, config, account)` | Get fee suggestions for a specific account without transaction details | `ctx`: `context.Context`, `ethClient`: `EthClient`, `params`: `ChainParameters`, `config`: `SuggestionsConfig`, `account`: `common.Address` | `*FeeSuggestions`, `error` |
 | `GetTxSuggestions(ctx, ethClient, params, config, callMsg)` | Get fee suggestions and gas limit for a transaction | `ctx`: `context.Context`, `ethClient`: `EthClient`, `params`: `ChainParameters`, `config`: `SuggestionsConfig`, `callMsg`: `*ethereum.CallMsg` | `*TxSuggestions`, `error` |
 | `EstimateInclusion(ctx, ethClient, params, config, fee)` | Estimate inclusion time for a specific fee | `ctx`: `context.Context`, `ethClient`: `EthClient`, `params`: `ChainParameters`, `config`: `SuggestionsConfig`, `fee`: `Fee` | `*Inclusion`, `error` |
 | `DefaultConfig(chainClass)` | Get default configuration for a chain class | `chainClass`: `ChainClass` | `SuggestionsConfig` |
@@ -542,7 +543,56 @@ customFee := gas.Fee{
 inclusion, err := gas.EstimateInclusion(ctx, ethClient, params, config, customFee)
 ```
 
-#### 3.3.7 Chain-Specific Behavior
+#### 3.3.7 GetChainSuggestions Method
+
+The `GetChainSuggestions` method provides fee suggestions for a specific account without requiring transaction details. This is useful for getting general fee recommendations based on network conditions and account-specific factors.
+
+**Method Signature:**
+```go
+func GetChainSuggestions(
+    ctx context.Context,
+    ethClient EthClient,
+    params ChainParameters,
+    config SuggestionsConfig,
+    account common.Address,
+) (*FeeSuggestions, error)
+```
+
+**Key Features:**
+- **Account-Specific**: Uses the account address for chain-specific optimizations (especially for LineaStack)
+- **No Transaction Required**: Provides fee suggestions without needing a specific transaction call message
+- **Network-Aware**: Analyzes current network conditions and historical fee data
+- **Chain-Optimized**: Uses different strategies based on chain class (L1, ArbStack, OPStack, LineaStack)
+
+**Usage Example:**
+```go
+// Get general fee suggestions for an account
+account := common.HexToAddress("0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6")
+suggestions, err := gas.GetChainSuggestions(ctx, ethClient, params, config, account)
+if err != nil {
+    return err
+}
+
+// Access fee suggestions
+lowFee := suggestions.Low.MaxFeePerGas
+mediumFee := suggestions.Medium.MaxFeePerGas
+highFee := suggestions.High.MaxFeePerGas
+
+// Check inclusion time estimates
+minWait := suggestions.MediumInclusion.MinTimeUntilInclusion
+maxWait := suggestions.MediumInclusion.MaxTimeUntilInclusion
+
+// Access network state
+baseFee := suggestions.EstimatedBaseFee
+congestion := suggestions.NetworkCongestion // L1 only
+```
+
+**Chain-Specific Behavior:**
+- **L1 Chains**: Uses historical fee data and congestion analysis
+- **ArbStack/OPStack**: Uses fixed multipliers with historical percentiles
+- **LineaStack**: Uses `linea_estimateGas` RPC method with account-specific gas price suggestions
+
+#### 3.3.8 Chain-Specific Behavior
 
 | Chain Class | Base Fee Strategy | Priority Fee Source | Congestion Analysis |
 |-------------|-------------------|---------------------|---------------------|
