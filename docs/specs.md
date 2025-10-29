@@ -30,6 +30,12 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Event Log Parser** – Automatically detects and parses Ethereum event logs for ERC20, ERC721, and ERC1155 tokens. Provides type-safe access to event data with support for Transfer, Approval, and other standard token events. Works seamlessly with the Event Filter package.
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
+- **Token Types** – Core data structures for tokens and token lists with unified representation, cross-chain support, type-safe address handling, and validation. Provides Token and TokenList types that serve as the foundation for all token-related operations.
+- **Token Parsers** – Token list parsing implementations for multiple formats including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing. Supports chain filtering and validation with extensible parser architecture.
+- **Token Fetcher** – HTTP-based token list fetching with concurrent operations, HTTP ETag caching for bandwidth efficiency, JSON schema validation support, and robust error handling with timeout management. Designed for production use with configurable HTTP client settings.
+- **Token AutoFetcher** – Automated background token list management with configurable refresh intervals, thread-safe operations with context support, pluggable storage backends, and error reporting via channels. Supports both direct token list fetching and remote list-of-token-lists discovery patterns.
+- **Token Builder** – Incremental token collection building using the Builder pattern with automatic deduplication by chain ID and address, native token generation for supported chains, and multiple format support through parsers. Provides stateful construction with deterministic ordering.
+- **Token Manager** – High-level token management interface providing multi-source token integration (native, remote, local, custom), thread-safe concurrent access, rich query capabilities by chain/address/list ID, and automatic refresh with state management. Centralizes token operations for wallet applications.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -101,24 +107,24 @@ The `pkg/gas` package provides comprehensive gas fee estimation and suggestions 
   - **ArbStack (Arbitrum)**: Fast 0.25s block times with fixed multipliers (1.025x, 4.1x, 10.25x) for L2 optimization
   - **OPStack (Optimism, Base)**: Fixed base fee multipliers (1.025x, 4.1x, 10.25x) for predictable fees
   - **LineaStack (Linea)**: Uses dedicated `linea_estimateGas` RPC method with 2x base fee for all levels
-  
+
 - **Fee Calculation** – Analyzes historical fee data from `eth_feeHistory` to calculate three priority levels:
   - **Low Priority**: Uses 10th percentile of historical priority fees, base fee with 1.025x multiplier (no congestion adjustment on L1)
   - **Medium Priority**: Uses 45th percentile with configurable base fee multipliers (1.025x for L1, 4.1x for L2) and optional congestion adjustment (10x factor on L1)
   - **High Priority**: Uses 90th percentile with higher base fee multipliers (1.025x for L1, 10.25x for L2) and optional congestion adjustment (10x factor on L1)
-  
+
 - **Inclusion Time Estimation** – Estimates transaction inclusion time based on:
   - Historical base fees and priority fees from recent blocks
   - Chain-specific block times (12s for Ethereum, 2s for L2s, 0.25s for Arbitrum)
   - Fee competitiveness relative to network conditions
   - Returns min/max blocks and min/max seconds until inclusion
-  
+
 - **Network Congestion** – Calculates congestion score (0-1 scale) for L1 chains by analyzing:
   - Average base fee trends
   - Average priority fee levels
   - Gas usage ratios across recent blocks
   - Weighted scoring of priority fees (70%) and gas usage (30%)
-  
+
 - **Configurable Parameters** – Developers can customize:
   - Number of blocks for congestion analysis (default: 10)
   - Number of blocks for gas price estimation (default: 10 for L1, 50 for L2)
@@ -126,6 +132,67 @@ The `pkg/gas` package provides comprehensive gas fee estimation and suggestions 
   - Base fee multipliers per priority level (default: 1.025 for L1, 1.025/4.1/10.25 for L2)
   - Congestion-based adjustment factors for L1 chains (default: 0.0/10.0/10.0)
   - Fine-grained control over fee calculation for each priority level
+
+### 2.10 Token Types Design
+
+The `pkg/tokens/types` package provides the foundational data structures for the entire token management system:
+
+- **Unified Token Representation** – The `Token` struct represents tokens across all blockchain networks with cross-chain support through `CrossChainID`, allowing tokens to be grouped across different chains (e.g., USDC on Ethereum and BSC).
+- **Type-Safe Address Handling** – Uses `gethcommon.Address` for Ethereum addresses with automatic validation and normalization, ensuring addresses are properly formatted and checksummed.
+- **Token List Metadata** – The `TokenList` struct includes comprehensive metadata including name, timestamp, version, source URL, and schema information for validation and origin tracking.
+- **Custom Token Support** – Distinguishes between official tokens from curated lists and user-added custom tokens through the `CustomToken` flag, enabling personalized token management.
+- **Deterministic Key Generation** – Tokens are uniquely identified using `TokenKey(chainID, address)` which creates consistent keys for deduplication and lookup operations.
+
+### 2.11 Token Parsers Design
+
+The `pkg/tokens/parsers` package provides extensible parsing for multiple token list formats:
+
+- **Multi-Format Support** – Supports Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing through pluggable parser interfaces.
+- **Chain Filtering** – All parsers accept a `supportedChains` parameter to filter tokens by blockchain network, enabling applications to focus on relevant chains only.
+- **Address Validation** – Comprehensive Ethereum address validation including checksummed, lowercase, and uppercase formats with proper error reporting for invalid addresses.
+- **Extensible Architecture** – Parser interfaces (`TokenListParser`, `ListOfTokenListsParser`) allow easy addition of new formats without modifying existing code.
+- **Error Resilience** – Graceful handling of malformed data, missing fields, and invalid JSON with detailed error messages for debugging.
+
+### 2.12 Token Fetcher Design
+
+The `pkg/tokens/fetcher` package provides production-ready HTTP fetching capabilities:
+
+- **Concurrent Operations** – Uses goroutines for parallel fetching of multiple token lists with proper synchronization and error aggregation.
+- **HTTP ETag Caching** – Implements efficient caching using HTTP ETags to minimize bandwidth usage, returning empty data for 304 Not Modified responses.
+- **Configurable HTTP Client** – Customizable timeout, connection pooling, compression settings, and idle connection management for optimal performance.
+- **JSON Schema Validation** – Optional validation against JSON schemas with support for both inline schemas and remote schema URLs.
+- **Context Support** – Full context cancellation and timeout support for proper resource management and request lifecycle control.
+
+### 2.13 Token AutoFetcher Design
+
+The `pkg/tokens/autofetcher` package provides automated background token list management:
+
+- **Two Operation Modes** – Supports direct token list fetching for known lists and remote list-of-token-lists discovery for dynamic list management.
+- **Configurable Refresh Logic** – Flexible refresh intervals with separate check intervals, allowing fine-grained control over when refreshes occur.
+- **Thread-Safe Operations** – All operations are safe for concurrent access with proper synchronization and atomic state updates.
+- **Pluggable Storage** – ContentStore interface allows integration with various storage backends (memory, database, file system) for caching fetched content.
+- **Error Reporting** – Real-time error notifications via channels, enabling applications to monitor refresh operations and handle failures appropriately.
+
+### 2.14 Token Builder Design
+
+The `pkg/tokens/builder` package implements the Builder pattern for incremental token collection construction:
+
+- **Incremental Building** – Start with empty state and progressively add token lists, maintaining internal state throughout the building process.
+- **Automatic Deduplication** – Prevents duplicate tokens using chain ID and address combinations, ensuring each unique token appears only once in the final collection.
+- **Native Token Generation** – Automatically generates native tokens (ETH, BNB, etc.) for supported blockchain networks, ensuring comprehensive token coverage.
+- **Multiple Format Support** – Integrates with parsers to handle various token list formats, providing a unified interface regardless of source format.
+- **Stateful Construction** – Maintains both individual token lists and unified token collection, enabling applications to track origin and build complex token hierarchies.
+
+### 2.15 Token Manager Design
+
+The `pkg/tokens/manager` package provides a high-level interface for comprehensive token management:
+
+- **Multi-Source Integration** – Combines tokens from native generation, remote token lists, local token lists, and custom user tokens into a unified collection.
+- **Thread-Safe Concurrent Access** – Optimized for concurrent read operations using RWMutex, allowing multiple goroutines to access token data simultaneously.
+- **Rich Query Capabilities** – Provides methods to find tokens by chain ID, address, list ID, or token keys, enabling efficient token discovery and lookup.
+- **Automatic Refresh Management** – Integrates with AutoFetcher to provide background refresh capabilities with configurable intervals and error handling.
+- **Deterministic Processing Order** – Processes token sources in a consistent order (native → main list → additional lists → custom tokens) ensuring predictable results across runs.
+- **Error Resilience** – Graceful handling of network failures, parsing errors, and storage issues with fallback mechanisms to maintain core functionality.
 
 ## 3. API Description
 
@@ -240,7 +307,7 @@ The SDK uses auto-generated Go bindings to interact with smart contracts. These 
 Use `abigen` to regenerate bindings when contract sources are updated:
 
 ```bash
-# ERC-20 from Solidity interface  
+# ERC-20 from Solidity interface
 abigen --sol pkg/contracts/erc20/IERC20.sol --pkg erc20 --out pkg/contracts/erc20/erc20.go
 
 # ERC-721 from Solidity interface
@@ -372,7 +439,7 @@ Converts Go `*big.Int` block numbers into proper JSON-RPC format:
 - Positive numbers → hex-encoded strings (e.g., `big.NewInt(12345)` → `"0x3039"`)
 - Special negative values → sentinel strings:
   - `-1` → `"pending"` (pending block)
-  - `-2` → `"latest"` (latest mined block)  
+  - `-2` → `"latest"` (latest mined block)
   - `-3` → `"finalized"` (finalized block)
   - `-4` → `"safe"` (safe block)
   - `-5` → `"earliest"` (genesis block)
@@ -383,7 +450,7 @@ This is used by all block-parameter methods like `EthGetBalance`, `EthGetCode`, 
 
 Converts Go `ethereum.CallMsg` structs into JSON-RPC call objects with proper hex encoding:
 - Addresses → hex strings
-- Data/input → hex-encoded bytes  
+- Data/input → hex-encoded bytes
 - Gas values → hex-encoded numbers
 - Wei amounts → hex-encoded big integers
 - EIP-1559 fee fields → properly formatted fee caps
@@ -461,12 +528,12 @@ type FeeSuggestions struct {
     Low    Fee // Low priority fee
     Medium Fee // Medium priority fee
     High   Fee // High priority fee
-    
+
     // Inclusion time estimates
     LowInclusion    Inclusion // Low priority inclusion estimate
     MediumInclusion Inclusion // Medium priority inclusion estimate
     HighInclusion   Inclusion // High priority inclusion estimate
-    
+
     // Network state
     EstimatedBaseFee      *big.Int // Next block's estimated base fee (wei)
     PriorityFeeLowerBound *big.Int // Recommended min priority fee (wei)
@@ -491,7 +558,7 @@ type Inclusion struct {
 
 ```go
 type EthClient interface {
-    FeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int, 
+    FeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int,
                rewardPercentiles []float64) (*ethereum.FeeHistory, error)
     EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
     LineaEstimateGas(ctx context.Context, msg ethereum.CallMsg) (*LineaEstimateGasResult, error)
@@ -618,7 +685,7 @@ The event filter package provides efficient filtering for Ethereum transfer even
 ```go
 type TransferQueryConfig struct {
     FromBlock         *big.Int           // Start block number
-    ToBlock           *big.Int           // End block number  
+    ToBlock           *big.Int           // End block number
     ContractAddresses []common.Address   // Optional contract addresses to filter
     Accounts          []common.Address   // Addresses to filter for
     TransferTypes     []TransferType     // Token types to include
@@ -699,6 +766,234 @@ Uses standardized signatures from the `eventlog` package:
 - **ERC1155 TransferSingle**: `0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62`
 - **ERC1155 TransferBatch**: `0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb`
 
+### 3.6 Token Types API (`pkg/tokens/types`)
+
+The token types package provides core data structures for the token management system.
+
+#### 3.6.1 Core Types
+
+```go
+type Token struct {
+    CrossChainID string             `json:"crossChainId"` // Cross-chain identifier
+    ChainID      uint64             `json:"chainId"`      // Blockchain network ID
+    Address      gethcommon.Address `json:"address"`      // Contract address
+    Decimals     uint               `json:"decimals"`     // Number of decimal places
+    Name         string             `json:"name"`         // Full token name
+    Symbol       string             `json:"symbol"`       // Token symbol/ticker
+    LogoURI      string             `json:"logoUri"`      // URL to token logo
+    CustomToken  bool               `json:"custom"`       // Whether this is a custom user token
+}
+
+type TokenList struct {
+    ID               string                 `json:"id"`               // Token list ID
+    Name             string                 `json:"name"`             // Display name
+    Timestamp        time.Time              `json:"timestamp"`        // Last update time
+    Version          *types.Version         `json:"version"`          // Version information
+    SourceURL        string                 `json:"sourceUrl"`        // Source URL
+    Schema           string                 `json:"schema"`            // JSON schema URL
+    Tokens           []*Token               `json:"tokens"`            // List of tokens
+}
+```
+
+#### 3.6.2 Utility Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `TokenKey(chainID, addr)` | Creates unique token key | `chainID`: `uint64`, `addr`: `common.Address` | `string` |
+| `ChainAndAddressFromTokenKey(key)` | Extracts chain ID and address from key | `key`: `string` | `uint64`, `common.Address`, `bool` |
+| `token.IsNative()` | Checks if token is native | `token`: `*Token` | `bool` |
+
+### 3.7 Token Parsers API (`pkg/tokens/parsers`)
+
+The token parsers package provides parsing for multiple token list formats.
+
+#### 3.7.1 Parser Interfaces
+
+```go
+type TokenListParser interface {
+    Parse(raw []byte, supportedChains []uint64) (*types.TokenList, error)
+}
+
+type ListOfTokenListsParser interface {
+    Parse(raw []byte) (*types.ListOfTokenLists, error)
+}
+```
+
+#### 3.7.2 Available Parsers
+
+| Parser | Format | Use Case |
+|--------|--------|----------|
+| `StandardTokenListParser` | Uniswap-style | General purpose, most common |
+| `StatusTokenListParser` | Status-specific with chain grouping | Multi-chain optimization |
+| `CoinGeckoAllTokensParser` | CoinGecko API with platform mappings | Cross-platform discovery |
+| `StatusListOfTokenListsParser` | List-of-token-lists metadata | Managing multiple token list sources |
+
+#### 3.7.3 Usage Example
+
+```go
+parser := &parsers.StandardTokenListParser{}
+tokenList, err := parser.Parse(jsonData, supportedChains)
+if err != nil {
+    return err
+}
+```
+
+### 3.8 Token Fetcher API (`pkg/tokens/fetcher`)
+
+The token fetcher package provides HTTP-based token list fetching.
+
+#### 3.8.1 Configuration
+
+```go
+type Config struct {
+    Timeout            time.Duration // Request timeout (default: 5s)
+    IdleConnTimeout    time.Duration // Connection idle timeout (default: 90s)
+    MaxIdleConns       int           // Max idle connections (default: 10)
+    DisableCompression bool          // Disable gzip compression (default: false)
+}
+```
+
+#### 3.8.2 Core Interface
+
+```go
+type Fetcher interface {
+    Fetch(ctx context.Context, details FetchDetails) (FetchedData, error)
+    FetchConcurrent(ctx context.Context, details []FetchDetails) ([]FetchedData, error)
+}
+```
+
+#### 3.8.3 Data Types
+
+```go
+type FetchDetails struct {
+    types.ListDetails  // Embedded: ID, SourceURL, Schema
+    Etag string             // HTTP ETag for caching
+}
+
+type FetchedData struct {
+    FetchDetails           // Original fetch details
+    Fetched  time.Time     // Timestamp when fetched
+    JsonData []byte        // Raw JSON data (nil if 304 Not Modified)
+    Error    error         // Error that occurred during fetch
+}
+```
+
+### 3.9 Token AutoFetcher API (`pkg/tokens/autofetcher`)
+
+The token autofetcher package provides automated background token list management.
+
+#### 3.9.1 Core Interface
+
+```go
+type AutoFetcher interface {
+    Start(ctx context.Context) (refreshCh chan error)
+    Stop()
+}
+```
+
+#### 3.9.2 Storage Interface
+
+```go
+type ContentStore interface {
+    GetEtag(id string) (string, error)
+    Get(id string) (Content, error)
+    Set(id string, content Content) error
+    GetAll() (map[string]Content, error)
+}
+```
+
+#### 3.9.3 Configuration Types
+
+```go
+type Config struct {
+    LastUpdate               time.Time     // When data was last updated
+    AutoRefreshInterval      time.Duration // How often to refresh
+    AutoRefreshCheckInterval time.Duration // How often to check if refresh is needed
+}
+
+type ConfigTokenLists struct {
+    Config
+    TokenLists []types.ListDetails
+}
+
+type ConfigRemoteListOfTokenLists struct {
+    Config
+    RemoteListOfTokenListsFetchDetails types.ListDetails
+    RemoteListOfTokenListsParser       parsers.ListOfTokenListsParser
+}
+```
+
+### 3.10 Token Builder API (`pkg/tokens/builder`)
+
+The token builder package implements the Builder pattern for incremental token collection construction.
+
+#### 3.10.1 Core Interface
+
+```go
+type Builder struct {
+    // Internal state - not directly accessible
+}
+
+func New(supportedChains []uint64) *Builder
+func (b *Builder) AddNativeTokenList() error
+func (b *Builder) AddTokenList(id string, tokenList *types.TokenList)
+func (b *Builder) AddRawTokenList(id string, rawData []byte, sourceURL string, timestamp time.Time, parser parsers.TokenListParser) error
+func (b *Builder) GetTokens() map[string]*types.Token
+func (b *Builder) GetTokenLists() map[string]*types.TokenList
+```
+
+#### 3.10.2 Usage Example
+
+```go
+builder := builder.New([]uint64{1, 56, 10, 137}) // Ethereum, BSC, Optimism, Polygon
+builder.AddNativeTokenList()
+builder.AddTokenList("uniswap", uniswapList)
+tokens := builder.GetTokens()
+```
+
+### 3.11 Token Manager API (`pkg/tokens/manager`)
+
+The token manager package provides a high-level interface for comprehensive token management.
+
+#### 3.11.1 Core Interface
+
+```go
+type Manager interface {
+    // Lifecycle Management
+    Start(ctx context.Context, enableAutoRefresh bool, notifyCh chan struct{}) error
+    Stop()
+    EnableAutoRefresh(ctx context.Context) error
+    DisableAutoRefresh(ctx context.Context) error
+    TriggerRefresh(ctx context.Context) error
+
+    // Token Operations
+    UniqueTokens() map[string]*types.Token
+    GetTokenByChainAddress(chainID uint64, address common.Address) (*types.Token, bool)
+    GetTokensByChain(chainID uint64) []*types.Token
+    GetTokensByKeys(keys []string) []*types.Token
+    TokenLists() map[string]*types.TokenList
+    TokenList(id string) (*types.TokenList, bool)
+}
+```
+
+#### 3.11.2 Configuration
+
+```go
+type Config struct {
+    MainListID      string                                    // Primary token list ID
+    InitialLists    map[string][]byte                         // Initial token list data
+    CustomParsers   map[string]parsers.TokenListParser       // Custom parsers
+    Chains          []uint64                                  // Supported chain IDs
+    AutoFetcherConfig interface{}                             // AutoFetcher configuration
+}
+```
+
+#### 3.11.3 Constructor
+
+```go
+func New(config *Config, fetcher fetcher.Fetcher, contentStore autofetcher.ContentStore, customTokenStore CustomTokenStore) (Manager, error)
+```
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -712,7 +1007,7 @@ import (
     "context"
     "fmt"
     "math/big"
-    
+
     "github.com/ethereum/go-ethereum/common"
     "github.com/status-im/go-wallet-sdk/pkg/multicall"
     "github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
@@ -720,27 +1015,27 @@ import (
 
 func main() {
     ctx := context.Background()
-    
+
     // Get Multicall3 address for Ethereum Mainnet
     multicallAddr, exists := multicall3.GetMulticall3Address(1)
     if !exists {
         panic("Multicall3 not available on Ethereum Mainnet")
     }
-    
+
     // Create caller (you would use your RPC client here)
     // caller := multicall3.NewMulticall3Caller(multicallAddr, rpcClient)
-    
+
     // Build calls for multiple accounts and tokens
     accounts := []common.Address{
         common.HexToAddress("0x1234..."),
         common.HexToAddress("0x5678..."),
     }
-    
+
     tokens := []common.Address{
         common.HexToAddress("0xA0b86a33E6441b8C4C8C0C4C0C4C0C4C0C4C0C4C0"), // USDC
         common.HexToAddress("0x6B175474E89094C44Da98b954EedeAC495271d0F"), // DAI
     }
-    
+
     // Create native balance job
     nativeCalls := make([]multicall3.IMulticall3Call, 0, len(accounts))
     for _, account := range accounts {
@@ -752,7 +1047,7 @@ func main() {
             return multicall.ProcessNativeBalanceResult(result)
         },
     }
-    
+
     // Create ERC20 balance job
     tokenCalls := make([]multicall3.IMulticall3Call, 0, len(accounts)*len(tokens))
     for _, account := range accounts {
@@ -766,11 +1061,11 @@ func main() {
             return multicall.ProcessERC20BalanceResult(result)
         },
     }
-    
+
     // Execute jobs synchronously
     jobs := []multicall.Job{nativeJob, tokenJob}
     results := multicall.RunSync(ctx, jobs, nil, caller, 100)
-    
+
     // Process native balance results
     for i, callResult := range results[0].Results {
         if callResult.Err != nil {
@@ -780,7 +1075,7 @@ func main() {
         balance := callResult.Value.(*big.Int)
         fmt.Printf("Account %s native balance: %s wei\n", accounts[i].Hex(), balance.String())
     }
-    
+
     // Process token balance results
     callIndex := 0
     for _, account := range accounts {
@@ -796,7 +1091,7 @@ func main() {
             callIndex++
         }
     }
-    
+
     // Alternative: Execute jobs asynchronously
     // resultsCh := multicall.RunAsync(ctx, jobs, nil, caller, 100)
     // for result := range resultsCh {
@@ -878,6 +1173,43 @@ The `examples/gas-comparison` folder demonstrates gas fee estimation across mult
 
 - **Data Generator** – The `data/generator` tool captures real blockchain data for testing. Users run `go run main.go -rpc YOUR_RPC_URL` to fetch data from any EVM chain. The tool automatically detects chain ID and generates chain-specific Go code with embedded test data for reproducible offline testing.
 
+### 4.7 Token Builder Example
+
+The `examples/token-builder` folder demonstrates how to use the token builder package for incremental token collection building:
+
+- **Features** – The example shows incremental building starting with empty state, automatic native token generation for supported chains (ETH, BNB, etc.), automatic deduplication using chain ID and address combinations, raw token list processing with various parsers, and advanced builder patterns including validation and error handling.
+- **Usage** – Running `go run .` demonstrates basic builder usage, incremental building patterns, raw token list processing, token deduplication, and advanced builder patterns with comprehensive error handling examples.
+- **Key Concepts** – Demonstrates the Builder pattern with stateful construction, token deduplication using unique keys, native token support for multiple chains, and performance characteristics including time complexity and memory usage.
+- **Integration** – Shows how the builder integrates with parsers to handle different token list formats and provides a foundation for building token collections in blockchain applications.
+
+
+### 4.8 Token Fetcher Example
+
+The `examples/token-fetcher` folder demonstrates HTTP-based token list fetching with production-ready features:
+
+- **Features** – Shows single token list fetching, concurrent fetching of multiple token lists using goroutines, HTTP ETag caching for bandwidth efficiency, list-of-token-lists fetching for discovery patterns, and robust error handling for network failures and invalid responses.
+- **Usage** – Running `go run .` demonstrates single fetch operations, concurrent fetching with performance improvements, ETag-based caching with 304 Not Modified responses, and list-of-token-lists processing for dynamic token list discovery.
+- **Performance** – Includes benchmarks showing typical performance metrics, memory usage patterns, and optimization strategies for production deployments.
+- **Integration** – Demonstrates integration with token manager and background refresh services for automated token list management.
+
+### 4.9 Token Manager Example
+
+The `examples/token-manager` folder demonstrates comprehensive token management across multiple blockchain networks:
+
+- **Features** – Shows complete token management with multi-source integration (native, remote, local, custom tokens), thread-safe concurrent access, rich query capabilities by chain/address/list ID, custom token support, and automatic refresh management with configurable intervals.
+- **Usage** – Running `go run .` demonstrates manager configuration with multiple token sources, HTTP fetcher setup, storage backend implementations, token operations including search and filtering, and custom token management.
+- **Production Considerations** – Includes examples of database-backed content stores, file-based custom token stores, dynamic auto-refresh management, and monitoring/observability patterns.
+- **Integration** – Shows wallet service integration patterns and demonstrates how the manager centralizes token operations for wallet applications.
+
+### 4.10 Token Parser Example
+
+The `examples/token-parser` folder demonstrates parsing different token list formats from various sources:
+
+- **Features** – Shows multiple parser types including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing, with comprehensive input validation and error handling.
+- **Usage** – Running `go run .` demonstrates parser selection strategies, chain filtering, error handling for various scenarios, and format comparison showing different token list structures and their use cases.
+- **Performance** – Includes performance characteristics comparison between parsers, memory usage patterns, and processing speed benchmarks for different formats.
+- **Integration** – Shows integration with token manager and token fetcher, batch processing patterns, and parser selection strategies for different data sources.
+
 ## 5. Testing & Development
 
 ### 5.1 Fetching  SDK
@@ -900,4 +1232,4 @@ This executes unit tests for the balance fetcher and Ethereum client. The balanc
 
 ## 6. Limitations & Future Improvements
 
-- 
+-

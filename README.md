@@ -48,6 +48,42 @@ go get github.com/status-im/go-wallet-sdk
   - Support for Transfer, Approval, and other standard events
   - Works seamlessly with eventfilter
 
+### Token Management
+- **`pkg/tokens/types`**: Core data structures for tokens and token lists
+  - Unified token representation with cross-chain support
+  - Token list metadata and versioning
+  - Type-safe address handling and validation
+
+- **`pkg/tokens/parsers`**: Token list parsing from multiple formats
+  - Standard token list format (Uniswap-style)
+  - Status-specific format with chain grouping
+  - CoinGecko API format with platform mappings
+  - List-of-token-lists metadata parsing
+
+- **`pkg/tokens/fetcher`**: HTTP-based token list fetching
+  - Concurrent fetching with goroutines
+  - HTTP ETag caching for bandwidth efficiency
+  - JSON schema validation support
+  - Robust error handling and timeout management
+
+- **`pkg/tokens/autofetcher`**: Automated background token list management
+  - Configurable refresh intervals
+  - Thread-safe operations with context support
+  - Pluggable storage backends
+  - Error reporting via channels
+
+- **`pkg/tokens/builder`**: Incremental token collection building
+  - Builder pattern for stateful construction
+  - Automatic deduplication by chain ID and address
+  - Native token generation for supported chains
+  - Multiple format support through parsers
+
+- **`pkg/tokens/manager`**: High-level token management interface
+  - Multi-source token integration (native, remote, local, custom)
+  - Thread-safe concurrent access
+  - Rich query capabilities by chain, address, or list ID
+  - Automatic refresh and state management
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -101,6 +137,26 @@ cd examples/eventfilter-example
 go run . -account 0xYourAddress -start 19000000 -end 19100000
 ```
 
+### Token Management Examples
+
+```bash
+# Token Builder - Incremental token collection building
+cd examples/token-builder
+go run .
+
+# Token Fetcher - HTTP-based token list fetching
+cd examples/token-fetcher
+go run .
+
+# Token Manager - High-level token management
+cd examples/token-manager
+go run .
+
+# Token Parser - Parse different token list formats
+cd examples/token-parser
+go run .
+```
+
 ## Testing
 
 ```bash
@@ -118,6 +174,13 @@ go-wallet-sdk/
 │   ├── gas/               # Gas estimation and fee suggestions
 │   ├── eventfilter/       # Event filtering for transfers
 │   ├── eventlog/          # Event log parsing
+│   ├── tokens/            # Token management system
+│   │   ├── types/         # Core token data structures
+│   │   ├── parsers/       # Token list format parsers
+│   │   ├── fetcher/       # HTTP token list fetching
+│   │   ├── autofetcher/   # Automated background fetching
+│   │   ├── builder/       # Incremental token collection building
+│   │   └── manager/       # High-level token management
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── examples/              # Usage examples
@@ -126,7 +189,11 @@ go-wallet-sdk/
 │   ├── gas-comparison/            # Gas fee comparison tool
 │   ├── multiclient3-usage/        # Multicall examples
 │   ├── multistandardfetcher-example/  # Multi-standard balance fetching
-│   └── eventfilter-example/       # Event filtering examples
+│   ├── eventfilter-example/       # Event filtering examples
+│   ├── token-builder/             # Token collection building
+│   ├── token-fetcher/            # Token list fetching
+│   ├── token-manager/             # Token management
+│   └── token-parser/              # Token list parsing
 └── README.md              # This file
 ```
 
@@ -139,6 +206,12 @@ go-wallet-sdk/
 - [Gas Estimation](pkg/gas/README.md) - Gas fee estimation and suggestions
 - [Event Filter](pkg/eventfilter/README.md) - Event filtering for transfers
 - [Event Log Parser](pkg/eventlog/README.md) - Event log parsing
+- [Token Types](pkg/tokens/types/README.md) - Core token data structures
+- [Token Parsers](pkg/tokens/parsers/README.md) - Token list format parsers
+- [Token Fetcher](pkg/tokens/fetcher/README.md) - HTTP token list fetching
+- [Token AutoFetcher](pkg/tokens/autofetcher/README.md) - Automated background fetching
+- [Token Builder](pkg/tokens/builder/README.md) - Incremental token collection building
+- [Token Manager](pkg/tokens/manager/README.md) - High-level token management
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -146,6 +219,10 @@ go-wallet-sdk/
 - [Gas Comparison](examples/gas-comparison/README.md) - Gas fee comparison tool
 - [Multicall Usage](examples/multiclient3-usage/README.md) - Multicall examples
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
+- [Token Builder](examples/token-builder/README.md) - Token collection building
+- [Token Fetcher](examples/token-fetcher/README.md) - Token list fetching
+- [Token Manager](examples/token-manager/README.md) - Token management
+- [Token Parser](examples/token-parser/README.md) - Token list parsing
 
 ### Specifications
 - [Technical Specifications](docs/specs.md) - Complete SDK specifications and architecture
