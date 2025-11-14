@@ -48,6 +48,20 @@ go get github.com/status-im/go-wallet-sdk
   - Support for Transfer, Approval, and other standard events
   - Works seamlessly with eventfilter
 
+### Account Management
+- **`pkg/accounts/extkeystore`**: Extended keystore with HD wallet support
+  - BIP32 hierarchical deterministic wallet functionality
+  - Encrypted storage following Web3 Secret Storage specification
+  - Child account derivation using BIP44 derivation paths
+  - Import/export extended keys and standard private keys
+  - Full account lifecycle management (create, unlock, lock, sign, delete)
+
+- **`pkg/accounts/mnemonic`**: BIP39 mnemonic phrase utilities
+  - Generate cryptographically secure mnemonic phrases (12, 15, 18, 21, 24 words)
+  - Create BIP32 extended keys from mnemonic phrases
+  - BIP39 passphrase support for seed extension
+  - Seamless integration with extkeystore
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -101,6 +115,17 @@ cd examples/eventfilter-example
 go run . -account 0xYourAddress -start 19000000 -end 19100000
 ```
 
+### Accounts Example
+
+```bash
+cd examples/accounts
+go run .
+```
+
+Access: http://localhost:8081
+
+Interactive web interface for testing extkeystore and standard keystore functionality, including mnemonic generation, account creation, derivation, import/export, and signing.
+
 ## Testing
 
 ```bash
@@ -118,6 +143,7 @@ go-wallet-sdk/
 │   ├── gas/               # Gas estimation and fee suggestions
 │   ├── eventfilter/       # Event filtering for transfers
 │   ├── eventlog/          # Event log parsing
+│   ├── accounts/          # Account management (extkeystore, mnemonic)
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── examples/              # Usage examples
@@ -126,7 +152,8 @@ go-wallet-sdk/
 │   ├── gas-comparison/            # Gas fee comparison tool
 │   ├── multiclient3-usage/        # Multicall examples
 │   ├── multistandardfetcher-example/  # Multi-standard balance fetching
-│   └── eventfilter-example/       # Event filtering examples
+│   ├── eventfilter-example/       # Event filtering examples
+│   └── accounts/                  # Keystore management web interface
 └── README.md              # This file
 ```
 
@@ -139,6 +166,8 @@ go-wallet-sdk/
 - [Gas Estimation](pkg/gas/README.md) - Gas fee estimation and suggestions
 - [Event Filter](pkg/eventfilter/README.md) - Event filtering for transfers
 - [Event Log Parser](pkg/eventlog/README.md) - Event log parsing
+- [Extended Keystore](pkg/accounts/extkeystore/README.md) - HD wallet keystore with BIP32 support
+- [Mnemonic](pkg/accounts/mnemonic/README.md) - BIP39 mnemonic phrase utilities
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -146,6 +175,7 @@ go-wallet-sdk/
 - [Gas Comparison](examples/gas-comparison/README.md) - Gas fee comparison tool
 - [Multicall Usage](examples/multiclient3-usage/README.md) - Multicall examples
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
+- [Accounts Example](examples/accounts/README.md) - Keystore management web interface
 
 ### Specifications
 - [Technical Specifications](docs/specs.md) - Complete SDK specifications and architecture

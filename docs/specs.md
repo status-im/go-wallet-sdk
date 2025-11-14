@@ -15,7 +15,9 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/eventlog`        | Ethereum event log parser for ERC20, ERC721, and ERC1155 events. Automatically detects and parses token events with type-safe access to event data, supporting Transfer, Approval, and other standard token events. |
 | `pkg/common`          | Shared types and constants. Such as canonical chain IDs (e.g., Ethereum Mainnet, Optimism, Arbitrum, BSC, Base). Developers use these values when configuring the SDK or examples.                               |
 | `pkg/contracts/`      | Solidity contracts and Go bindings for smart contract interactions. Includes Multicall3, ERC20, ERC721, and ERC1155 contracts with deployment addresses for multiple chains. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), and `gas-comparison` (compares gas estimation implementations across multiple networks).                                             |                                                                                                                                                 |
+| `pkg/accounts/extkeystore` | Extended keystore for Ethereum accounts with BIP32 hierarchical deterministic (HD) wallet support. Stores BIP32 extended keys instead of just private keys, enabling derivation of child accounts from parent keys. Provides encrypted storage following Web3 Secret Storage specification, account management (create, unlock, lock, sign, delete), and import/export functionality for both extended keys and standard private keys. |
+| `pkg/accounts/mnemonic` | Utilities for generating BIP39 mnemonic phrases and creating extended keys from them. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), and `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing).                                             |                                                                                                                                                 |
 
 ## 2. Architecture
 
@@ -28,6 +30,8 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Gas Estimation** – Provides comprehensive gas fee estimation and suggestions for Ethereum and L2 networks. Analyzes historical fee data to suggest optimal priority fees, base fees, and max fees for three priority levels (low, medium, high). Estimates transaction inclusion time based on network congestion and chain parameters. Supports multiple chain classes with specific optimizations for L1, Arbitrum Stack, Optimism Stack, and Linea Stack.
 - **Event Filter** – Efficiently filters Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls through optimized query generation and supports direction-based filtering (send, receive, or both). Uses intelligent query merging to reduce the number of RPC calls required.
 - **Event Log Parser** – Automatically detects and parses Ethereum event logs for ERC20, ERC721, and ERC1155 tokens. Provides type-safe access to event data with support for Transfer, Approval, and other standard token events. Works seamlessly with the Event Filter package.
+- **Extended Keystore** – An enhanced keystore that stores BIP32 extended keys instead of just private keys, enabling hierarchical deterministic (HD) wallet functionality. Supports derivation of child accounts from parent keys using BIP44 derivation paths, encrypted storage following Web3 Secret Storage specification, and full account lifecycle management (create, unlock, lock, sign, delete). Can import/export both extended keys and standard private keys, making it compatible with existing keystore implementations.
+- **Mnemonic Utilities** – Simple package for working with BIP39 mnemonic seed phrases to generate deterministic wallets. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. Designed to work seamlessly with the Extended Keystore package.
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
 
@@ -84,7 +88,26 @@ The event log parser package (`pkg/eventlog`) provides automatic detection and p
 - **Integration** – Designed to work seamlessly with the Event Filter package. The `FilterTransfers` function returns parsed events ready for application use.
 - **Error Handling** – Gracefully handles unknown or malformed events by returning empty slices. Safe to use with any log data without causing panics.
 
-### 2.8 Contract Bindings
+### 2.8 Extended Keystore Design
+
+The `pkg/accounts/extkeystore` package provides an enhanced keystore with hierarchical deterministic (HD) wallet support:
+
+- **BIP32 Extended Keys** – Stores BIP32 extended keys instead of just private keys, enabling derivation of child accounts from parent keys. This allows a single master key to generate unlimited child accounts following BIP44 derivation paths.
+- **Encrypted Storage** – Keys are stored as encrypted JSON files following the Web3 Secret Storage specification. Supports both light scrypt parameters (fast, for development) and standard scrypt parameters (secure, for production).
+- **Child Account Derivation** – Derives child accounts from parent keys using BIP44 derivation paths. Supports both ephemeral derivation (for signing without storing) and pinned derivation (saves derived keys to keystore).
+- **Import/Export** – Can import extended keys or standard private keys; can export in both formats. This allows compatibility with existing keystore implementations and seamless migration between different keystore types.
+- **Account Management** – Full lifecycle support: create new accounts, unlock/lock accounts with optional timeout, sign transactions and messages, and delete accounts with passphrase confirmation.
+- **Based on go-ethereum** – Derived from go-ethereum's keystore implementation, modified to store extended keys instead of private keys while maintaining API compatibility where possible.
+
+### 2.9 Mnemonic Utilities Design
+
+The `pkg/accounts/mnemonic` package provides utilities for working with BIP39 mnemonic phrases:
+
+- **Random Generation** – Generates cryptographically secure mnemonic phrases with configurable lengths (12, 15, 18, 21, or 24 words). Each length corresponds to a specific entropy strength following BIP39 specification.
+- **Extended Key Creation** – Creates BIP32 master extended keys from mnemonic phrases using the BIP39 seed derivation process. Supports optional passphrase (BIP39 seed extension) for additional security.
+- **Integration** – Designed to work seamlessly with the Extended Keystore package. Typical workflow: generate mnemonic → create extended key → import into keystore → derive child accounts.
+
+### 2.10 Contract Bindings
 
 The `pkg/contracts` package provides Go bindings for smart contracts and deployment utilities:
 
@@ -92,7 +115,7 @@ The `pkg/contracts` package provides Go bindings for smart contracts and deploym
 - **Token Standards** – ERC20, ERC721, and ERC1155 contract bindings with standard interface implementations.
 - **Deployment Management** – Automated deployment address management with utilities to regenerate addresses from official deployment lists.
 
-### 2.9 Gas Estimation Design
+### 2.11 Gas Estimation Design
 
 The `pkg/gas` package provides comprehensive gas fee estimation and suggestions for Ethereum and L2 networks:
 
@@ -699,6 +722,65 @@ Uses standardized signatures from the `eventlog` package:
 - **ERC1155 TransferSingle**: `0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62`
 - **ERC1155 TransferBatch**: `0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb`
 
+### 3.6 Extended Keystore API (`pkg/accounts/extkeystore`)
+
+The extended keystore package provides HD wallet functionality with BIP32 extended key storage.
+
+#### 3.6.1 Core Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `NewKeyStore(keydir, scryptN, scryptP)` | Create a new keystore instance | `keydir`: `string`, `scryptN`: `int`, `scryptP`: `int` | `*KeyStore` |
+| `ImportExtendedKey(extKey, passphrase)` | Import a BIP32 extended key | `extKey`: `*extkeys.ExtendedKey`, `passphrase`: `string` | `accounts.Account`, `error` |
+| `DeriveWithPassphrase(account, path, pin, passphrase, newPassphrase)` | Derive a child account from parent | `account`: `accounts.Account`, `path`: `accounts.DerivationPath`, `pin`: `bool`, `passphrase`: `string`, `newPassphrase`: `string` | `accounts.Account`, `error` |
+| `Import(keyJSON, passphrase, newPassphrase)` | Import an encrypted key JSON | `keyJSON`: `[]byte`, `passphrase`: `string`, `newPassphrase`: `string` | `accounts.Account`, `error` |
+| `ExportExt(account, passphrase, newPassphrase)` | Export extended key as JSON | `account`: `accounts.Account`, `passphrase`: `string`, `newPassphrase`: `string` | `[]byte`, `error` |
+| `ExportPriv(account, passphrase, newPassphrase)` | Export as standard private key JSON | `account`: `accounts.Account`, `passphrase`: `string`, `newPassphrase`: `string` | `[]byte`, `error` |
+| `SignHash(account, hash)` | Sign a hash with unlocked account | `account`: `accounts.Account`, `hash`: `[]byte` | `[]byte`, `error` |
+| `SignHashWithPassphrase(account, passphrase, hash)` | Sign a hash with passphrase | `account`: `accounts.Account`, `passphrase`: `string`, `hash`: `[]byte` | `[]byte`, `error` |
+| `TimedUnlock(account, passphrase, timeout)` | Unlock account with timeout | `account`: `accounts.Account`, `passphrase`: `string`, `timeout`: `time.Duration` | `error` |
+| `Lock(address)` | Lock an account | `address`: `common.Address` | `error` |
+| `Delete(account, passphrase)` | Delete an account | `account`: `accounts.Account`, `passphrase`: `string` | `error` |
+
+#### 3.6.2 Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `LightScryptN` | `1 << 12` | Fast scrypt N parameter for development |
+| `LightScryptP` | `6` | Fast scrypt P parameter for development |
+| `StandardScryptN` | `1 << 18` | Standard scrypt N parameter for production |
+| `StandardScryptP` | `1` | Standard scrypt P parameter for production |
+| `KeyStoreScheme` | `"extkeystore"` | URL scheme for extended keystore accounts |
+
+### 3.7 Mnemonic API (`pkg/accounts/mnemonic`)
+
+The mnemonic package provides utilities for BIP39 mnemonic phrases.
+
+#### 3.7.1 Core Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `CreateRandomMnemonic(length)` | Generate random mnemonic phrase | `length`: `int` (12, 15, 18, 21, or 24) | `string`, `error` |
+| `CreateRandomMnemonicWithDefaultLength()` | Generate 12-word mnemonic | None | `string`, `error` |
+| `CreateExtendedKeyFromMnemonic(phrase, passphrase)` | Create BIP32 extended key from mnemonic | `phrase`: `string`, `passphrase`: `string` | `*extkeys.ExtendedKey`, `error` |
+| `LengthToEntropyStrength(length)` | Convert word count to entropy strength | `length`: `int` | `extkeys.EntropyStrength`, `error` |
+
+#### 3.7.2 Usage Example
+
+```go
+import (
+    "github.com/status-im/go-wallet-sdk/pkg/accounts/mnemonic"
+    "github.com/status-im/go-wallet-sdk/pkg/accounts/extkeystore"
+)
+
+// Generate mnemonic and import into keystore
+phrase, _ := mnemonic.CreateRandomMnemonic(12)
+extKey, _ := mnemonic.CreateExtendedKeyFromMnemonic(phrase, "")
+keystore := extkeystore.NewKeyStore("/path/to/keystore", 
+    extkeystore.LightScryptN, extkeystore.LightScryptP)
+account, _ := keystore.ImportExtendedKey(extKey, "passphrase")
+```
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -877,6 +959,28 @@ The `examples/gas-comparison` folder demonstrates gas fee estimation across mult
 - **Output Format** – Displays comprehensive comparison results showing fee suggestions for three priority levels, time estimates with min/max ranges in seconds, network congestion scores (L1 only), and percentage differences between implementations. Results help validate estimation accuracy and identify optimization opportunities.
 
 - **Data Generator** – The `data/generator` tool captures real blockchain data for testing. Users run `go run main.go -rpc YOUR_RPC_URL` to fetch data from any EVM chain. The tool automatically detects chain ID and generates chain-specific Go code with embedded test data for reproducible offline testing.
+
+### 4.7 Accounts Example
+
+The `examples/accounts` folder demonstrates how to use the extended keystore and mnemonic packages with an interactive web interface for testing keystore functionality.
+
+- **Features** – The web application provides a comprehensive testing environment for both extended keystore and standard keystore implementations. It includes mnemonic phrase generation, account creation from mnemonics, child account derivation using BIP44 paths, import/export of keys in various formats, message signing, account unlocking/locking, and account deletion. The interface is split into two sections to facilitate testing import/export functionality between the two keystore types.
+
+- **Usage** – Running `go run .` in the example directory starts an HTTP server on `localhost:8081`. The web interface provides dropdown selectors for account addresses, displays account information including file paths and keystore file contents, and shows comprehensive error messages for all operations.
+
+- **Keystore Management** – Demonstrates full account lifecycle management:
+  - Generate random mnemonic phrases (12, 15, 18, 21, or 24 words) in a separate top section
+  - Create accounts from mnemonic phrases with optional passphrase encryption
+  - Derive child accounts from parent accounts using BIP44 derivation paths
+  - Import/export keys in extended keystore format or standard private key format
+  - Sign messages with accounts (with or without passphrase)
+  - Unlock accounts with configurable timeout or lock them
+  - Delete accounts with passphrase confirmation
+  - View account information including file paths and keystore file contents
+
+- **Integration Testing** – The two-column layout allows side-by-side testing of extended keystore and standard keystore, making it easy to test import/export functionality between the two implementations. Users can export a key from one keystore type and import it into the other.
+
+- **Code Structure** – The example is organized into `main.go` (server and API handlers), `templates.go` (HTML/JavaScript templates), and `go.mod` (dependency management). It uses gorilla/mux for routing and Go's html/template package for rendering.
 
 ## 5. Testing & Development
 

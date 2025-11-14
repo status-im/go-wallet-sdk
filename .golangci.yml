@@ -50,6 +50,9 @@ linters:
     gosec:
       excludes:
         - G115
+    staticcheck:
+      checks:
+        - "-ST1005" # golangci-lint doesn't support lint:ignore comments
 
 formatters:
   exclusions:

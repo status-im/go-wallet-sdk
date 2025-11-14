@@ -1,0 +1,20 @@
+{
+  "extendedkey": {
+    "cipher": "aes-128-ctr",
+    "ciphertext": "b6a8e20ad3c7e96f4f4f2457d55ff1b96d740f4a0d9e4fd9fb5b5f7a663e5fd631f6d989ce2af6724a12270aca5d78c47c917f5638b5fa82f36678b303247c03ad386ff45162f11f008c59eb015a2060b0fa73c03c7c39aea5ff9ff717b27127f99ae23b419d46cedb2d91f328f834",
+    "cipherparams": {
+      "iv": "59e84b48455ed801af1ea2b72d0d6275"
+    },
+    "kdf": "scrypt",
+    "kdfparams": {
+      "dklen": 32,
+      "n": 4096,
+      "p": 6,
+      "r": 8,
+      "salt": "455afc42df050fcf131bfb6de99275bc20607d1c05ca746763ddbd9235c99d26"
+    },
+    "mac": "5c8361ba5ef8b051b1090c49ec75220ff8427207dac6ac45f6be7f650bb69de5"
+  },
+  "id": "b40909b5-d9b4-48ac-bab9-79cce5cc619d",
+  "version": 3
+}
