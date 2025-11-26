@@ -7,36 +7,36 @@
 
 int main(int argc, char** argv) {
     const char* url = "https://ethereum-rpc.publicnode.com";
-    const char* addr = "0x0000000000000000000000000000000000000000";
+    const char* addr = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"; // vitalik.eth
 
     char* err = NULL;
-    unsigned long long h = GoWSK_NewClient((char*)url, &err);
+    unsigned long long h = GoWSK_ethclient_NewClient((char*)url, &err);
     if (h == 0) {
         fprintf(stderr, "Failed to create client: %s\n", err ? err : "unknown error");
         if (err) GoWSK_FreeCString(err);
         return 1;
     }
 
-    char* chain = GoWSK_ChainID(h, &err);
+    char* chain = GoWSK_ethclient_ChainID(h, &err);
     if (chain == NULL) {
         fprintf(stderr, "ChainID error: %s\n", err ? err : "unknown error");
         if (err) GoWSK_FreeCString(err);
-        GoWSK_CloseClient(h);
+        GoWSK_ethclient_CloseClient(h);
         return 1;
     }
     printf("ChainID: %s\n", chain);
     GoWSK_FreeCString(chain);
 
-    char* balance = GoWSK_GetBalance(h, (char*)addr, &err);
+    char* balance = GoWSK_ethclient_GetBalance(h, (char*)addr, &err);
     if (balance == NULL) {
         fprintf(stderr, "GetBalance error: %s\n", err ? err : "unknown error");
         if (err) GoWSK_FreeCString(err);
-        GoWSK_CloseClient(h);
+        GoWSK_ethclient_CloseClient(h);
         return 1;
     }
     printf("Balance(wei): %s\n", balance);
     GoWSK_FreeCString(balance);
 
-    GoWSK_CloseClient(h);
+    GoWSK_ethclient_CloseClient(h);
     return 0;
 }

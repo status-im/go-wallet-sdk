@@ -19,7 +19,7 @@ LIBFILE = $(LIB)$(LIBEXT)
 
 build:
 	mkdir -p $(BIN_DIR)
-	$(MAKE) -C $(ROOT) build-c-lib
+	$(MAKE) -C $(ROOT) shared-library
 	cp -f $(LIBFILE) $(BIN_DIR)/
 	$(CC) -I$(BUILD_DIR) -L$(BIN_DIR) -o $(BIN_DIR)/c-app main.c -lgowalletsdk $(RPATH)
 
