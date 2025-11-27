@@ -126,6 +126,35 @@ Access: http://localhost:8081
 
 Interactive web interface for testing extkeystore and standard keystore functionality, including mnemonic generation, account creation, derivation, import/export, and signing.
 
+### C Application Example
+
+```bash
+# Build the shared library first
+make shared-library
+
+# Then build and run the C example
+cd examples/c-app
+make build
+cd bin
+./c-app
+```
+
+Demonstrates how to use the Go Wallet SDK from C applications using the shared library. The example creates an Ethereum client, retrieves the chain ID, and fetches account balances.
+
+## Building the C Shared Library
+
+The SDK can be compiled as a C shared library for use in non-Go applications:
+
+```bash
+make shared-library
+```
+
+This creates:
+- `build/libgowalletsdk.dylib` (macOS) or `build/libgowalletsdk.so` (Linux)
+- `build/libgowalletsdk.h` (C header file)
+
+The shared library exposes Ethereum client functionality through a C-compatible API. See [examples/c-app](examples/c-app/README.md) for a complete C usage example.
+
 ## Testing
 
 ```bash
@@ -146,6 +175,10 @@ go-wallet-sdk/
 │   ├── accounts/          # Account management (extkeystore, mnemonic)
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
+├── cshared/              # C shared library bindings
+│   ├── c.go             # Memory management utilities
+│   ├── ethclient.go     # Ethereum client C bindings
+│   └── main.go          # Entry point for shared library build
 ├── examples/              # Usage examples
 │   ├── balance-fetcher-web/       # Web interface for balance fetching
 │   ├── ethclient-usage/           # Ethereum client examples
@@ -153,7 +186,8 @@ go-wallet-sdk/
 │   ├── multiclient3-usage/        # Multicall examples
 │   ├── multistandardfetcher-example/  # Multi-standard balance fetching
 │   ├── eventfilter-example/       # Event filtering examples
-│   └── accounts/                  # Keystore management web interface
+│   ├── accounts/                  # Keystore management web interface
+│   └── c-app/                    # C application example
 └── README.md              # This file
 ```
 
@@ -176,6 +210,7 @@ go-wallet-sdk/
 - [Multicall Usage](examples/multiclient3-usage/README.md) - Multicall examples
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
 - [Accounts Example](examples/accounts/README.md) - Keystore management web interface
+- [C Application Example](examples/c-app/README.md) - C application using the shared library
 
 ### Specifications
 - [Technical Specifications](docs/specs.md) - Complete SDK specifications and architecture

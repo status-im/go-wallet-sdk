@@ -17,7 +17,8 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/contracts/`      | Solidity contracts and Go bindings for smart contract interactions. Includes Multicall3, ERC20, ERC721, and ERC1155 contracts with deployment addresses for multiple chains. |
 | `pkg/accounts/extkeystore` | Extended keystore for Ethereum accounts with BIP32 hierarchical deterministic (HD) wallet support. Stores BIP32 extended keys instead of just private keys, enabling derivation of child accounts from parent keys. Provides encrypted storage following Web3 Secret Storage specification, account management (create, unlock, lock, sign, delete), and import/export functionality for both extended keys and standard private keys. |
 | `pkg/accounts/mnemonic` | Utilities for generating BIP39 mnemonic phrases and creating extended keys from them. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), and `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing).                                             |                                                                                                                                                 |
+| `cshared/`            | C shared library bindings that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, and retrieving account balances. The package can be compiled as a shared library (.so/.dylib) with a generated C header file. |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing), and `c-app` (a C application example demonstrating how to use the shared library from C code).                                             |                                                                                                                                                 |
 
 ## 2. Architecture
 
@@ -34,6 +35,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Mnemonic Utilities** – Simple package for working with BIP39 mnemonic seed phrases to generate deterministic wallets. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. Designed to work seamlessly with the Extended Keystore package.
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
+- **C Shared Library** – Exposes core SDK functionality to non-Go applications through C-compatible bindings. The `cshared` package can be compiled as a shared library (.so/.dylib) with a generated C header file, enabling integration with C, C++, and other languages that can call C functions. Provides memory-safe wrappers for Ethereum client operations with proper resource management.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -982,6 +984,20 @@ The `examples/accounts` folder demonstrates how to use the extended keystore and
 
 - **Code Structure** – The example is organized into `main.go` (server and API handlers), `templates.go` (HTML/JavaScript templates), and `go.mod` (dependency management). It uses gorilla/mux for routing and Go's html/template package for rendering.
 
+### 4.8 C Application Example
+
+The `examples/c-app` folder demonstrates how to use the Go Wallet SDK from C applications using the shared library.
+
+- **Features** – The example shows how to create an Ethereum client, retrieve the chain ID, and fetch account balances from a C application. It demonstrates proper memory management by freeing all C strings returned by the SDK functions. The example uses the generated C header file (`libgowalletsdk.h`) and links against the shared library.
+
+- **Usage** – Users first build the shared library from the repository root using `make shared-library`, then build and run the C example using the provided Makefile. The example connects to a public Ethereum RPC endpoint and queries Vitalik's address for demonstration purposes.
+
+- **Build Process** – The example includes a Makefile that handles linking against the shared library, setting appropriate rpath on macOS for library loading, and copying the library next to the executable for convenience. The build process demonstrates proper integration of the Go-compiled shared library with C applications.
+
+- **Memory Management** – The example demonstrates critical memory management practices: all string values returned by GoWSK functions must be freed using `GoWSK_FreeCString` to prevent memory leaks. Error messages passed through `errOut` parameters must also be freed if they are not NULL.
+
+- **Code Structure** – The example consists of `main.c` (the C application), `Makefile` (build configuration), and `README.md` (usage instructions). It shows a minimal but complete integration of the SDK's C API.
+
 ## 5. Testing & Development
 
 ### 5.1 Fetching  SDK
@@ -1001,6 +1017,99 @@ go test ./...
 ```
 
 This executes unit tests for the balance fetcher and Ethereum client. The balance fetcher includes a `mock` package to simulate RPC responses. The repository also includes continuous integration workflows (`.github/workflows`) and static analysis configurations (`.golangci.yml`).
+
+### 5.3 Building the C Shared Library
+
+The SDK includes build support for creating C shared libraries that expose core functionality to non-Go applications. The C bindings are implemented in the `cshared` package, which provides C-compatible functions for interacting with the Ethereum client.
+
+#### 5.3.1 Package Structure
+
+The `cshared` package consists of:
+- `c.go` - Memory management utilities for C strings (`GoWSK_FreeCString`)
+- `ethclient.go` - C bindings for Ethereum client functionality
+- `main.go` - Entry point for building the shared library
+
+#### 5.3.2 Building the Library
+
+To build the library run:
+
+```bash
+make shared-library
+```
+
+This creates:
+- `build/libgowalletsdk.dylib` (macOS) or `build/libgowalletsdk.so` (Linux)
+- `build/libgowalletsdk.h` (C header file with exported function declarations)
+
+The build process:
+1. Checks for Go installation
+2. Compiles the `cshared` package with `-buildmode=c-shared`
+3. Generates the shared library and header file in the `build/` directory
+
+#### 5.3.3 C API Functions
+
+The shared library exports the following functions:
+
+**Memory Management:**
+- `void GoWSK_FreeCString(char* s)` - Frees C strings returned by GoWSK functions to prevent memory leaks. Must be called for all string return values.
+
+**Ethereum Client:**
+- `uintptr_t GoWSK_ethclient_NewClient(char* rpcURL, char** errOut)` - Creates a new Ethereum client instance. Returns a handle (uintptr_t) on success, or 0 on error. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
+- `void GoWSK_ethclient_CloseClient(uintptr_t handle)` - Closes and cleans up an Ethereum client instance. The handle becomes invalid after this call.
+- `char* GoWSK_ethclient_ChainID(uintptr_t handle, char** errOut)` - Returns the chain ID as a string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
+- `char* GoWSK_ethclient_GetBalance(uintptr_t handle, char* address, char** errOut)` - Returns the balance of an address in wei as a string. The address should be a hex string (e.g., "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"). Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
+
+#### 5.3.4 Usage Example
+
+```c
+#include "libgowalletsdk.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    char* err = NULL;
+    
+    // Create client
+    uintptr_t handle = GoWSK_ethclient_NewClient("https://ethereum-rpc.publicnode.com", &err);
+    if (handle == 0) {
+        fprintf(stderr, "Failed to create client: %s\n", err ? err : "unknown error");
+        if (err) GoWSK_FreeCString(err);
+        return 1;
+    }
+    
+    // Get chain ID
+    char* chainID = GoWSK_ethclient_ChainID(handle, &err);
+    if (chainID == NULL) {
+        fprintf(stderr, "ChainID error: %s\n", err ? err : "unknown error");
+        if (err) GoWSK_FreeCString(err);
+        GoWSK_ethclient_CloseClient(handle);
+        return 1;
+    }
+    printf("ChainID: %s\n", chainID);
+    GoWSK_FreeCString(chainID);
+    
+    // Get balance
+    char* balance = GoWSK_ethclient_GetBalance(handle, "0x0000000000000000000000000000000000000000", &err);
+    if (balance == NULL) {
+        fprintf(stderr, "GetBalance error: %s\n", err ? err : "unknown error");
+        if (err) GoWSK_FreeCString(err);
+        GoWSK_ethclient_CloseClient(handle);
+        return 1;
+    }
+    printf("Balance (wei): %s\n", balance);
+    GoWSK_FreeCString(balance);
+    
+    // Clean up
+    GoWSK_ethclient_CloseClient(handle);
+    return 0;
+}
+```
+
+#### 5.3.5 Memory Management
+
+All string values returned by GoWSK functions are allocated in C memory and must be freed using `GoWSK_FreeCString` to prevent memory leaks. Error messages passed through `errOut` parameters must also be freed if they are not NULL.
+
+**Important:** Always check return values for NULL before using them, and always free returned strings and error messages to prevent memory leaks.
 
 ## 6. Limitations & Future Improvements
 
