@@ -1,7 +1,6 @@
 package ens
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,8 +18,12 @@ var (
 	ErrInvalidAddress = errors.New("invalid Ethereum address")
 )
 
-// ENSRegistryAddress is the ENS registry contract address (same on all supported chains)
-const ENSRegistryAddress = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
+// Supported chain IDs for ENS
+const (
+	ChainIDMainnet = 1
+	ChainIDSepolia = 11155111
+	ChainIDHolesky = 17000
+)
 
 // Resolver handles ENS name resolution operations
 type Resolver struct {
@@ -38,14 +41,9 @@ func NewResolver(client *ethclient.Client) (*Resolver, error) {
 	}, nil
 }
 
-// ENSContractExists checks if the ENS registry contract is deployed on the connected chain
-func ENSContractExists(ctx context.Context, client *ethclient.Client) (bool, error) {
-	addr := common.HexToAddress(ENSRegistryAddress)
-	code, err := client.CodeAt(ctx, addr, nil)
-	if err != nil {
-		return false, fmt.Errorf("failed to check ENS registry: %w", err)
-	}
-	return len(code) > 0, nil
+// IsSupportedChain checks if the given chain ID supports ENS
+func IsSupportedChain(chainID uint64) bool {
+	return chainID == ChainIDMainnet || chainID == ChainIDSepolia || chainID == ChainIDHolesky
 }
 
 // AddressOf performs forward ENS resolution (name → address)

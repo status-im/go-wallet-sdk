@@ -102,7 +102,7 @@ go get github.com/status-im/go-wallet-sdk
 - **`pkg/ens`**: Ethereum Name Service (ENS) resolution
   - Forward resolution (ENS name → Ethereum address)
   - Reverse resolution (Ethereum address → ENS name)
-  - Dynamic chain support detection via `ENSContractExists()`
+  - Chain support detection via `IsSupportedChain()`
   - Works on any chain where ENS registry is deployed
 
 ### Smart Contract Bindings

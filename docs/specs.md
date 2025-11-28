@@ -17,7 +17,7 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/contracts/`      | Solidity contracts and Go bindings for smart contract interactions. Includes Multicall3, ERC20, ERC721, and ERC1155 contracts with deployment addresses for multiple chains. |
 | `pkg/accounts/extkeystore` | Extended keystore for Ethereum accounts with BIP32 hierarchical deterministic (HD) wallet support. Stores BIP32 extended keys instead of just private keys, enabling derivation of child accounts from parent keys. Provides encrypted storage following Web3 Secret Storage specification, account management (create, unlock, lock, sign, delete), and import/export functionality for both extended keys and standard private keys. |
 | `pkg/accounts/mnemonic` | Utilities for generating BIP39 mnemonic phrases and creating extended keys from them. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. |
-| `pkg/ens`             | Ethereum Name Service (ENS) resolution package. Supports forward resolution (ENS name to Ethereum address) and reverse resolution (Ethereum address to ENS name). Uses go-ens/v3 library internally. Provides `ENSContractExists()` to dynamically check if ENS is available on the connected chain. |
+| `pkg/ens`             | Ethereum Name Service (ENS) resolution package. Supports forward resolution (ENS name to Ethereum address) and reverse resolution (Ethereum address to ENS name). Uses go-ens/v3 library internally. Provides `IsSupportedChain()` to check if ENS is available on Mainnet, Sepolia, or Holesky. |
 | `cshared/`            | C shared library bindings that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, and retrieving account balances. The package can be compiled as a shared library (.so/.dylib) with a generated C header file. |
 | `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing), `c-app` (a C application example demonstrating how to use the shared library from C code), and `ens-resolver-example` (a CLI tool for ENS forward and reverse resolution). |
 
@@ -227,7 +227,7 @@ The `pkg/ens` package provides Ethereum Name Service resolution capabilities:
 
 - **Forward Resolution** – Converts ENS names (e.g., `vitalik.eth`) to Ethereum addresses using the `AddressOf()` method. Names are normalized to lowercase before resolution.
 - **Reverse Resolution** – Converts Ethereum addresses to their primary ENS names using the `GetName()` method. Returns the name associated with an address's reverse record.
-- **Dynamic Chain Detection** – The `ENSContractExists()` function checks if the ENS registry contract is deployed on the connected chain by querying the contract code at the known registry address. This works on any EVM chain without maintaining a hardcoded list of supported chains.
+- **Chain Support Detection** – The `IsSupportedChain()` function checks if the given chain ID is one of the supported ENS chains: Ethereum Mainnet (1), Sepolia (11155111), or Holesky (17000).
 - **Minimal Validation** – Performs basic structural validation on ENS names (must contain a dot, cannot start/end with a dot) while delegating full validation to the go-ens library for ENSIP-15 compliance including unicode support.
 - **Thin Wrapper** – Designed as a lightweight wrapper around go-ens/v3, passing through errors directly without additional wrapping to maintain transparency.
 
@@ -1099,7 +1099,7 @@ The ENS package provides Ethereum Name Service resolution.
 | Function | Purpose | Parameters | Returns |
 |----------|---------|------------|---------|
 | `NewResolver(client)` | Creates a new ENS resolver | `client`: `*ethclient.Client` | `*Resolver`, `error` |
-| `ENSContractExists(ctx, client)` | Checks if ENS registry is deployed on the chain | `ctx`: `context.Context`, `client`: `*ethclient.Client` | `bool`, `error` |
+| `IsSupportedChain(chainID)` | Checks if the chain ID supports ENS | `chainID`: `uint64` | `bool` |
 
 #### 3.14.2 Resolver Methods
 

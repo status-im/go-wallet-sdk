@@ -11,7 +11,12 @@ The `ens` package provides Ethereum Name Service (ENS) resolution capabilities. 
 
 ## Supported Chains
 
-ENS is available on Ethereum Mainnet and testnets where the ENS registry contract is deployed. Use `ENSContractExists()` to check if ENS is available on your chain.
+ENS is available on:
+- Ethereum Mainnet (Chain ID: 1)
+- Sepolia Testnet (Chain ID: 11155111)
+- Holesky Testnet (Chain ID: 17000)
+
+Use `IsSupportedChain(chainID)` to check if ENS is available for a given chain.
 
 ## Usage
 
@@ -41,11 +46,11 @@ func main() {
     client := ethclient.NewClient(rpcClient)
 
     // Optional: Check if ENS is available on this chain
-    exists, err := ens.ENSContractExists(context.Background(), client)
+    chainID, err := client.ChainID(context.Background())
     if err != nil {
         log.Fatal(err)
     }
-    if !exists {
+    if !ens.IsSupportedChain(chainID.Uint64()) {
         log.Fatal("ENS is not available on this chain")
     }
 
@@ -99,3 +104,6 @@ if err != nil {
 fmt.Printf("Name: %s\n", name)
 ```
 
+## Limitations
+
+- **Wrapped names are not supported**: This package does not support ENS wrapped names (names using the NameWrapper contract).

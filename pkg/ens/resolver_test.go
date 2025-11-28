@@ -131,6 +131,29 @@ func TestValidateAddress(t *testing.T) {
 	}
 }
 
+func TestIsSupportedChain(t *testing.T) {
+	tests := []struct {
+		name      string
+		chainID   uint64
+		supported bool
+	}{
+		{"mainnet", ChainIDMainnet, true},
+		{"sepolia", ChainIDSepolia, true},
+		{"holesky", ChainIDHolesky, true},
+		{"polygon", 137, false},
+		{"arbitrum", 42161, false},
+		{"optimism", 10, false},
+		{"unknown", 999999, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsSupportedChain(tt.chainID)
+			assert.Equal(t, tt.supported, result)
+		})
+	}
+}
+
 func TestNewResolver_NilClient(t *testing.T) {
 	resolver, err := NewResolver(nil)
 	require.Error(t, err)

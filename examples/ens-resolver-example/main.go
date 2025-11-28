@@ -14,13 +14,7 @@ import (
 	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 )
 
-const (
-	defaultTimeout = 30 * time.Second
-
-	chainIDMainnet = 1
-	chainIDSepolia = 11155111
-	chainIDHolesky = 17000
-)
+const defaultTimeout = 30 * time.Second
 
 func main() {
 	// Define command-line flags
@@ -142,11 +136,11 @@ func resolveAddress(resolver *ens.Resolver, addressStr string) error {
 
 func getChainName(chainID uint64) string {
 	switch chainID {
-	case chainIDMainnet:
+	case ens.ChainIDMainnet:
 		return "Ethereum Mainnet"
-	case chainIDSepolia:
+	case ens.ChainIDSepolia:
 		return "Sepolia Testnet"
-	case chainIDHolesky:
+	case ens.ChainIDHolesky:
 		return "Holesky Testnet"
 	default:
 		return fmt.Sprintf("Chain ID: %d", chainID)
@@ -195,7 +189,7 @@ func showHelp() {
 	fmt.Println("    ./ens-resolver-example -rpc https://mainnet.infura.io/v3/YOUR-PROJECT-ID -name vitalik.eth -timeout 1m")
 	fmt.Println()
 	fmt.Println("Supported Chains:")
-	fmt.Println("  Any chain where the ENS registry contract is deployed.")
-	fmt.Println("  Use ens.ENSContractExists() to check if ENS is available.")
+	fmt.Println("  Ethereum Mainnet, Sepolia, and Holesky testnets.")
+	fmt.Println("  Use ens.IsSupportedChain(chainID) to check if ENS is available.")
 	fmt.Println()
 }
