@@ -17,8 +17,9 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/contracts/`      | Solidity contracts and Go bindings for smart contract interactions. Includes Multicall3, ERC20, ERC721, and ERC1155 contracts with deployment addresses for multiple chains. |
 | `pkg/accounts/extkeystore` | Extended keystore for Ethereum accounts with BIP32 hierarchical deterministic (HD) wallet support. Stores BIP32 extended keys instead of just private keys, enabling derivation of child accounts from parent keys. Provides encrypted storage following Web3 Secret Storage specification, account management (create, unlock, lock, sign, delete), and import/export functionality for both extended keys and standard private keys. |
 | `pkg/accounts/mnemonic` | Utilities for generating BIP39 mnemonic phrases and creating extended keys from them. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. |
+| `pkg/ens`             | Ethereum Name Service (ENS) resolution package. Supports forward resolution (ENS name to Ethereum address) and reverse resolution (Ethereum address to ENS name). Uses go-ens/v3 library internally. Provides `ENSContractExists()` to dynamically check if ENS is available on the connected chain. |
 | `cshared/`            | C shared library bindings that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, and retrieving account balances. The package can be compiled as a shared library (.so/.dylib) with a generated C header file. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing), and `c-app` (a C application example demonstrating how to use the shared library from C code).                                             |                                                                                                                                                 |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing), `c-app` (a C application example demonstrating how to use the shared library from C code), and `ens-resolver-example` (a CLI tool for ENS forward and reverse resolution). |
 
 ## 2. Architecture
 
@@ -42,6 +43,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Token AutoFetcher** – Automated background token list management with configurable refresh intervals, thread-safe operations with context support, pluggable storage backends, and error reporting via channels. Supports both direct token list fetching and remote list-of-token-lists discovery patterns.
 - **Token Builder** – Incremental token collection building using the Builder pattern with automatic deduplication by chain ID and address, native token generation for supported chains, and multiple format support through parsers. Provides stateful construction with deterministic ordering.
 - **Token Manager** – High-level token management interface providing multi-source token integration (native, remote, local, custom), thread-safe concurrent access, rich query capabilities by chain/address/list ID, and automatic refresh with state management. Centralizes token operations for wallet applications.
+- **ENS Resolver** – Ethereum Name Service resolution package for converting between ENS names and Ethereum addresses. Supports both forward resolution (name to address) and reverse resolution (address to name). Uses go-ens/v3 library and provides dynamic chain support detection via contract existence check.
 
 The SDK emphasises chain agnosticism: methods do not assume particular transaction formats or gas pricing models and therefore work with Ethereum, L2 networks (Optimism, Arbitrum, Polygon), and other EVM‑compatible chains. Each package hides chain‑specific details behind simple interfaces.
 
@@ -218,6 +220,16 @@ The `pkg/tokens/manager` package provides a high-level interface for comprehensi
 - **Automatic Refresh Management** – Integrates with AutoFetcher to provide background refresh capabilities with configurable intervals and error handling.
 - **Deterministic Processing Order** – Processes token sources in a consistent order (native → main list → additional lists → custom tokens) ensuring predictable results across runs.
 - **Error Resilience** – Graceful handling of network failures, parsing errors, and storage issues with fallback mechanisms to maintain core functionality.
+
+### 2.18 ENS Resolver Design
+
+The `pkg/ens` package provides Ethereum Name Service resolution capabilities:
+
+- **Forward Resolution** – Converts ENS names (e.g., `vitalik.eth`) to Ethereum addresses using the `AddressOf()` method. Names are normalized to lowercase before resolution.
+- **Reverse Resolution** – Converts Ethereum addresses to their primary ENS names using the `GetName()` method. Returns the name associated with an address's reverse record.
+- **Dynamic Chain Detection** – The `ENSContractExists()` function checks if the ENS registry contract is deployed on the connected chain by querying the contract code at the known registry address. This works on any EVM chain without maintaining a hardcoded list of supported chains.
+- **Minimal Validation** – Performs basic structural validation on ENS names (must contain a dot, cannot start/end with a dot) while delegating full validation to the go-ens library for ENSIP-15 compliance including unicode support.
+- **Thin Wrapper** – Designed as a lightweight wrapper around go-ens/v3, passing through errors directly without additional wrapping to maintain transparency.
 
 ## 3. API Description
 
@@ -1077,6 +1089,38 @@ type Config struct {
 ```go
 func New(config *Config, fetcher fetcher.Fetcher, contentStore autofetcher.ContentStore, customTokenStore CustomTokenStore) (Manager, error)
 ```
+
+### 3.14 ENS Resolver API (`pkg/ens`)
+
+The ENS package provides Ethereum Name Service resolution.
+
+#### 3.14.1 Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `NewResolver(client)` | Creates a new ENS resolver | `client`: `*ethclient.Client` | `*Resolver`, `error` |
+| `ENSContractExists(ctx, client)` | Checks if ENS registry is deployed on the chain | `ctx`: `context.Context`, `client`: `*ethclient.Client` | `bool`, `error` |
+
+#### 3.14.2 Resolver Methods
+
+| Method | Purpose | Parameters | Returns |
+|--------|---------|------------|---------|
+| `AddressOf(name)` | Forward resolution (name → address) | `name`: `string` | `common.Address`, `error` |
+| `GetName(address)` | Reverse resolution (address → name) | `address`: `common.Address` | `string`, `error` |
+
+#### 3.14.3 Errors
+
+| Error | Description |
+|-------|-------------|
+| `ErrInvalidName` | ENS name has invalid format (missing dot, starts/ends with dot) |
+| `ErrEmptyName` | ENS name is empty |
+| `ErrInvalidAddress` | Ethereum address is invalid (zero address) |
+
+#### 3.14.4 Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `ENSRegistryAddress` | `0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e` | ENS registry contract address (same on all supported chains) |
 
 ## 4. Example Applications
 
