@@ -98,6 +98,13 @@ go get github.com/status-im/go-wallet-sdk
   - Rich query capabilities by chain, address, or list ID
   - Automatic refresh and state management
 
+### ENS Resolution
+- **`pkg/ens`**: Ethereum Name Service (ENS) resolution
+  - Forward resolution (ENS name → Ethereum address)
+  - Reverse resolution (Ethereum address → ENS name)
+  - Chain support detection via `IsSupportedChain()`
+  - Works on any chain where ENS registry is deployed
+
 ### Smart Contract Bindings
 - **`pkg/contracts`**: Go bindings for smart contracts
   - Multicall3 with 200+ chain deployments
@@ -211,6 +218,18 @@ cd examples/token-parser
 go run .
 ```
 
+### ENS Resolver Example
+
+```bash
+cd examples/ens-resolver-example
+
+# Forward resolution (ENS name to address)
+go run . -rpc https://eth.llamarpc.com -name vitalik.eth
+
+# Reverse resolution (address to ENS name)
+go run . -rpc https://eth.llamarpc.com -address 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+```
+
 ## Testing
 
 ```bash
@@ -236,6 +255,7 @@ go-wallet-sdk/
 │   │   ├── autofetcher/   # Automated background fetching
 │   │   ├── builder/       # Incremental token collection building
 │   │   └── manager/       # High-level token management
+│   ├── ens/               # ENS name resolution
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
 ├── cshared/              # C shared library bindings
@@ -254,7 +274,8 @@ go-wallet-sdk/
 │   ├── token-builder/             # Token collection building
 │   ├── token-fetcher/            # Token list fetching
 │   ├── token-manager/             # Token management
-│   └── token-parser/              # Token list parsing
+│   ├── token-parser/              # Token list parsing
+│   └── ens-resolver-example/     # ENS resolution CLI tool
 └── README.md              # This file
 ```
 
@@ -275,6 +296,7 @@ go-wallet-sdk/
 - [Token AutoFetcher](pkg/tokens/autofetcher/README.md) - Automated background fetching
 - [Token Builder](pkg/tokens/builder/README.md) - Incremental token collection building
 - [Token Manager](pkg/tokens/manager/README.md) - High-level token management
+- [ENS Resolver](pkg/ens/README.md) - ENS name resolution
 
 ### Example Documentation
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
@@ -288,6 +310,7 @@ go-wallet-sdk/
 - [Token Fetcher](examples/token-fetcher/README.md) - Token list fetching
 - [Token Manager](examples/token-manager/README.md) - Token management
 - [Token Parser](examples/token-parser/README.md) - Token list parsing
+- [ENS Resolver Example](examples/ens-resolver-example/README.md) - ENS resolution CLI tool
 
 ### Specifications
 - [Technical Specifications](docs/specs.md) - Complete SDK specifications and architecture
