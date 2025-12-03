@@ -20,4 +20,7 @@ Notes:
   - GoWSK_ethclient_ChainID(unsigned long long handle, char** errOut) -> char*
   - GoWSK_ethclient_GetBalance(unsigned long long handle, const char* address, char** errOut) -> char*
   - GoWSK_ethclient_RPCCall(unsigned long long handle, const char* method, const char* params, char** errOut) -> char*
+  - GoWSK_balance_multistandardfetcher_FetchBalances(uintptr_t ethClientHandle, unsigned long chainID, unsigned long batchSize, char* fetchConfigJSON, uintptr_t* cancelHandleOut, char** errOut) -> char*
+  - GoWSK_balance_multistandardfetcher_CancelFetchBalances(uintptr_t cancelHandle)
+  - GoWSK_balance_multistandardfetcher_FreeCancelHandle(uintptr_t cancelHandle)
   - GoWSK_FreeCString(char* s)
