@@ -8,6 +8,7 @@ import "C"
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"runtime/cgo"
 
@@ -26,12 +27,6 @@ func castToEthClient(h cgo.Handle) *sdkethclient.Client {
 		return nil
 	}
 	return c
-}
-
-func handleError(errOut **C.char, err error) {
-	if errOut != nil {
-		*errOut = C.CString(err.Error())
-	}
 }
 
 //export GoWSK_ethclient_NewClient
@@ -98,4 +93,38 @@ func GoWSK_ethclient_GetBalance(handle C.uintptr_t, address *C.char, errOut **C.
 		return nil
 	}
 	return C.CString(bal.String())
+}
+
+type rpcRequestJSON struct {
+	Method string        `json:"method"`
+	Params []interface{} `json:"params"`
+}
+
+//export GoWSK_ethclient_RPCCall
+func GoWSK_ethclient_RPCCall(handle C.uintptr_t, requestC *C.char, errOut **C.char) *C.char {
+	h := cgo.Handle(handle)
+	c := castToEthClient(h)
+	if c == nil {
+		handleError(errOut, errors.New("invalid client handle"))
+		return nil
+	}
+	if requestC == nil {
+		handleError(errOut, errors.New("request is NULL"))
+		return nil
+	}
+	request := rpcRequestJSON{}
+	err := json.Unmarshal([]byte(C.GoString(requestC)), &request)
+	if err != nil {
+		handleError(errOut, err)
+		return nil
+	}
+
+	response := json.RawMessage{}
+	err = c.RPCCall(context.Background(), &response, request.Method, request.Params...)
+	if err != nil {
+		handleError(errOut, err)
+		return nil
+	}
+
+	return C.CString(string(response))
 }
