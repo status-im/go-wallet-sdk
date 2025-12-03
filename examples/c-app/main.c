@@ -37,6 +37,17 @@ int main(int argc, char** argv) {
     printf("Balance(wei): %s\n", balance);
     GoWSK_FreeCString(balance);
 
+    char* rpcCallRequest = "{\"method\":\"eth_getBalance\",\"params\":[\"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045\",\"latest\"]}";
+    char* rpcCallResponse = GoWSK_ethclient_RPCCall(h, rpcCallRequest, &err);
+    if (rpcCallResponse == NULL) {
+        fprintf(stderr, "RPCCall error: %s\n", err ? err : "unknown error");
+        if (err) GoWSK_FreeCString(err);
+        GoWSK_ethclient_CloseClient(h);
+        return 1;
+    }
+    printf("RPCCall\nRequest: %s\nResponse: %s\n", rpcCallRequest, rpcCallResponse);
+    GoWSK_FreeCString(rpcCallResponse);
+
     GoWSK_ethclient_CloseClient(h);
     return 0;
 }

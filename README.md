@@ -182,7 +182,7 @@ cd bin
 ./c-app
 ```
 
-Demonstrates how to use the Go Wallet SDK from C applications using the shared library. The example creates an Ethereum client, retrieves the chain ID, and fetches account balances.
+Demonstrates how to use the Go Wallet SDK from C applications using the shared library. The example creates an Ethereum client, retrieves the chain ID, fetches account balances, and makes raw JSON-RPC calls.
 
 ## Building the C Shared Library
 

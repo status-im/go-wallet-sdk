@@ -1327,7 +1327,7 @@ The `examples/accounts` folder demonstrates how to use the extended keystore and
 
 The `examples/c-app` folder demonstrates how to use the Go Wallet SDK from C applications using the shared library.
 
-- **Features** – The example shows how to create an Ethereum client, retrieve the chain ID, and fetch account balances from a C application. It demonstrates proper memory management by freeing all C strings returned by the SDK functions. The example uses the generated C header file (`libgowalletsdk.h`) and links against the shared library.
+- **Features** – The example shows how to create an Ethereum client, retrieve the chain ID, fetch account balances, and make raw JSON-RPC calls from a C application. It demonstrates proper memory management by freeing all C strings returned by the SDK functions. The example uses the generated C header file (`libgowalletsdk.h`) and links against the shared library.
 
 - **Usage** – Users first build the shared library from the repository root using `make shared-library`, then build and run the C example using the provided Makefile. The example connects to a public Ethereum RPC endpoint and queries Vitalik's address for demonstration purposes.
 
@@ -1434,6 +1434,7 @@ The shared library exports the following functions:
 - `void GoWSK_ethclient_CloseClient(uintptr_t handle)` - Closes and cleans up an Ethereum client instance. The handle becomes invalid after this call.
 - `char* GoWSK_ethclient_ChainID(uintptr_t handle, char** errOut)` - Returns the chain ID as a string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
 - `char* GoWSK_ethclient_GetBalance(uintptr_t handle, char* address, char** errOut)` - Returns the balance of an address in wei as a string. The address should be a hex string (e.g., "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"). Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
+- `char* GoWSK_ethclient_RPCCall(uintptr_t handle, char* request, char** errOut)` - Executes a raw JSON-RPC call. The `request` parameter should be a JSON string with `method` and `params` fields (e.g., `{"method":"eth_getBalance","params":["0x...","latest"]}`). Returns the JSON-RPC response as a string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
 
 #### 5.3.4 Usage Example
 
@@ -1474,6 +1475,18 @@ int main() {
     }
     printf("Balance (wei): %s\n", balance);
     GoWSK_FreeCString(balance);
+
+    // Make a raw RPC call
+    char* rpcRequest = "{\"method\":\"eth_getBalance\",\"params\":[\"0x0000000000000000000000000000000000000000\",\"latest\"]}";
+    char* rpcResponse = GoWSK_ethclient_RPCCall(handle, rpcRequest, &err);
+    if (rpcResponse == NULL) {
+        fprintf(stderr, "RPCCall error: %s\n", err ? err : "unknown error");
+        if (err) GoWSK_FreeCString(err);
+        GoWSK_ethclient_CloseClient(handle);
+        return 1;
+    }
+    printf("RPC Call Response: %s\n", rpcResponse);
+    GoWSK_FreeCString(rpcResponse);
 
     // Clean up
     GoWSK_ethclient_CloseClient(handle);

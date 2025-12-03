@@ -33,6 +33,11 @@ func NewClient(rpcClient RPCClient) *Client {
 	return &client
 }
 
+// RPCCall executes a raw JSON-RPC call with the given method and arguments
+func (c *Client) RPCCall(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+	return c.rpcClient.CallContext(ctx, result, method, args...)
+}
+
 // Close closes the client
 func (c *Client) Close() {
 	if c.rpcClient != nil {
