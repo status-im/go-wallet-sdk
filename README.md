@@ -182,7 +182,12 @@ cd bin
 ./c-app
 ```
 
-Demonstrates how to use the Go Wallet SDK from C applications using the shared library. The example creates an Ethereum client, retrieves the chain ID, fetches account balances, and makes raw JSON-RPC calls.
+Demonstrates how to use the Go Wallet SDK from C applications using the shared library. The example includes:
+- Ethereum client operations (creating clients, retrieving chain ID, fetching balances, making JSON-RPC calls)
+- Multi-standard balance fetching (Native ETH, ERC20, ERC721, ERC1155)
+- Account management with extended keystore and standard keystore
+- Mnemonic generation and key derivation
+- Account creation, import/export, signing, and derivation
 
 ## Building the C Shared Library
 
@@ -196,7 +201,13 @@ This creates:
 - `build/libgowalletsdk.dylib` (macOS) or `build/libgowalletsdk.so` (Linux)
 - `build/libgowalletsdk.h` (C header file)
 
-The shared library exposes Ethereum client functionality through a C-compatible API. See [examples/c-app](examples/c-app/README.md) for a complete C usage example.
+The shared library exposes core SDK functionality through a C-compatible API, including:
+- Ethereum client operations (RPC calls, chain ID, balances)
+- Multi-standard balance fetching (Native ETH, ERC20, ERC721, ERC1155)
+- Account management (extended keystore and standard keystore)
+- Mnemonic generation and key derivation utilities
+
+See [examples/c-app](examples/c-app/README.md) for a complete C usage example.
 
 ### Token Management Examples
 
@@ -261,6 +272,11 @@ go-wallet-sdk/
 ├── cshared/              # C shared library bindings
 │   ├── c.go             # Memory management utilities
 │   ├── ethclient.go     # Ethereum client C bindings
+│   ├── balance_multistandardfetcher.go  # Multi-standard balance fetching C bindings
+│   ├── accounts_extkeystore.go  # Extended keystore C bindings
+│   ├── accounts_keystore.go     # Standard keystore C bindings
+│   ├── accounts_keys.go         # Key derivation and conversion C bindings
+│   ├── accounts_mnemonic.go     # Mnemonic utilities C bindings
 │   └── main.go          # Entry point for shared library build
 ├── examples/              # Usage examples
 │   ├── balance-fetcher-web/       # Web interface for balance fetching
