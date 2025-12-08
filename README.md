@@ -189,16 +189,26 @@ Demonstrates how to use the Go Wallet SDK from C applications using the shared l
 - Mnemonic generation and key derivation
 - Account creation, import/export, signing, and derivation
 
-## Building the C Shared Library
+## Building the C Library
 
-The SDK can be compiled as a C shared library for use in non-Go applications:
+The SDK can be compiled as a C library (shared or static) for use in non-Go applications:
 
+**Shared Library:**
 ```bash
 make shared-library
 ```
 
 This creates:
 - `build/libgowalletsdk.dylib` (macOS) or `build/libgowalletsdk.so` (Linux)
+- `build/libgowalletsdk.h` (C header file)
+
+**Static Library:**
+```bash
+make static-library
+```
+
+This creates:
+- `build/libgowalletsdk.a` (static library)
 - `build/libgowalletsdk.h` (C header file)
 
 The shared library exposes core SDK functionality through a C-compatible API, including:
@@ -269,7 +279,7 @@ go-wallet-sdk/
 │   ├── ens/               # ENS name resolution
 │   ├── contracts/         # Smart contract bindings
 │   └── common/            # Shared utilities
-├── cshared/              # C shared library bindings
+├── clib/                 # C library bindings (shared and static)
 │   ├── c.go             # Memory management utilities
 │   ├── ethclient.go     # Ethereum client C bindings
 │   ├── balance_multistandardfetcher.go  # Multi-standard balance fetching C bindings
@@ -277,7 +287,7 @@ go-wallet-sdk/
 │   ├── accounts_keystore.go     # Standard keystore C bindings
 │   ├── accounts_keys.go         # Key derivation and conversion C bindings
 │   ├── accounts_mnemonic.go     # Mnemonic utilities C bindings
-│   └── main.go          # Entry point for shared library build
+│   └── main.go          # Entry point for library build
 ├── examples/              # Usage examples
 │   ├── balance-fetcher-web/       # Web interface for balance fetching
 │   ├── ethclient-usage/           # Ethereum client examples

@@ -2,13 +2,14 @@ GOOS := $(shell go env GOOS)
 LIBNAME := libgowalletsdk
 BUILD_DIR := build
 
+STATICLIBEXT := .a
 ifeq ($(GOOS),darwin)
-  LIBEXT := .dylib
+  SHAREDLIBEXT := .dylib
 else
-  LIBEXT := .so
+  SHAREDLIBEXT := .so
 endif
 
-.PHONY: shared-library clean check-go
+.PHONY: shared-library static-library clean check-go
 
 check-go:
 	@if ! command -v go &> /dev/null; then \
@@ -18,9 +19,14 @@ check-go:
 
 shared-library: check-go
 	mkdir -p $(BUILD_DIR)
-	go build -buildmode=c-shared -o $(BUILD_DIR)/$(LIBNAME)$(LIBEXT) ./cshared
-	@echo "Built $(BUILD_DIR)/$(LIBNAME)$(LIBEXT) and header $(BUILD_DIR)/$(LIBNAME).h"
+	go build -buildmode=c-shared -o $(BUILD_DIR)/$(LIBNAME)$(SHAREDLIBEXT) ./clib
+	@echo "Built $(BUILD_DIR)/$(LIBNAME)$(SHAREDLIBEXT) and header $(BUILD_DIR)/$(LIBNAME).h"
+
+static-library: check-go
+	mkdir -p $(BUILD_DIR)
+	go build -buildmode=c-archive -o $(BUILD_DIR)/$(LIBNAME)$(STATICLIBEXT) ./clib
+	@echo "Built $(BUILD_DIR)/$(LIBNAME)$(STATICLIBEXT) and header $(BUILD_DIR)/$(LIBNAME).h"
 
 clean:
-	rm -f $(BUILD_DIR)/$(LIBNAME).so $(BUILD_DIR)/$(LIBNAME).dylib $(BUILD_DIR)/$(LIBNAME).h
+	rm -f $(BUILD_DIR)/$(LIBNAME).so $(BUILD_DIR)/$(LIBNAME).dylib $(BUILD_DIR)/$(LIBNAME).a $(BUILD_DIR)/$(LIBNAME).h
 
