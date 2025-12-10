@@ -19,5 +19,5 @@ Notes:
   - GoWSK_ethclient_CloseClient(unsigned long long handle)
   - GoWSK_ethclient_ChainID(unsigned long long handle, char** errOut) -> char*
   - GoWSK_ethclient_GetBalance(unsigned long long handle, const char* address, char** errOut) -> char*
-  - GoWSK_ethclient_RPCCall(unsigned long long handle, const char* request, char** errOut) -> char*
+  - GoWSK_ethclient_RPCCall(unsigned long long handle, const char* method, const char* params, char** errOut) -> char*
   - GoWSK_FreeCString(char* s)
