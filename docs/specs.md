@@ -18,7 +18,7 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/accounts/extkeystore` | Extended keystore for Ethereum accounts with BIP32 hierarchical deterministic (HD) wallet support. Stores BIP32 extended keys instead of just private keys, enabling derivation of child accounts from parent keys. Provides encrypted storage following Web3 Secret Storage specification, account management (create, unlock, lock, sign, delete), and import/export functionality for both extended keys and standard private keys. |
 | `pkg/accounts/mnemonic` | Utilities for generating BIP39 mnemonic phrases and creating extended keys from them. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. |
 | `pkg/ens`             | Ethereum Name Service (ENS) resolution package. Supports forward resolution (ENS name to Ethereum address) and reverse resolution (Ethereum address to ENS name). Uses go-ens/v3 library internally. Provides `IsSupportedChain()` to check if ENS is available on Mainnet, Sepolia, or Holesky. |
-| `cshared/`            | C shared library bindings that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, and retrieving account balances. The package can be compiled as a shared library (.so/.dylib) with a generated C header file. |
+| `cshared/`            | C shared library bindings that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, retrieving account balances, and fetching multi-standard token balances (Native ETH, ERC20, ERC721, ERC1155). The package can be compiled as a shared library (.so/.dylib) with a generated C header file. |
 | `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing), `c-app` (a C application example demonstrating how to use the shared library from C code), and `ens-resolver-example` (a CLI tool for ENS forward and reverse resolution). |
 
 ## 2. Architecture
@@ -36,7 +36,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Mnemonic Utilities** – Simple package for working with BIP39 mnemonic seed phrases to generate deterministic wallets. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. Designed to work seamlessly with the Extended Keystore package.
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
-- **C Shared Library** – Exposes core SDK functionality to non-Go applications through C-compatible bindings. The `cshared` package can be compiled as a shared library (.so/.dylib) with a generated C header file, enabling integration with C, C++, and other languages that can call C functions. Provides memory-safe wrappers for Ethereum client operations with proper resource management.
+- **C Shared Library** – Exposes core SDK functionality to non-Go applications through C-compatible bindings. The `cshared` package can be compiled as a shared library (.so/.dylib) with a generated C header file, enabling integration with C, C++, and other languages that can call C functions. Provides memory-safe wrappers for Ethereum client operations and multi-standard balance fetching with proper resource management. String conversion utilities for CollectibleID types are implemented internally for JSON serialization.
 - **Token Types** – Core data structures for tokens and token lists with unified representation, cross-chain support, type-safe address handling, and validation. Provides Token and TokenList types that serve as the foundation for all token-related operations.
 - **Token Parsers** – Token list parsing implementations for multiple formats including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing. Supports chain filtering and validation with extensible parser architecture.
 - **Token Fetcher** – HTTP-based token list fetching with concurrent operations, HTTP ETag caching for bandwidth efficiency, JSON schema validation support, and robust error handling with timeout management. Designed for production use with configurable HTTP client settings.
@@ -1327,7 +1327,7 @@ The `examples/accounts` folder demonstrates how to use the extended keystore and
 
 The `examples/c-app` folder demonstrates how to use the Go Wallet SDK from C applications using the shared library.
 
-- **Features** – The example shows how to create an Ethereum client, retrieve the chain ID, fetch account balances, and make raw JSON-RPC calls from a C application. It demonstrates proper memory management by freeing all C strings returned by the SDK functions. The example uses the generated C header file (`libgowalletsdk.h`) and links against the shared library.
+- **Features** – The example shows how to create an Ethereum client, retrieve the chain ID, fetch account balances, make raw JSON-RPC calls, and fetch multi-standard token balances (Native ETH, ERC20, ERC721, ERC1155) from a C application. It demonstrates proper memory management by freeing all C strings returned by the SDK functions. The example uses the generated C header file (`libgowalletsdk.h`) and links against the shared library. The multi-standard balance fetcher example shows how to construct the fetch configuration JSON with examples for all token types including ERC1155 collectibles in the `"contractAddress:tokenID"` format.
 
 - **Usage** – Users first build the shared library from the repository root using `make shared-library`, then build and run the C example using the provided Makefile. The example connects to a public Ethereum RPC endpoint and queries Vitalik's address for demonstration purposes.
 
@@ -1402,7 +1402,9 @@ The SDK includes build support for creating C shared libraries that expose core 
 
 The `cshared` package consists of:
 - `c.go` - Memory management utilities for C strings (`GoWSK_FreeCString`)
+- `error.go` - Error handling utilities for C bindings
 - `ethclient.go` - C bindings for Ethereum client functionality
+- `balance_multistandardfetcher.go` - C bindings for multi-standard balance fetching (Native ETH, ERC20, ERC721, ERC1155). Includes internal string conversion utilities for CollectibleID types used in JSON serialization.
 - `main.go` - Entry point for building the shared library
 
 #### 5.3.2 Building the Library
@@ -1435,6 +1437,29 @@ The shared library exports the following functions:
 - `char* GoWSK_ethclient_ChainID(uintptr_t handle, char** errOut)` - Returns the chain ID as a string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
 - `char* GoWSK_ethclient_GetBalance(uintptr_t handle, char* address, char** errOut)` - Returns the balance of an address in wei as a string. The address should be a hex string (e.g., "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"). Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
 - `char* GoWSK_ethclient_RPCCall(uintptr_t handle, char* method, char* params, char** errOut)` - Executes a raw JSON-RPC call. The `method` parameter should be the RPC method name (e.g., `"eth_getBalance"`). The `params` parameter should be a JSON array string with the method parameters (e.g., `"[\"0x...\",\"latest\"]"`). Returns the JSON-RPC response as a string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
+
+**Multi-Standard Balance Fetcher:**
+- `char* GoWSK_balance_multistandardfetcher_FetchBalances(uintptr_t ethClientHandle, unsigned long chainID, unsigned long batchSize, char* fetchConfigJSON, uintptr_t* cancelHandleOut, char** errOut)` - Fetches balances across multiple token standards (Native ETH, ERC20, ERC721, ERC1155) using Multicall3 batched calls. The `fetchConfigJSON` parameter should be a JSON string with the configuration (see format below). The `cancelHandleOut` parameter is an output parameter that receives a cancel handle if provided (can be NULL if cancellation is not needed). This handle can be used to cancel the operation. Returns a JSON string with the results. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`. If `errOut` is provided and an error occurs, it will contain an error message (must be freed with `GoWSK_FreeCString`).
+- `void GoWSK_balance_multistandardfetcher_CancelFetchBalances(uintptr_t cancelHandle)` - Cancels an ongoing fetch operation. The `cancelHandle` should be the value obtained from the `cancelHandleOut` parameter of `GoWSK_balance_multistandardfetcher_FetchBalances`. This will stop all goroutines associated with the fetch operation. Safe to call multiple times.
+- `void GoWSK_balance_multistandardfetcher_FreeCancelHandle(uintptr_t cancelHandle)` - Frees the cancel handle and associated resources. **Must be called to free the cancel handle in all cases, including if `GoWSK_balance_multistandardfetcher_FetchBalances` returns NULL due to an error.** The handle is created before the fetch starts, so it must be freed whether the fetch operation completes successfully, is cancelled, or fails with an error, to prevent memory leaks.
+
+The fetch configuration JSON format:
+```json
+{
+  "native": ["0x...", "0x..."],
+  "erc20": {
+    "0xAccount...": ["0xToken1...", "0xToken2..."]
+  },
+  "erc721": {
+    "0xAccount...": ["0xNFTContract1...", "0xNFTContract2..."]
+  },
+  "erc1155": {
+    "0xAccount...": ["0xContract1:tokenID1", "0xContract2:tokenID2"]
+  }
+}
+```
+
+Note: ERC1155 collectibles use the format `"contractAddress:tokenID"` where tokenID is a decimal string. Both contract address and token ID must be non-empty. The function returns results as a JSON array of result objects with fields: `resultType`, `account`, `result` (for native), `results` (for ERC20/ERC721/ERC1155), `err`, `atBlockNumber`, and `atBlockHash`.
 
 #### 5.3.4 Usage Example
 
