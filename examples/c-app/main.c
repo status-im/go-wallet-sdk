@@ -32,17 +32,19 @@ static void* fetch_thread_func(void* arg) {
     fetch_thread_data_t* data = (fetch_thread_data_t*)arg;
     
     // Run FetchBalances in this thread
+    uintptr_t localCancelHandle = 0;
     data->resultsJSON = GoWSK_balance_multistandardfetcher_FetchBalances(
         data->ethClientHandle,
         data->chainID,
         data->batchSize,
         (char*)data->fetchConfigJSON,
-        &data->cancelHandle,
+        &localCancelHandle,
         &data->err
     );
     
-    // Signal completion
+    // Signal completion and copy cancelHandle under mutex
     pthread_mutex_lock(&data->mutex);
+    data->cancelHandle = localCancelHandle;
     data->completed = 1;
     pthread_cond_signal(&data->cond);
     pthread_mutex_unlock(&data->mutex);
