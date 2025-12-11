@@ -18,7 +18,7 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/accounts/extkeystore` | Extended keystore for Ethereum accounts with BIP32 hierarchical deterministic (HD) wallet support. Stores BIP32 extended keys instead of just private keys, enabling derivation of child accounts from parent keys. Provides encrypted storage following Web3 Secret Storage specification, account management (create, unlock, lock, sign, delete), and import/export functionality for both extended keys and standard private keys. |
 | `pkg/accounts/mnemonic` | Utilities for generating BIP39 mnemonic phrases and creating extended keys from them. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. |
 | `pkg/ens`             | Ethereum Name Service (ENS) resolution package. Supports forward resolution (ENS name to Ethereum address) and reverse resolution (Ethereum address to ENS name). Uses go-ens/v3 library internally. Provides `IsSupportedChain()` to check if ENS is available on Mainnet, Sepolia, or Holesky. |
-| `cshared/`            | C shared library bindings that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, retrieving account balances, and fetching multi-standard token balances (Native ETH, ERC20, ERC721, ERC1155). The package can be compiled as a shared library (.so/.dylib) with a generated C header file. |
+| `clib/`               | C library bindings (shared and static) that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, retrieving account balances, and fetching multi-standard token balances (Native ETH, ERC20, ERC721, ERC1155). The package can be compiled as a shared library (.so/.dylib) or static library (.a) with a generated C header file. |
 | `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing), `c-app` (a C application example demonstrating how to use the shared library from C code), and `ens-resolver-example` (a CLI tool for ENS forward and reverse resolution). |
 
 ## 2. Architecture
@@ -36,7 +36,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Mnemonic Utilities** – Simple package for working with BIP39 mnemonic seed phrases to generate deterministic wallets. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. Designed to work seamlessly with the Extended Keystore package.
 - **Common Utilities** – Houses shared types (e.g., `ChainID`) and enumerated constants for well‑known networks. This allows examples and client code to refer to network IDs without hard‑coding numbers.
 - **Contract Bindings** – Provides Go bindings for smart contracts including Multicall3, ERC20, ERC721, and ERC1155. Includes deployment addresses for multiple chains and utilities for contract interaction.
-- **C Shared Library** – Exposes core SDK functionality to non-Go applications through C-compatible bindings. The `cshared` package can be compiled as a shared library (.so/.dylib) with a generated C header file, enabling integration with C, C++, and other languages that can call C functions. Provides memory-safe wrappers for Ethereum client operations, multi-standard balance fetching, account management (extended keystore and standard keystore), mnemonic generation, and key derivation utilities with proper resource management. String conversion utilities for CollectibleID types are implemented internally for JSON serialization.
+- **C Library** – Exposes core SDK functionality to non-Go applications through C-compatible bindings. The `clib` package can be compiled as a shared library (.so/.dylib) or static library (.a) with a generated C header file, enabling integration with C, C++, and other languages that can call C functions. Provides memory-safe wrappers for Ethereum client operations, multi-standard balance fetching, account management (extended keystore and standard keystore), mnemonic generation, and key derivation utilities with proper resource management. String conversion utilities for CollectibleID types are implemented internally for JSON serialization.
 - **Token Types** – Core data structures for tokens and token lists with unified representation, cross-chain support, type-safe address handling, and validation. Provides Token and TokenList types that serve as the foundation for all token-related operations.
 - **Token Parsers** – Token list parsing implementations for multiple formats including Standard (Uniswap-style), Status-specific with chain grouping, CoinGecko API with platform mappings, and list-of-token-lists metadata parsing. Supports chain filtering and validation with extensible parser architecture.
 - **Token Fetcher** – HTTP-based token list fetching with concurrent operations, HTTP ETag caching for bandwidth efficiency, JSON schema validation support, and robust error handling with timeout management. Designed for production use with configurable HTTP client settings.
@@ -1394,13 +1394,13 @@ go test ./...
 
 This executes unit tests for the balance fetcher and Ethereum client. The balance fetcher includes a `mock` package to simulate RPC responses. The repository also includes continuous integration workflows (`.github/workflows`) and static analysis configurations (`.golangci.yml`).
 
-### 5.3 Building the C Shared Library
+### 5.3 Building the C Library
 
-The SDK includes build support for creating C shared libraries that expose core functionality to non-Go applications. The C bindings are implemented in the `cshared` package, which provides C-compatible functions for interacting with the Ethereum client.
+The SDK includes build support for creating C libraries (shared or static) that expose core functionality to non-Go applications. The C bindings are implemented in the `clib` package, which provides C-compatible functions for interacting with the Ethereum client.
 
 #### 5.3.1 Package Structure
 
-The `cshared` package consists of:
+The `clib` package consists of:
 - `c.go` - Memory management utilities for C strings (`GoWSK_FreeCString`)
 - `error.go` - Error handling utilities for C bindings
 - `ethclient.go` - C bindings for Ethereum client functionality
@@ -1409,12 +1409,13 @@ The `cshared` package consists of:
 - `accounts_keystore.go` - C bindings for standard keystore operations (go-ethereum compatible keystore)
 - `accounts_keys.go` - C bindings for key derivation and conversion utilities (extended keys, ECDSA keys, public keys, addresses)
 - `accounts_mnemonic.go` - C bindings for BIP39 mnemonic phrase generation and utilities
-- `main.go` - Entry point for building the shared library
+- `main.go` - Entry point for building the library
 
 #### 5.3.2 Building the Library
 
-To build the library run:
+The SDK supports building both shared and static libraries:
 
+**Shared Library:**
 ```bash
 make shared-library
 ```
@@ -1425,12 +1426,26 @@ This creates:
 
 The build process:
 1. Checks for Go installation
-2. Compiles the `cshared` package with `-buildmode=c-shared`
+2. Compiles the `clib` package with `-buildmode=c-shared`
 3. Generates the shared library and header file in the `build/` directory
+
+**Static Library:**
+```bash
+make static-library
+```
+
+This creates:
+- `build/libgowalletsdk.a` (static library)
+- `build/libgowalletsdk.h` (C header file with exported function declarations)
+
+The build process:
+1. Checks for Go installation
+2. Compiles the `clib` package with `-buildmode=c-archive`
+3. Generates the static library and header file in the `build/` directory
 
 #### 5.3.3 C API Functions
 
-The shared library exports the following functions:
+The C library (shared and static) exports the following functions:
 
 **Memory Management:**
 - `void GoWSK_FreeCString(char* s)` - Frees C strings returned by GoWSK functions to prevent memory leaks. Must be called for all string return values.
