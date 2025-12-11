@@ -211,7 +211,7 @@ This creates:
 - `build/libgowalletsdk.a` (static library)
 - `build/libgowalletsdk.h` (C header file)
 
-The shared library exposes core SDK functionality through a C-compatible API, including:
+The C library exposes core SDK functionality through a C-compatible API, including:
 - Ethereum client operations (RPC calls, chain ID, balances)
 - Multi-standard balance fetching (Native ETH, ERC20, ERC721, ERC1155)
 - Account management (extended keystore and standard keystore)
