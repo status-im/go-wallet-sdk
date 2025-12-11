@@ -1445,7 +1445,7 @@ The build process:
 
 #### 5.3.3 C API Functions
 
-The shared library exports the following functions:
+The C library (shared and static) exports the following functions:
 
 **Memory Management:**
 - `void GoWSK_FreeCString(char* s)` - Frees C strings returned by GoWSK functions to prevent memory leaks. Must be called for all string return values.
