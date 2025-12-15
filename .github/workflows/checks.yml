@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build packages
     runs-on: ubuntu-latest
     steps:
     - name: Check out code
@@ -32,8 +32,15 @@ jobs:
     - name: Go Build
       # Ensure that the code builds correctly
       run: go build -o /dev/null ./...
+    
+    - name: Build shared library
+      run: go build -buildmode=c-shared -o /dev/null ./clib
+
+    - name: Build static library
+      run: go build -buildmode=c-archive -o /dev/null ./clib
   
   build-examples:
+    name: Build examples
     runs-on: ubuntu-latest
     steps:
     - name: Check out code
