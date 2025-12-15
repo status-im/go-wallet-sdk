@@ -2,117 +2,80 @@
 
 A modular Go SDK for building multi-chain cryptocurrency wallets and blockchain applications.
 
-## Quick Start
+## Requirements
+
+- **Go**: 1.24.0 or higher
+- **Optional**: RPC endpoint (Infura, Alchemy, or your own node) for examples
+
+## Installation
 
 ```bash
 go get github.com/status-im/go-wallet-sdk
 ```
 
+For development and contributing:
+
+```bash
+git clone https://github.com/status-im/go-wallet-sdk
+cd go-wallet-sdk
+go mod download
+```
+
+## API reference
+
+- GoDoc / API: https://pkg.go.dev/github.com/status-im/go-wallet-sdk
+- Package READMEs: see the links in the table below
+
 ## Available Packages
 
-### Balance Management
-- **`pkg/balance/fetcher`**: High-performance balance fetching with automatic fallback strategies
-  - Native token (ETH) balance fetching for multiple addresses
-  - ERC20 token balance fetching for multiple addresses and tokens
-  - Smart fallback between different fetching methods
-  - Chain-agnostic design
+| Area | Package | Use it when… | Key entrypoints (start here) |
+|---|---|---|---|
+| RPC client | [`pkg/ethclient`](pkg/ethclient/README.md) | You need chain-agnostic JSON-RPC (or a go-ethereum compatible surface) | `NewClient`, `Eth*` methods, `BalanceAt` |
+| Balances | [`pkg/balance/fetcher`](pkg/balance/fetcher/README.md) | You need fast native/ERC20 balance reads with fallback strategies | `FetchNativeBalances`, `FetchErc20Balances` |
+| Batching | [`pkg/multicall`](pkg/multicall/README.md) | You want to batch thousands of contract reads via Multicall3 | `Build*Call`, `RunSync`, `RunAsync` |
+| Multi-standard balances | [`pkg/balance/multistandardfetcher`](pkg/balance/multistandardfetcher/README.md) | You want native+ERC20+ERC721+ERC1155 balances via one API | `FetchBalances`, `FetchConfig` |
+| Gas | [`pkg/gas`](pkg/gas/README.md) | You need fee suggestions + inclusion estimates across L1/L2s | `GetTxSuggestions`, `GetChainSuggestions` |
+| Transfers | [`pkg/eventfilter`](pkg/eventfilter/README.md) | You need to efficiently query ERC20/721/1155 transfers via `eth_getLogs` | `FilterTransfers`, `TransferQueryConfig` |
+| Log parsing | [`pkg/eventlog`](pkg/eventlog/README.md) | You need to detect/parse standard token events | `ParseLog`, `Event` |
+| Accounts | [`pkg/accounts/extkeystore`](pkg/accounts/extkeystore/README.md) | You need HD (BIP32) keystore + signing | `NewKeyStore`, `DeriveWithPassphrase`, `SignHash` |
+| Mnemonics | [`pkg/accounts/mnemonic`](pkg/accounts/mnemonic/README.md) | You need BIP39 mnemonics + seeds/extended keys | `CreateRandomMnemonic`, `CreateExtendedKeyFromMnemonic` |
+| Token types | [`pkg/tokens/types`](pkg/tokens/types/README.md) | You need core token data structures and key generation | `Token`, `TokenList`, `TokenKey`, `IsNative` |
+| Token parsers | [`pkg/tokens/parsers`](pkg/tokens/parsers/README.md) | You need to parse token lists from various formats | `StandardTokenListParser`, `StatusTokenListParser`, `CoinGeckoAllTokensParser` |
+| Token fetcher | [`pkg/tokens/fetcher`](pkg/tokens/fetcher/README.md) | You need HTTP fetching with ETag caching and validation | `New`, `Fetch`, `FetchConcurrent` |
+| Token autofetcher | [`pkg/tokens/autofetcher`](pkg/tokens/autofetcher/README.md) | You need automated background refresh of token lists | `NewAutofetcherFromTokenLists`, `NewAutofetcherFromRemoteListOfTokenLists` |
+| Token builder | [`pkg/tokens/builder`](pkg/tokens/builder/README.md) | You need to incrementally build and merge token collections | `New`, `AddTokenList`, `AddNativeTokenList` |
+| Token manager | [`pkg/tokens/manager`](pkg/tokens/manager/README.md) | You need high-level token management with auto-refresh | `New`, `Start`, `GetTokenByChainAddress`, `UniqueTokens` |
+| ENS | [`pkg/ens`](pkg/ens/README.md) | You need forward/reverse ENS resolution | `NewResolver`, `AddressOf`, `GetName`, `IsSupportedChain` |
 
-- **`pkg/multicall`**: Efficient batching of contract calls using Multicall3
-  - Batch multiple contract calls into single transactions
-  - Support for ETH, ERC20, ERC721, and ERC1155 balance queries
-  - Automatic chunking and error handling
-  - Synchronous and asynchronous execution modes
+## Building the C Library
 
-### Ethereum Client
-- **`pkg/ethclient`**: Full-featured Ethereum client with go-ethereum compatibility
-  - Complete RPC method coverage (eth_*, net_*, web3_*)
-  - Go-ethereum ethclient compatible interface for easy migration
-  - Chain-agnostic methods for any EVM-compatible network
+The SDK can be compiled as a C library (shared or static) for use in non-Go applications:
 
-### Gas Estimation
-- **`pkg/gas`**: Comprehensive gas fee estimation and suggestions
-  - Smart fee estimation for three priority levels (low, medium, high)
-  - Transaction inclusion time predictions
-  - Multi-chain support (L1, Arbitrum, Optimism, Linea)
-  - Network congestion analysis for L1 chains
-  - Chain-specific optimizations
+**Shared Library:**
+```bash
+make shared-library
+```
 
-### Event Filtering & Parsing
-- **`pkg/eventfilter`**: Efficient event filtering for ERC20, ERC721, and ERC1155 transfers
-  - Minimizes eth_getLogs API calls
-  - Direction-based filtering (send, receive, both)
-  - Concurrent query processing
+This creates:
+- `build/libgowalletsdk.dylib` (macOS) or `build/libgowalletsdk.so` (Linux)
+- `build/libgowalletsdk.h` (C header file)
 
-- **`pkg/eventlog`**: Automatic event log detection and parsing
-  - Type-safe access to parsed event data
-  - Support for Transfer, Approval, and other standard events
-  - Works seamlessly with eventfilter
+**Static Library:**
+```bash
+make static-library
+```
 
-### Account Management
-- **`pkg/accounts/extkeystore`**: Extended keystore with HD wallet support
-  - BIP32 hierarchical deterministic wallet functionality
-  - Encrypted storage following Web3 Secret Storage specification
-  - Child account derivation using BIP44 derivation paths
-  - Import/export extended keys and standard private keys
-  - Full account lifecycle management (create, unlock, lock, sign, delete)
+This creates:
+- `build/libgowalletsdk.a` (static library)
+- `build/libgowalletsdk.h` (C header file)
 
-- **`pkg/accounts/mnemonic`**: BIP39 mnemonic phrase utilities
-  - Generate cryptographically secure mnemonic phrases (12, 15, 18, 21, 24 words)
-  - Create BIP32 extended keys from mnemonic phrases
-  - BIP39 passphrase support for seed extension
-  - Seamless integration with extkeystore
+The C library exposes core SDK functionality through a C-compatible API, including:
+- Ethereum client operations (RPC calls, chain ID, balances)
+- Multi-standard balance fetching (Native ETH, ERC20, ERC721, ERC1155)
+- Account management (extended keystore and standard keystore)
+- Mnemonic generation and key derivation utilities
 
-### Token Management
-- **`pkg/tokens/types`**: Core data structures for tokens and token lists
-  - Unified token representation with cross-chain support
-  - Token list metadata and versioning
-  - Type-safe address handling and validation
-
-- **`pkg/tokens/parsers`**: Token list parsing from multiple formats
-  - Standard token list format (Uniswap-style)
-  - Status-specific format with chain grouping
-  - CoinGecko API format with platform mappings
-  - List-of-token-lists metadata parsing
-
-- **`pkg/tokens/fetcher`**: HTTP-based token list fetching
-  - Concurrent fetching with goroutines
-  - HTTP ETag caching for bandwidth efficiency
-  - JSON schema validation support
-  - Robust error handling and timeout management
-
-- **`pkg/tokens/autofetcher`**: Automated background token list management
-  - Configurable refresh intervals
-  - Thread-safe operations with context support
-  - Pluggable storage backends
-  - Error reporting via channels
-
-- **`pkg/tokens/builder`**: Incremental token collection building
-  - Builder pattern for stateful construction
-  - Automatic deduplication by chain ID and address
-  - Native token generation for supported chains
-  - Multiple format support through parsers
-
-- **`pkg/tokens/manager`**: High-level token management interface
-  - Multi-source token integration (native, remote, local, custom)
-  - Thread-safe concurrent access
-  - Rich query capabilities by chain, address, or list ID
-  - Automatic refresh and state management
-
-### ENS Resolution
-- **`pkg/ens`**: Ethereum Name Service (ENS) resolution
-  - Forward resolution (ENS name → Ethereum address)
-  - Reverse resolution (Ethereum address → ENS name)
-  - Chain support detection via `IsSupportedChain()`
-  - Works on any chain where ENS registry is deployed
-
-### Smart Contract Bindings
-- **`pkg/contracts`**: Go bindings for smart contracts
-  - Multicall3 with 200+ chain deployments
-  - ERC20, ERC721, and ERC1155 token standards
-  - Automated deployment address management
-
-### Common Utilities
-- **`pkg/common`**: Shared utilities and constants used across the SDK
+See [examples/c-app](examples/c-app/README.md) for a complete C usage example.
 
 ## Examples
 
@@ -189,36 +152,6 @@ Demonstrates how to use the Go Wallet SDK from C applications using the shared l
 - Mnemonic generation and key derivation
 - Account creation, import/export, signing, and derivation
 
-## Building the C Library
-
-The SDK can be compiled as a C library (shared or static) for use in non-Go applications:
-
-**Shared Library:**
-```bash
-make shared-library
-```
-
-This creates:
-- `build/libgowalletsdk.dylib` (macOS) or `build/libgowalletsdk.so` (Linux)
-- `build/libgowalletsdk.h` (C header file)
-
-**Static Library:**
-```bash
-make static-library
-```
-
-This creates:
-- `build/libgowalletsdk.a` (static library)
-- `build/libgowalletsdk.h` (C header file)
-
-The C library exposes core SDK functionality through a C-compatible API, including:
-- Ethereum client operations (RPC calls, chain ID, balances)
-- Multi-standard balance fetching (Native ETH, ERC20, ERC721, ERC1155)
-- Account management (extended keystore and standard keystore)
-- Mnemonic generation and key derivation utilities
-
-See [examples/c-app](examples/c-app/README.md) for a complete C usage example.
-
 ### Token Management Examples
 
 ```bash
@@ -255,54 +188,6 @@ go run . -rpc https://eth.llamarpc.com -address 0xd8dA6BF26964aF9D7eEd9e03E53415
 
 ```bash
 go test ./...
-```
-
-## Project Structure
-
-```
-go-wallet-sdk/
-├── pkg/                    # Core SDK packages
-│   ├── balance/           # Balance fetching functionality
-│   ├── multicall/         # Multicall3 batching
-│   ├── ethclient/         # Ethereum client with full RPC support
-│   ├── gas/               # Gas estimation and fee suggestions
-│   ├── eventfilter/       # Event filtering for transfers
-│   ├── eventlog/          # Event log parsing
-│   ├── accounts/          # Account management (extkeystore, mnemonic)
-│   ├── tokens/            # Token management system
-│   │   ├── types/         # Core token data structures
-│   │   ├── parsers/       # Token list format parsers
-│   │   ├── fetcher/       # HTTP token list fetching
-│   │   ├── autofetcher/   # Automated background fetching
-│   │   ├── builder/       # Incremental token collection building
-│   │   └── manager/       # High-level token management
-│   ├── ens/               # ENS name resolution
-│   ├── contracts/         # Smart contract bindings
-│   └── common/            # Shared utilities
-├── clib/                 # C library bindings (shared and static)
-│   ├── c.go             # Memory management utilities
-│   ├── ethclient.go     # Ethereum client C bindings
-│   ├── balance_multistandardfetcher.go  # Multi-standard balance fetching C bindings
-│   ├── accounts_extkeystore.go  # Extended keystore C bindings
-│   ├── accounts_keystore.go     # Standard keystore C bindings
-│   ├── accounts_keys.go         # Key derivation and conversion C bindings
-│   ├── accounts_mnemonic.go     # Mnemonic utilities C bindings
-│   └── main.go          # Entry point for library build
-├── examples/              # Usage examples
-│   ├── balance-fetcher-web/       # Web interface for balance fetching
-│   ├── ethclient-usage/           # Ethereum client examples
-│   ├── gas-comparison/            # Gas fee comparison tool
-│   ├── multiclient3-usage/        # Multicall examples
-│   ├── multistandardfetcher-example/  # Multi-standard balance fetching
-│   ├── eventfilter-example/       # Event filtering examples
-│   ├── accounts/                  # Keystore management web interface
-│   ├── c-app/                    # C application example
-│   ├── token-builder/             # Token collection building
-│   ├── token-fetcher/            # Token list fetching
-│   ├── token-manager/             # Token management
-│   ├── token-parser/              # Token list parsing
-│   └── ens-resolver-example/     # ENS resolution CLI tool
-└── README.md              # This file
 ```
 
 ## Documentation
@@ -343,11 +228,11 @@ go-wallet-sdk/
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+- Code style and conventions
+- Testing requirements
+- Pull request process
+- Development workflow
 
 ## License
 
@@ -355,5 +240,5 @@ Mozilla Public License Version 2.0 - see [LICENSE](LICENSE)
 
 ---
 
-**Built with ❤️ by the Status team**
+Built by the Status team.
 

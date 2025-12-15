@@ -17,7 +17,7 @@ A command-line tool demonstrating how to use the `pkg/ens` package for Ethereum 
   - Get one from [Infura](https://infura.io) or [Alchemy](https://alchemy.com)
   - Or run your own Ethereum node
 
-## Installation
+## Build
 
 ```bash
 cd examples/ens-resolver-example
@@ -26,7 +26,7 @@ go build
 
 This will create an executable named `ens-resolver-example` (or `ens-resolver-example.exe` on Windows).
 
-## Usage
+## Run
 
 ### Basic Usage
 
@@ -115,6 +115,7 @@ ENS resolution is only available on:
 
 - **Ethereum Mainnet** (Chain ID: 1)
 - **Sepolia Testnet** (Chain ID: 11155111)
+- **Holesky Testnet** (Chain ID: 17000)
 
 Attempting to use other chains will result in an error.
 

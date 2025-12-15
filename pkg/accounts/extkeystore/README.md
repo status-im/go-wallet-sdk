@@ -2,6 +2,19 @@
 
 Extended keystore for Ethereum accounts with BIP32 hierarchical deterministic (HD) wallet support.
 
+## Use it when
+
+- You want a keystore that stores BIP32 extended keys (not just private keys).
+- You need deterministic child-account derivation (BIP44 paths) from a parent key.
+- You want go-ethereum-style keystore JSON files, but with HD wallet support.
+
+## Key entrypoints
+
+- `extkeystore.NewKeyStore(keydir, scryptN, scryptP)`
+- `(*KeyStore).ImportExtendedKey(extKey, passphrase)`
+- `(*KeyStore).DeriveWithPassphrase(...)`
+- Signing: `SignHash`, `SignTx`, `TimedUnlock`, `Lock`
+
 ## Overview
 
 An enhanced keystore that stores **BIP32 extended keys** instead of just private keys, enabling derivation of child accounts from parent keys. Based on go-ethereum's keystore with modifications to support HD wallets.
@@ -48,3 +61,15 @@ signature, err := ks.SignHash(account, hash)
 ## Notes
 
 This package is derived from [go-ethereum's keystore](https://github.com/ethereum/go-ethereum/tree/master/accounts/keystore), modified to store extended keys instead of private keys.
+
+## See Also
+
+- [Mnemonic Package](../mnemonic/README.md) - Generate and manage BIP39 mnemonics
+- [Standard Keystore](../keystore/README.md) - go-ethereum compatible keystore
+- [Ethereum Client](../../ethclient/README.md) - Send signed transactions
+
+## Examples
+
+- [Accounts Example](../../../examples/accounts/README.md) - Interactive web interface demonstrating all features
+- [C Application Example](../../../examples/c-app/README.md) - Using keystore from C code
+

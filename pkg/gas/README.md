@@ -2,6 +2,19 @@
 
 A comprehensive gas estimation and fee suggestion package for Ethereum and L2 networks.
 
+## Use it when
+
+- You need fee suggestions ($\text{maxFeePerGas}$ / $\text{maxPriorityFeePerGas}$) with inclusion time estimates.
+- You support multiple chain classes (L1, OP Stack, Arbitrum Stack, Linea) and want one API.
+- You want to estimate a transaction gas limit and fees together.
+
+## Key entrypoints
+
+- `gas.GetTxSuggestions(ctx, ethClient, params, config, callMsg)`
+- `gas.GetChainSuggestions(ctx, ethClient, params, config, account)`
+- `gas.EstimateInclusion(ctx, ethClient, params, config, fee)`
+- `gas.DefaultConfig(chainClass)` and `gas.ChainParameters`
+
 ## Features
 
 - **Multi-chain support**: Ethereum L1, Arbitrum Stack, Optimism Stack, Linea Stack
@@ -242,55 +255,17 @@ l2Config := gas.DefaultConfig(gas.ChainClassOPStack)
 //   - Congestion multipliers: 0.0x for all levels (no congestion on L2)
 ```
 
-## Output Types
+## Dependencies
 
-### TxSuggestions
+- `github.com/status-im/go-wallet-sdk/pkg/ethclient` - For chain interaction
+- `github.com/ethereum/go-ethereum` - For types and interfaces
 
-```go
-type TxSuggestions struct {
-    GasLimit       *big.Int        // Estimated gas limit
-    FeeSuggestions *FeeSuggestions // Fee suggestions
-}
-```
+## See Also
 
-### FeeSuggestions
+- [Ethereum Client](../ethclient/README.md) - RPC client for gas-related calls
+- [Balance Fetcher](../balance/fetcher/README.md) - Fetch balances before estimating transfers
 
-```go
-type FeeSuggestions struct {
-    // Fee suggestions for three priority levels
-    Low    Fee // Low priority fees
-    Medium Fee // Medium priority fees
-    High   Fee // High priority fees
-    
-    // Inclusion time estimates
-    LowInclusion    Inclusion // Low priority inclusion estimate
-    MediumInclusion Inclusion // Medium priority inclusion estimate
-    HighInclusion   Inclusion // High priority inclusion estimate
-    
-    // Network state
-    EstimatedBaseFee      *big.Int // Next block's estimated base fee (wei)
-    PriorityFeeLowerBound *big.Int // Recommended min priority fee (wei)
-    PriorityFeeUpperBound *big.Int // Recommended max priority fee (wei)
-    NetworkCongestion     float64  // Congestion score 0-1 (L1 only)
-}
-```
+## Examples
 
-### Fee
+See [examples/gas-comparison/](../../examples/gas-comparison/README.md) for a complete CLI tool that compares gas estimates across chains.
 
-```go
-type Fee struct {
-    MaxPriorityFeePerGas *big.Int // Max priority fee per gas (wei)
-    MaxFeePerGas         *big.Int // Max fee per gas (wei)
-}
-```
-
-### Inclusion
-
-```go
-type Inclusion struct {
-    MinBlocksUntilInclusion int     // Minimum blocks until inclusion
-    MaxBlocksUntilInclusion int     // Maximum blocks until inclusion
-    MinTimeUntilInclusion   float64 // Minimum time in seconds
-    MaxTimeUntilInclusion   float64 // Maximum time in seconds
-}
-```

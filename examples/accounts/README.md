@@ -2,7 +2,7 @@
 
 This example demonstrates the capabilities of the `pkg/accounts` packages through a web-based interface.
 
-## Features
+## What it demonstrates
 
 - **Generate Random Seed Phrase**: Create mnemonic phrases with 12, 15, 18, 21, or 24 words
 - **Create Keystore Account**: Import an account from a mnemonic phrase
@@ -12,7 +12,7 @@ This example demonstrates the capabilities of the `pkg/accounts` packages throug
 - **Sign Messages**: Sign messages using Ethereum message signing
 - **Account Management**: View all accounts, unlock/lock accounts, and see account details
 
-## Running the Example
+## Run
 
 1. Navigate to the example directory:
    ```bash

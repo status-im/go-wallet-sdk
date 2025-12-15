@@ -2,6 +2,19 @@
 
 The `fetcher` package provides functionality for fetching token lists and related data from remote sources with support for HTTP caching, JSON schema validation, and concurrent operations.
 
+## Use it when
+
+- You need to fetch token lists (or a list-of-token-lists) over HTTP.
+- You want ETag-based caching to reduce bandwidth.
+- You want optional JSON schema validation and concurrent fetching.
+
+## Key entrypoints
+
+- `fetcher.New(config)` / `fetcher.DefaultConfig()`
+- `(*fetcher).Fetch(ctx, details)`
+- `fetcher.FetchConcurrent(ctx, details)`
+- Schemas: `fetcher.TokenListSchema`, `fetcher.ListOfTokenListsSchema`
+
 ## Overview
 
 The fetcher package is designed to:

@@ -2,6 +2,18 @@
 
 The `manager` package provides a high-level, thread-safe interface for managing token collections from multiple sources with automatic refresh capabilities, state management, and comprehensive token operations.
 
+## Use it when
+
+- You want one high-level component to manage tokens across chains and sources.
+- You need auto-refresh for remote token lists (with caching/backing stores).
+- You need fast lookups (by chain/address/key) in a concurrency-safe way.
+
+## Key entrypoints
+
+- `manager.New(config, fetcher, contentStore, customTokenStore)`
+- Lifecycle: `Manager.Start(...)` / `Manager.Stop()`
+- Lookups: `GetTokenByChainAddress`, `GetTokensByChain`, `GetTokensByKeys`, `UniqueTokens`
+
 ## Overview
 
 The manager package is designed to:
@@ -332,3 +344,19 @@ Run tests with race detection:
 ```bash
 go test -race ./pkg/tokens/manager/...
 ```
+
+## See Also
+
+- [Token Types](../types/README.md) - Core token data structures
+- [Token Parsers](../parsers/README.md) - Parse different formats
+- [Token Fetcher](../fetcher/README.md) - HTTP fetching with caching
+- [Token AutoFetcher](../autofetcher/README.md) - Background refresh mechanism
+- [Token Builder](../builder/README.md) - Incremental collection building
+- [Balance Fetcher](../../balance/fetcher/README.md) - Fetch token balances
+
+## Examples
+
+- [Token Manager Example](../../../examples/token-manager/README.md) - Complete manager usage
+- [Token Builder Example](../../../examples/token-builder/README.md) - Building token collections
+- [Token Fetcher Example](../../../examples/token-fetcher/README.md) - Fetching token lists
+

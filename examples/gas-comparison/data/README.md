@@ -2,7 +2,7 @@
 
 This program converts the functionality of `feesData.sh` into a Go program that fetches gas data from any blockchain network and generates a `data.go` file with the results using the existing SDK types.
 
-## Usage
+## Run
 
 Run the generator with the required command line arguments:
 

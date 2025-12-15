@@ -5,6 +5,17 @@ Ethereum JSON-RPC client with two method sets:
 - **Custom implementations**: Chain-agnostic, works with any EVM chain
 - **Go-ethereum compatible**: Same interface as `ethclient`
 
+## Use it when
+
+- You want a chain-agnostic JSON-RPC client for any EVM network.
+- You want a go-ethereum-compatible API surface, but also need raw `Eth*` JSON-RPC methods.
+
+## Key entrypoints
+
+- `ethclient.NewClient(rpcClient)`
+- `(*Client).Eth*` methods (chain-agnostic)
+- go-ethereum-compatible methods (e.g. `BlockNumber`, `BalanceAt`)
+
 ## Quick Start
 
 ```go

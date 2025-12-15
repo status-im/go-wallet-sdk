@@ -2,14 +2,14 @@
 
 A multi-network gas fee comparison tool that compares our gas estimation implementation against legacy estimators and Infura's Gas API.
 
-## What It Does
+## What it demonstrates
 
 - **Compares implementations**: Our new `GetTxSuggestions` vs old estimator vs Infura API
 - **Multi-network support**: Ethereum, Arbitrum, Optimism, Base, Polygon, Linea, BSC, Status Network
 - **Comprehensive analysis**: Priority fees, max fees, base fees, wait times, network congestion
 - **Real vs local data**: Test with live networks or use local mock data
 
-## Quick Start
+## Run
 
 ```bash
 # Test with local mock data

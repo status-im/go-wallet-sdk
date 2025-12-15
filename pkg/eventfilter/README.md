@@ -2,6 +2,18 @@
 
 Efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls while capturing all relevant transfers involving specified addresses with concurrent processing capabilities.
 
+## Use it when
+
+- You need transfer events involving one or more addresses (send/receive/both).
+- You want fewer `eth_getLogs` calls via optimized queries.
+- You want parsed transfer events across ERC20/ERC721/ERC1155 with one API.
+
+## Key entrypoints
+
+- `eventfilter.FilterTransfers(ctx, client, config)`
+- `eventfilter.TransferQueryConfig` and `TransferType`/`Direction`
+- `config.ToFilterQueries()` for manual execution
+
 ## Features
 
 - **Multi-Token Support**: ERC20, ERC721, and ERC1155 transfers
@@ -179,5 +191,17 @@ Comprehensive test suite ensures correct query generation:
 
 Run tests with:
 ```bash
-go test ./pkg/transfereventfilter
+go test ./pkg/eventfilter -v
 ```
+
+## See Also
+
+- [Event Log Parser](../eventlog/README.md) - Parse the raw logs returned by FilterTransfers
+- [Ethereum Client](../ethclient/README.md) - RPC client for eth_getLogs
+- [Balance Fetcher](../balance/fetcher/README.md) - Fetch current balances
+- [Token Manager](../tokens/manager/README.md) - Get token metadata for transfers
+
+## Examples
+
+- [Event Filter Example](../../examples/eventfilter-example/README.md) - Complete CLI tool for filtering transfers
+- [Balance Fetcher Web](../../examples/balance-fetcher-web/README.md) - Web interface using event filtering

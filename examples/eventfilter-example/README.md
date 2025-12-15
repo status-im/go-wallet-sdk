@@ -2,7 +2,7 @@
 
 This example demonstrates how to use the `eventfilter` package to detect and display ERC20, ERC721, and ERC1155 transfer events for a specific account within a block range.
 
-## Features
+## What it demonstrates
 
 - **Command-line interface** with flexible options
 - **Multi-token support** for ERC20, ERC721, and ERC1155 transfers
@@ -13,7 +13,7 @@ This example demonstrates how to use the `eventfilter` package to detect and dis
 - **Debug information** showing contract keys, event keys, and unpacked types
 - **Error handling** and validation
 
-## Usage
+## Run
 
 ### Basic Usage
 

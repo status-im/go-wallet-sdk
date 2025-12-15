@@ -2,6 +2,19 @@
 
 The `builder` package provides functionality for building token collections by progressively adding multiple token lists from various sources, creating a unified collection of unique tokens across different blockchain networks.
 
+## Use it when
+
+- You want to merge multiple token lists into one deduplicated token set.
+- You want to generate native tokens for selected chains.
+- You want a stateful builder for token-list ingestion and merging.
+
+## Key entrypoints
+
+- `builder.New(chains)`
+- `(*Builder).AddNativeTokenList()`
+- `(*Builder).AddTokenList(...)` / `(*Builder).AddRawTokenList(...)`
+- `(*Builder).GetTokens()` / `(*Builder).GetTokenLists()`
+
 ## Overview
 
 The builder package is designed to:
