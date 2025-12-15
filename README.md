@@ -1,3 +1,5 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/status-im/go-wallet-sdk.svg)](https://pkg.go.dev/github.com/status-im/go-wallet-sdk) [![Checks](https://github.com/status-im/go-wallet-sdk/actions/workflows/checks.yml/badge.svg)](https://github.com/status-im/go-wallet-sdk/actions/workflows/checks.yml) [![codecov](https://codecov.io/gh/status-im/go-wallet-sdk/graph/badge.svg?branch=main)](https://app.codecov.io/gh/status-im/go-wallet-sdk)
+
 # Go Wallet SDK
 
 A modular Go SDK for building multi-chain cryptocurrency wallets and blockchain applications.
