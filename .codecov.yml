@@ -2,6 +2,7 @@ ignore:
   - "examples"
   - "pkg/contracts"
   - "mock"
+  - "clib"
 
 comment:
   behavior: default
