@@ -1,0 +1,10 @@
+[
+	{
+		"id": "status",
+		"sourceUrl": "SERVER-URL/status-token-list.json"
+	},
+	{
+		"id": "invalid-list",
+		"sourceUrl": "SERVER-URL/invalid-url-tokens.json"
+	}
+]

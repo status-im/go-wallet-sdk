@@ -1,0 +1,9 @@
+{
+  "timestamp": "TIMESTAMP",
+  "version": {
+    "major": 0,
+    "minor": MINOR,
+    "patch": 0
+  },
+  "tokenLists": TOKEN_LISTS
+}

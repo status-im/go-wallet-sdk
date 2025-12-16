@@ -19,13 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed erc20_transfer_tx_receipt.json
+//go:embed test/erc20_transfer_tx_receipt.json
 var erc20TransferTxReceiptJSON string
 
-//go:embed erc721_transfer_tx_receipt.json
+//go:embed test/erc721_transfer_tx_receipt.json
 var erc721TransferTxReceiptJSON string
 
-//go:embed erc1155_transfer_tx_receipt.json
+//go:embed test/erc1155_transfer_tx_receipt.json
 var erc1155TransferTxReceiptJSON string
 
 // Helper function to load and parse a transaction receipt from JSON file

@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "properties": {
+     "unexisting-param": {
+      "type": "object",
+      "additionalProperties": false
+    }
+  },
+	"required": [
+		"unexisting-param"
+	]
+}

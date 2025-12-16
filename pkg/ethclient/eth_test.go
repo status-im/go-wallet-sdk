@@ -17,28 +17,28 @@ import (
 	mock_ethclient "github.com/status-im/go-wallet-sdk/pkg/ethclient/mock"
 )
 
-//go:embed block_with_details.json
+//go:embed test/block_with_details.json
 var blockWithDetailsJSON string
 
-//go:embed block_without_details.json
+//go:embed test/block_without_details.json
 var blockWithoutDetailsJSON string
 
-//go:embed transaction.json
+//go:embed test/transaction.json
 var txJSON string
 
-//go:embed receipt.json
+//go:embed test/receipt.json
 var receiptJSON string
 
-//go:embed block_receipts.json
+//go:embed test/block_receipts.json
 var blockReceiptsJSON string
 
-//go:embed code.json
+//go:embed test/code.json
 var codeJSON string
 
-//go:embed proof.json
+//go:embed test/proof.json
 var proofJSON string
 
-//go:embed logs.json
+//go:embed test/logs.json
 var logsJSON string
 
 func TestGethMethods(t *testing.T) {

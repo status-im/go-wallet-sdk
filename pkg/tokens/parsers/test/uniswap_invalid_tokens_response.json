@@ -1,0 +1,18 @@
+[
+	{
+		"chainId": 1,
+		"address": "invalid-address",
+		"name": "1inch",
+		"symbol": "1INCH",
+		"decimals": 18,
+		"logoURI": "https://assets.coingecko.com/coins/images/13469/thumb/1inch-token.png?1608803028"
+	},
+  {
+		"chainId": 1,
+		"address": "0x744d70FDBE2Ba4CF95131626614a1763DF805B9E",
+		"name": "Status",
+		"symbol": "SNT",
+		"decimals": 18,
+		"logoURI": "https://assets.coingecko.com/coins/images/779/thumb/status.png?1548610778"
+	}
+]
