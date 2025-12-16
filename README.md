@@ -1,4 +1,4 @@
-[![Go Reference](https://pkg.go.dev/badge/github.com/status-im/go-wallet-sdk.svg)](https://pkg.go.dev/github.com/status-im/go-wallet-sdk) [![Checks](https://github.com/status-im/go-wallet-sdk/actions/workflows/checks.yml/badge.svg)](https://github.com/status-im/go-wallet-sdk/actions/workflows/checks.yml) [![codecov](https://codecov.io/gh/status-im/go-wallet-sdk/graph/badge.svg?branch=main)](https://app.codecov.io/gh/status-im/go-wallet-sdk)
+[![Go Reference](https://pkg.go.dev/badge/github.com/status-im/go-wallet-sdk.svg)](https://pkg.go.dev/github.com/status-im/go-wallet-sdk) [![Checks](https://github.com/status-im/go-wallet-sdk/actions/workflows/checks.yml/badge.svg)](https://github.com/status-im/go-wallet-sdk/actions/workflows/checks.yml) [![codecov](https://codecov.io/gh/status-im/go-wallet-sdk/graph/badge.svg?branch=main)](https://app.codecov.io/gh/status-im/go-wallet-sdk) [![Go Report Card](https://goreportcard.com/badge/github.com/status-im/go-wallet-sdk)](https://goreportcard.com/report/github.com/status-im/go-wallet-sdk)
 
 # Go Wallet SDK
 
