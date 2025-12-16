@@ -284,6 +284,7 @@ type walletEvent struct {
 // Tests that wallet notifications and correctly fired when accounts are added
 // or deleted from the keystore.
 func TestWalletNotifications(t *testing.T) {
+	t.Skip("Skipping flaky test. See https://github.com/ethereum/go-ethereum/issues/30591#issuecomment-2626096987")
 	t.Parallel()
 	_, ks := tmpKeyStore(t)
 
