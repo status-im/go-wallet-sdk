@@ -1,0 +1,18 @@
+[
+	{
+		"id": "status",
+		"sourceUrl": "SERVER-URL/status-token-list.json"
+	},
+	{
+		"id": "uniswap",
+		"sourceUrl": "SERVER-URL/uniswap.json"
+	},
+	{
+		"id": "coingecko",
+		"sourceUrl": "SERVER-URL/coingecko.json"
+	},
+	{
+		"id": "aave",
+		"sourceUrl": "SERVER-URL/aave.json"
+	}
+]

@@ -1,0 +1,16 @@
+{
+	"name": "NAME",
+  "timestamp": "TIMESTAMP",
+  "version": {
+    "major": MAJOR,
+    "minor": MINOR,
+    "patch": 0
+  },
+	"tags": {},
+  "logoURI": "ipfs://QmNa8mQkrNKp1WEEeGjFezDmDeodkWRevGFN8JCV7b4Xir",
+  "keywords": [
+    "uniswap",
+    "default"
+  ],
+  "tokens": TOKENS
+}
