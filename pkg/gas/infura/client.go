@@ -22,6 +22,15 @@ func NewClient(httpClient *http.Client) *Client {
 	}
 }
 
+// NewClientWithBaseURL creates a new Infura Gas API client with a custom base URL.
+// This is primarily useful for testing.
+func NewClientWithBaseURL(httpClient *http.Client, baseURL string) *Client {
+	return &Client{
+		httpClient: httpClient,
+		baseURL:    baseURL,
+	}
+}
+
 // GetGasSuggestions retrieves gas fee suggestions from Infura's Gas API
 func (c *Client) GetGasSuggestions(ctx context.Context, networkID int) (*GasResponse, error) {
 	url := fmt.Sprintf("%s/networks/%d/suggestedGasFees", c.baseURL, networkID)
