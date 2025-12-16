@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build packages
     runs-on: ubuntu-latest
     steps:
     - name: Check out code
@@ -32,6 +32,42 @@ jobs:
     - name: Go Build
       # Ensure that the code builds correctly
       run: go build -o /dev/null ./...
+    
+    - name: Build shared library
+      run: go build -buildmode=c-shared -o /dev/null ./clib
+
+    - name: Build static library
+      run: go build -buildmode=c-archive -o /dev/null ./clib
+  
+  build-examples:
+    name: Build examples
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Setup
+      uses: ./.github/actions/setup
+
+    - name: Find example directories
+      id: find
+      run: |
+        dirs=$(find examples -name '*.go' -exec dirname {} \; | sort -u | tr '\n' ':' | sed 's/:$//')
+        echo "dirs=$dirs"
+        echo "dirs=$dirs" >> $GITHUB_OUTPUT
+
+    - name: Build examples
+      if: steps.find.outputs.dirs != ''
+      run: |
+        IFS=':' read -ra EXAMPLE_DIRS <<< "${{ steps.find.outputs.dirs }}"
+        for dir in "${EXAMPLE_DIRS[@]}"; do
+          echo "Building example in $dir"
+          (cd "$dir" && go build -o /dev/null ./...)
+        done
+
+    - name: No examples found
+      if: steps.find.outputs.dirs == ''
+      run: echo "No Go files found in examples/ directory"
 
   test:
     name: Test
