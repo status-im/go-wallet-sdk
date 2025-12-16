@@ -2,6 +2,18 @@
 
 A high-level package for fetching balances across multiple token standards (Native ETH, ERC20, ERC721, ERC1155) using Multicall3 batched calls.
 
+## Use it when
+
+- You need a single balance-fetch operation across multiple token standards.
+- You want batched calls via Multicall3 and can consume results incrementally.
+- You prefer a channel-based API for streaming results as they arrive.
+
+## Key entrypoints
+
+- `multistandardfetcher.FetchBalances(ctx, multicall3Address, caller, config, batchSize) <-chan FetchResult`
+- `multistandardfetcher.FetchConfig` and `multistandardfetcher.FetchResult`
+- Contract addresses via `pkg/contracts/multicall3` (`GetMulticall3Address`)
+
 ## Overview
 
 The `multistandardfetcher` package provides a unified interface for fetching balances across different token standards in a single operation. It leverages the underlying `multicall` package to efficiently batch multiple contract calls and returns results asynchronously through a channel-based API.
@@ -49,7 +61,7 @@ func main() {
         },
         ERC20: map[multistandardfetcher.AccountAddress][]multistandardfetcher.ContractAddress{
             common.HexToAddress("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"): {
-                common.HexToAddress("0xA0b86a33E6441b8C4C8C0C4C0C4C0C4C0C4C0C4C0"), // USDC
+                common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC
                 common.HexToAddress("0x6B175474E89094C44Da98b954EedeAC495271d0F"), // DAI
             },
         },

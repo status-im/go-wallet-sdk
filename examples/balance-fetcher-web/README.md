@@ -2,7 +2,7 @@
 
 A web-based interface for fetching native token balances across multiple Ethereum chains using the `pkg/balance/fetcher` package.
 
-## Quick Start
+## Run
 
 ```bash
 cd examples/balance-fetcher-web
@@ -11,7 +11,7 @@ go run .
 
 Access: http://localhost:8080
 
-## Features
+## What it demonstrates
 
 - 🌐 Web interface for easy interaction
 - 🔗 Support for any EVM-compatible chain
@@ -20,7 +20,7 @@ Access: http://localhost:8080
 - 💰 Display balances in both ETH and Wei
 - ⚡ Prepopulated with popular chains (Ethereum, Optimism, Arbitrum, Polygon)
 
-## Usage
+## Using the UI
 
 1. **Configure Chains**: Add custom chains with ChainID and RPC URL
 2. **Enter Addresses**: Add Ethereum addresses (one per line)

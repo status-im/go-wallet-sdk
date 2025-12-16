@@ -2,6 +2,17 @@
 
 The `parsers` package provides implementations for parsing token lists from various formats and sources. It supports multiple token list standards and converts them into a unified internal format for consistent processing.
 
+## Use it when
+
+- You fetch token list JSON and need it converted to `pkg/tokens/types` structures.
+- You need to support multiple token list formats/providers.
+- You need chain filtering and address validation while parsing.
+
+## Key entrypoints
+
+- Interfaces: `parsers.TokenListParser`, `parsers.ListOfTokenListsParser`
+- Implementations (see “Token List Parsers” section below)
+
 ## Overview
 
 The parsers package provides two main types of parsers:

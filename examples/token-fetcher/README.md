@@ -2,16 +2,16 @@
 
 This example demonstrates how to use the `pkg/tokens/fetcher` package to fetch token lists from remote sources with support for HTTP caching, concurrent fetching, and error handling.
 
-## Features Demonstrated
+## What it demonstrates
 
-- 🌐 **Single Token List Fetching**: Fetch individual token lists from remote URLs
-- 🚀 **Concurrent Fetching**: Fetch multiple token lists simultaneously for better performance
-- 💾 **HTTP ETag Caching**: Efficient caching using HTTP ETags to minimize bandwidth
-- 📚 **List of Token Lists**: Fetch and process master lists that reference multiple token lists
-- 🛡️ **Error Handling**: Robust error handling for network failures and invalid responses
-- ⚡ **Performance Optimization**: Parallel processing and timeout management
+- **Single token list fetching**: Fetch individual token lists from remote URLs
+- **Concurrent fetching**: Fetch multiple token lists simultaneously for better performance
+- **HTTP ETag caching**: Efficient caching using HTTP ETags to minimize bandwidth
+- **List of token lists**: Fetch and process master lists that reference multiple token lists
+- **Error handling**: Robust error handling for network failures and invalid responses
+- **Performance optimization**: Parallel processing and timeout management
 
-## Quick Start
+## Run
 
 ```bash
 cd examples/token-fetcher

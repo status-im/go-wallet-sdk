@@ -2,17 +2,17 @@
 
 This example demonstrates how to use the `pkg/tokens/builder` package to incrementally build token collections from multiple sources with automatic deduplication and native token support.
 
-## Features Demonstrated
+## What it demonstrates
 
-- 🏗️ **Incremental Building**: Start empty and build up token collections step by step
-- 🌐 **Native Token Integration**: Automatically generate native tokens (ETH, BNB, etc.)
-- 🔄 **Automatic Deduplication**: Prevent duplicate tokens using chain ID and address combinations
-- 📄 **Raw Data Processing**: Parse and add token lists from various JSON formats
-- 📊 **State Management**: Track tokens and token lists throughout the building process
-- 🎯 **Flexible API**: Add tokens from parsed lists or raw JSON data
-- ⚡ **Performance Optimized**: Efficient token lookup and storage
+- **Incremental building**: Start empty and build up token collections step by step
+- **Native token integration**: Automatically generate native tokens (ETH, BNB, etc.)
+- **Automatic deduplication**: Prevent duplicate tokens using chain ID and address combinations
+- **Raw data processing**: Parse and add token lists from various JSON formats
+- **State management**: Track tokens and token lists throughout the building process
+- **Flexible API**: Add tokens from parsed lists or raw JSON data
+- **Performance**: Efficient token lookup and storage
 
-## Quick Start
+## Run
 
 ```bash
 cd examples/token-builder

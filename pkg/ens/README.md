@@ -2,6 +2,18 @@
 
 The `ens` package provides Ethereum Name Service (ENS) resolution capabilities. It supports both forward resolution (ENS name to Ethereum address) and reverse resolution (Ethereum address to ENS name).
 
+## Use it when
+
+- You need forward resolution (name → address) like `vitalik.eth`.
+- You need reverse resolution (address → name) for display purposes.
+- You want to check ENS availability on a chain before attempting resolution.
+
+## Key entrypoints
+
+- `ens.NewResolver(client)`
+- `(*Resolver).AddressOf(name)` and `(*Resolver).GetName(address)`
+- `ens.IsSupportedChain(chainID)`
+
 ## Features
 
 - **Forward Resolution**: Convert ENS names (e.g., `vitalik.eth`) to Ethereum addresses
@@ -107,3 +119,15 @@ fmt.Printf("Name: %s\n", name)
 ## Limitations
 
 - **Wrapped names are not supported**: This package does not support ENS wrapped names (names using the NameWrapper contract).
+
+## See Also
+
+- [Ethereum Client](../ethclient/README.md) - RPC client for ENS calls
+- [Token Manager](../tokens/manager/README.md) - Manage token metadata
+- [Account Management](../accounts/extkeystore/README.md) - Manage wallet addresses
+
+## Examples
+
+- [ENS Resolver Example](../../examples/ens-resolver-example/README.md) - CLI tool for ENS resolution
+- [Accounts Example](../../examples/accounts/README.md) - Web interface with ENS integration (potential)
+

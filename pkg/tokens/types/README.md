@@ -2,6 +2,19 @@
 
 The `types` package provides core data structures for representing tokens and token lists in a unified format. These types serve as the foundation for all token-related operations across the SDK.
 
+## Use it when
+
+- You need a common `Token` / `TokenList` representation across token sources.
+- You need stable token keys for indexing and lookup.
+- You need helpers like native-token detection.
+
+## Key entrypoints
+
+- `types.Token`, `types.TokenList`, `types.Version`
+- `types.TokenKey(chainID, address)` and `(*Token).Key()`
+- `types.ChainAndAddressFromTokenKey(key)`
+- `(*Token).IsNative()`
+
 ## Overview
 
 This package defines two main types:
@@ -73,7 +86,7 @@ The package provides utilities for creating unique token identifiers:
 
 ```go
 // Create a token key manually
-key := types.TokenKey(1, common.HexToAddress("0xA0b86a33E6441e8C"))
+key := types.TokenKey(1, common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"))
 fmt.Println(key) // "1-0xa0b86a33e6441e8c"
 
 // Get key from token instance

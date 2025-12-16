@@ -1,3 +1,28 @@
+# Go Wallet SDK – Technical Specs
+
+This document is a deep-dive spec for the SDK architecture and public surfaces.
+
+Quick navigation:
+
+- Primary entrypoint and module index: `README.md`
+- GoDoc / API reference: https://pkg.go.dev/github.com/status-im/go-wallet-sdk
+- Package READMEs:
+    - `pkg/ethclient/README.md`
+    - `pkg/balance/fetcher/README.md`
+    - `pkg/balance/multistandardfetcher/README.md`
+    - `pkg/multicall/README.md`
+    - `pkg/gas/README.md`
+    - `pkg/eventfilter/README.md`
+    - `pkg/eventlog/README.md`
+    - `pkg/accounts/extkeystore/README.md`
+    - `pkg/accounts/mnemonic/README.md`
+    - `pkg/tokens/types/README.md`
+    - `pkg/tokens/parsers/README.md`
+    - `pkg/tokens/fetcher/README.md`
+    - `pkg/tokens/autofetcher/README.md`
+    - `pkg/tokens/builder/README.md`
+    - `pkg/tokens/manager/README.md`
+    - `pkg/ens/README.md`
 
 ## 1. Overview and Goals
 

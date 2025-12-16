@@ -2,6 +2,18 @@
 
 Utilities for generating BIP39 mnemonic phrases and creating extended keys from them.
 
+## Use it when
+
+- You need to generate a new BIP39 seed phrase (12–24 words).
+- You need to derive a BIP32 master extended key from a mnemonic.
+- You want to feed an extended key into `pkg/accounts/extkeystore`.
+
+## Key entrypoints
+
+- `mnemonic.CreateRandomMnemonic(length)`
+- `mnemonic.CreateRandomMnemonicWithDefaultLength()`
+- `mnemonic.CreateExtendedKeyFromMnemonic(phrase, passphrase)`
+
 ## Overview
 
 Simple package for working with mnemonic seed phrases (BIP39) to generate deterministic wallets. Provides functions to create random mnemonics and derive extended keys from existing phrases.

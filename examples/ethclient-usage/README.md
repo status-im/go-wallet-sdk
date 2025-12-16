@@ -2,7 +2,7 @@
 
 This example demonstrates how to use the `ethclient` package with our custom `eth.go` methods to interact with multiple Ethereum-compatible networks and nodes. Unlike go-ethereum's ethclient, our implementation is chain-agnostic and works with Arbitrum, Optimism, and other EVM chains.
 
-## Features Demonstrated
+## What it demonstrates
 
 - **Multi-Network Testing**: Test connectivity and functionality across multiple RPC endpoints
 - **Network Information**: Get client version, network ID, and chain ID
@@ -23,7 +23,7 @@ Our custom `eth.go` methods provide several advantages over go-ethereum's ethcli
 - **Universal compatibility**: Follows only the standard Ethereum JSON-RPC specification
 - **Better L2 support**: Handles edge cases gracefully on non-Ethereum chains
 
-## Usage
+## Run
 
 ### Prerequisites
 
@@ -92,8 +92,8 @@ Found 15 Transfer events in the last 10 blocks
 
 💸 Transaction Information
 Transaction Hash: 0x1234...
-From: 0xabcd...
-To: 0xefgh...
+From: 0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b
+To: 0x1111111111111111111111111111111111111111
 Value: 1000000000000000000 wei
 Gas: 21000
 Gas Price: 15000000000 wei

@@ -2,6 +2,18 @@
 
 Efficiently batch multiple Ethereum contract calls into single transactions using Multicall3.
 
+## Use it when
+
+- You need to batch many contract reads into fewer JSON-RPC requests.
+- You want a job-based API to group calls and decode results per job.
+- You want built-in call builders for common balance queries (native/ERC20/ERC721/ERC1155).
+
+## Key entrypoints
+
+- Call builders: `BuildNativeBalanceCall`, `BuildERC20BalanceCall`, `BuildERC721BalanceCall`, `BuildERC1155BalanceCall`
+- Execution: `RunSync` / `RunAsync`
+- Result decoding: `Process*Result` helpers
+
 ## Quick Start
 
 ```go
@@ -27,7 +39,19 @@ results := multicall.RunSync(ctx, []multicall.Job{job}, blockNumber, caller, bat
 
 // Process results
 if len(results) > 0 && len(results[0].Results) > 0 {
-    balance, err := results[0].Results[0].Value.(*big.Int), results[0].Results[0].Err
+    callResult := results[0].Results[0]
+    if callResult.Err != nil {
+        // handle call-level error
+        return
+    }
+
+    balance, ok := callResult.Value.(*big.Int)
+    if !ok {
+        // handle unexpected decode/type
+        return
+    }
+
+    fmt.Println("balance", balance)
 }
 ```
 
@@ -161,3 +185,31 @@ for result := range resultsCh {
     }
 }
 ```
+
+## Multicall3 Deployment
+
+Multicall3 is deployed at different addresses on various chains. Use the helper to get the correct address:
+
+```go
+import "github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
+
+// Get Multicall3 address for a chain
+address, err := multicall3.GetMulticall3Address(chainID)
+if err != nil {
+    // Multicall3 not available on this chain
+    // Fall back to individual calls
+}
+```
+
+## See Also
+
+- [Balance Fetcher](../balance/fetcher/README.md) - Higher-level balance fetching with automatic Multicall3
+- [Multi-Standard Fetcher](../balance/multistandardfetcher/README.md) - Fetch multiple token standards
+- [Multicall3 Contract](../contracts/multicall3/README.md) - Low-level contract bindings
+- [Ethereum Client](../ethclient/README.md) - RPC client for contract calls
+
+## Examples
+
+- [Multicall Usage](../../examples/multiclient3-usage/README.md) - Complete multicall examples
+- [Balance Fetcher](../../examples/balance-fetcher-web/README.md) - Uses multicall under the hood
+

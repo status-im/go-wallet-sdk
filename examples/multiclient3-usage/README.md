@@ -2,7 +2,7 @@
 
 Fetch hundreds of ERC20 token balances in a single RPC call using Multicall3.
 
-## Quick Start
+## Run
 
 ```bash
 # Set your RPC endpoint
@@ -12,7 +12,7 @@ export RPC_URL="https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
 go run main.go
 ```
 
-## What It Does
+## What it demonstrates
 
 - Loads 1000+ tokens from CoinGecko's `all.json`
 - Queries all ERC20 balances + ETH balance + block number in one call

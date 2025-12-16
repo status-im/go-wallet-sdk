@@ -2,7 +2,7 @@
 
 This example demonstrates how to use the `multistandardfetcher` package to fetch balances across all token standards (Native ETH, ERC20, ERC721, ERC1155) for a specific address using Multicall3 batched calls.
 
-## What It Does
+## What it demonstrates
 
 - Fetches native ETH balance for vitalik.eth
 - Queries ERC20 token balances for popular tokens (USDC, DAI, USDT, WBTC, LINK, UNI, MATIC, SHIB)
@@ -10,7 +10,7 @@ This example demonstrates how to use the `multistandardfetcher` package to fetch
 - Retrieves ERC1155 collectible balances from popular contracts (OpenSea, Rarible)
 - Displays results in a formatted report with token symbols and readable balances
 
-## Quick Start
+## Run
 
 ```bash
 # Set your RPC endpoint

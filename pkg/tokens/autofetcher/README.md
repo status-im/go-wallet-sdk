@@ -2,6 +2,18 @@
 
 The `autofetcher` package provides automated background fetching and caching of token lists with configurable refresh intervals. It supports both direct token list fetching and remote list-of-token-lists discovery patterns.
 
+## Use it when
+
+- You want token lists to refresh automatically in the background.
+- You want to cache fetched content (ETag-aware) behind a `ContentStore`.
+- You want either direct list fetching or a “list-of-token-lists” discovery flow.
+
+## Key entrypoints
+
+- `autofetcher.New(...)` (see “Configuration” section)
+- `AutoFetcher.Start(ctx)` / `AutoFetcher.Stop()`
+- Storage: `autofetcher.ContentStore`
+
 ## Overview
 
 The autofetcher package is designed to:

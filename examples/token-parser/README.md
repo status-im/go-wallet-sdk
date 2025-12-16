@@ -2,16 +2,16 @@
 
 This example demonstrates how to use the `pkg/tokens/parsers` package to parse different token list formats from various sources including Uniswap, Status, CoinGecko, and custom formats.
 
-## Features Demonstrated
+## What it demonstrates
 
-- 🔍 **Multiple Parser Types**: Standard, Status, CoinGecko, and List-of-Lists formats
-- 🛡️ **Input Validation**: JSON schema validation and token data verification
-- 🌐 **Chain Filtering**: Parse only tokens from supported blockchain networks
-- ⚠️ **Error Handling**: Robust error handling for invalid data and formats
-- 📊 **Format Comparison**: Understanding different token list formats and their use cases
-- 🎯 **Parser Selection**: Choosing the right parser for your data source
+- **Multiple parser types**: Standard, Status, CoinGecko, and List-of-Lists formats
+- **Input validation**: JSON schema validation and token data verification
+- **Chain filtering**: Parse only tokens from supported blockchain networks
+- **Error handling**: Robust error handling for invalid data and formats
+- **Format comparison**: Understanding different token list formats and their use cases
+- **Parser selection**: Choosing the right parser for your data source
 
-## Quick Start
+## Run
 
 ```bash
 cd examples/token-parser

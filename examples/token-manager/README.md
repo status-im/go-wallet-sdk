@@ -2,17 +2,17 @@
 
 This example demonstrates how to use the `pkg/tokens/manager` package for comprehensive token management across multiple blockchain networks with support for various token sources and custom tokens.
 
-## Features Demonstrated
+## What it demonstrates
 
-- 🎯 **Complete Token Management**: High-level interface for token collections
-- 🔄 **Multi-Source Integration**: Native tokens, remote lists, local lists, custom tokens
-- 🧵 **Thread-Safe Operations**: Concurrent access to token data
-- 🔍 **Rich Query Capabilities**: Find tokens by chain, address, or list ID
-- 👤 **Custom Token Support**: Add and manage user-defined tokens
-- 📊 **State Management**: Automatic token deduplication and list management
-- 🛡️ **Error Resilience**: Graceful handling of failures with fallbacks
+- **Complete token management**: High-level interface for token collections
+- **Multi-source integration**: Native tokens, remote lists, local lists, custom tokens
+- **Thread-safe operations**: Concurrent access to token data
+- **Rich query capabilities**: Find tokens by chain, address, or list ID
+- **Custom token support**: Add and manage user-defined tokens
+- **State management**: Automatic token deduplication and list management
+- **Error resilience**: Graceful handling of failures with fallbacks
 
-## Quick Start
+## Run
 
 ```bash
 cd examples/token-manager

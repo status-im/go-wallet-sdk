@@ -2,6 +2,18 @@
 
 High-performance balance fetching for EVM-compatible blockchains.
 
+## Use it when
+
+- You need native balance fetching for many addresses efficiently.
+- You need ERC20 balances for many (account, token) pairs with batching.
+- You want a chain-agnostic balance fetcher that can use Multicall3 where available.
+
+## Key entrypoints
+
+- `fetcher.FetchNativeBalances(ctx, addresses, atBlock, rpcClient, batchSize)`
+- `fetcher.FetchErc20Balances(ctx, addresses, tokenAddresses, atBlock, rpcClient, batchSize)`
+- Interfaces: `fetcher.RPCClient`, `fetcher.BatchCaller`, `multicall.Caller`
+
 ## Features
 
 - **Batch balance fetching** for multiple addresses and ERC20 tokens in fewer calls
@@ -82,4 +94,16 @@ for accountAddr, tokenBalances := range balances {
 
 ## Dependencies
 
-- [go-ethereum](https://github.com/ethereum/go-ethereum) for types and RPC interfaces 
+- [go-ethereum](https://github.com/ethereum/go-ethereum) for types and RPC interfaces
+
+## See Also
+
+- [Multi-Standard Fetcher](../multistandardfetcher/README.md) - Fetch multiple token standards at once
+- [Multicall Package](../../multicall/README.md) - Low-level batching control
+- [Ethereum Client](../../ethclient/README.md) - RPC client for balance queries
+
+## Examples
+
+- [Balance Fetcher Web](../../../examples/balance-fetcher-web/README.md) - Web interface for balance fetching
+- [Multi-Standard Fetcher Example](../../../examples/multistandardfetcher-example/README.md) - Complete example with multiple token types
+ 

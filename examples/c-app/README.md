@@ -1,5 +1,7 @@
 # C example using the Go Wallet SDK shared library
 
+## Run
+
 Build steps:
 - From repo root: make shared-library
 - Then: cd examples/c-app && make build
@@ -11,11 +13,11 @@ cd bin/
 ./c-app
 ```
 
-Notes:
+## Notes
 - The build generates build/libgowalletsdk.(so|dylib) and header build/libgowalletsdk.h at the repo root.
 - On macOS, the example copies the dylib next to the executable and sets rpath for convenience.
 
-Exported functions:
+## Exported functions
 
 **Memory Management:**
 - `GoWSK_FreeCString(char* s)` - Frees C strings returned by GoWSK functions

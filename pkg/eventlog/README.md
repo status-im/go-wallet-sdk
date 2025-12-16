@@ -2,6 +2,17 @@
 
 Ethereum event log parser for ERC20, ERC721, and ERC1155 events. Automatically detects and parses token events with type-safe access to event data.
 
+## Use it when
+
+- You have raw `types.Log` values and want typed, decoded events.
+- You need to handle multiple token standards with one parser.
+- You use `pkg/eventfilter` and want to parse its returned logs.
+
+## Key entrypoints
+
+- `eventlog.ParseLog(log)`
+- `eventlog.Event` and `EventKey` (e.g. `ERC20Transfer`, `ERC721Transfer`)
+
 ## Supported Events
 
 - **ERC20**: Transfer, Approval
