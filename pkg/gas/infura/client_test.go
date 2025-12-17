@@ -13,7 +13,7 @@ import (
 	"github.com/status-im/go-wallet-sdk/pkg/gas/infura"
 )
 
-//go:embed test/suggested_gas_fees.json
+//go:embed testdata/suggested_gas_fees.json
 var suggestedGasFeesJSON string
 
 func TestClient_GetGasSuggestions_Success(t *testing.T) {

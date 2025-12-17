@@ -12,25 +12,25 @@ import (
 	"github.com/status-im/go-wallet-sdk/pkg/tokens/types"
 )
 
-//go:embed test/coingecko_tokens_response.json
+//go:embed testdata/coingecko_tokens_response.json
 var coingeckoTokensJsonResponse string
 
-//go:embed test/coingecko_tokens_response_invalid_tokens.json
+//go:embed testdata/coingecko_tokens_response_invalid_tokens.json
 var coingeckoTokensJsonResponseInvalidTokens string
 
-//go:embed test/status_token_list_response_template.json
+//go:embed testdata/status_token_list_response_template.json
 var statusTokenListJsonResponseTemplate string
 
-//go:embed test/status_tokens_response.json
+//go:embed testdata/status_tokens_response.json
 var statusTokensJsonResponse string
 
-//go:embed test/status_invalid_tokens_response.json
+//go:embed testdata/status_invalid_tokens_response.json
 var statusInvalidTokensJsonResponse string
 
-//go:embed test/uniswap_tokens_response.json
+//go:embed testdata/uniswap_tokens_response.json
 var uniswapTokensJsonResponse string
 
-//go:embed test/uniswap_invalid_tokens_response.json
+//go:embed testdata/uniswap_invalid_tokens_response.json
 var uniswapInvalidTokensJsonResponse string
 
 var fetchedCoingeckoTokenList = fetcher.FetchedData{

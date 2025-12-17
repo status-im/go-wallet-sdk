@@ -18,46 +18,46 @@ import (
 	mock_ethclient "github.com/status-im/go-wallet-sdk/pkg/ethclient/mock"
 )
 
-//go:embed test/block_with_details.json
+//go:embed testdata/block_with_details.json
 var blockWithDetailsJSON string
 
-//go:embed test/block_without_details.json
+//go:embed testdata/block_without_details.json
 var blockWithoutDetailsJSON string
 
-//go:embed test/transaction.json
+//go:embed testdata/transaction.json
 var txJSON string
 
-//go:embed test/receipt.json
+//go:embed testdata/receipt.json
 var receiptJSON string
 
-//go:embed test/block_receipts.json
+//go:embed testdata/block_receipts.json
 var blockReceiptsJSON string
 
-//go:embed test/code.json
+//go:embed testdata/code.json
 var codeJSON string
 
-//go:embed test/proof.json
+//go:embed testdata/proof.json
 var proofJSON string
 
-//go:embed test/logs.json
+//go:embed testdata/logs.json
 var logsJSON string
 
-//go:embed test/accounts.json
+//go:embed testdata/accounts.json
 var accountsJSON string
 
-//go:embed test/fee_history.json
+//go:embed testdata/fee_history.json
 var feeHistoryJSON string
 
-//go:embed test/blob_base_fee.json
+//go:embed testdata/blob_base_fee.json
 var blobBaseFeeJSON string
 
-//go:embed test/send_transaction.json
+//go:embed testdata/send_transaction.json
 var sendTransactionJSON string
 
-//go:embed test/submit_work.json
+//go:embed testdata/submit_work.json
 var submitWorkJSON string
 
-//go:embed test/syncing.json
+//go:embed testdata/syncing.json
 var syncingJSON string
 
 func TestGethMethods(t *testing.T) {

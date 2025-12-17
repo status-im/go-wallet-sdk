@@ -19,31 +19,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed test/erc20_approval_tx_receipt.json
+//go:embed testdata/erc20_approval_tx_receipt.json
 var erc20ApprovalTxReceiptJSON string
 
-//go:embed test/erc20_transfer_tx_receipt.json
+//go:embed testdata/erc20_transfer_tx_receipt.json
 var erc20TransferTxReceiptJSON string
 
-//go:embed test/erc721_approval_for_all_tx_receipt.json
+//go:embed testdata/erc721_approval_for_all_tx_receipt.json
 var erc721ApprovalForAllTxReceiptJSON string
 
-//go:embed test/erc721_approval_tx_receipt.json
+//go:embed testdata/erc721_approval_tx_receipt.json
 var erc721ApprovalTxReceiptJSON string
 
-//go:embed test/erc721_transfer_tx_receipt.json
+//go:embed testdata/erc721_transfer_tx_receipt.json
 var erc721TransferTxReceiptJSON string
 
-//go:embed test/erc1155_approval_for_all_tx_receipt.json
+//go:embed testdata/erc1155_approval_for_all_tx_receipt.json
 var erc1155ApprovalForAllTxReceiptJSON string
 
-//go:embed test/erc1155_transfer_batch_tx_receipt.json
+//go:embed testdata/erc1155_transfer_batch_tx_receipt.json
 var erc1155TransferBatchTxReceiptJSON string
 
-//go:embed test/erc1155_transfer_single_tx_receipt.json
+//go:embed testdata/erc1155_transfer_single_tx_receipt.json
 var erc1155TransferSingleTxReceiptJSON string
 
-//go:embed test/erc1155_uri_tx_receipt.json
+//go:embed testdata/erc1155_uri_tx_receipt.json
 var erc1155UriTxReceiptJSON string
 
 // Helper function to load and parse a transaction receipt from JSON file
