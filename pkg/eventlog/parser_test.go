@@ -19,14 +19,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed test/erc20_transfer_tx_receipt.json
+//go:embed testdata/erc20_approval_tx_receipt.json
+var erc20ApprovalTxReceiptJSON string
+
+//go:embed testdata/erc20_transfer_tx_receipt.json
 var erc20TransferTxReceiptJSON string
 
-//go:embed test/erc721_transfer_tx_receipt.json
+//go:embed testdata/erc721_approval_for_all_tx_receipt.json
+var erc721ApprovalForAllTxReceiptJSON string
+
+//go:embed testdata/erc721_approval_tx_receipt.json
+var erc721ApprovalTxReceiptJSON string
+
+//go:embed testdata/erc721_transfer_tx_receipt.json
 var erc721TransferTxReceiptJSON string
 
-//go:embed test/erc1155_transfer_tx_receipt.json
-var erc1155TransferTxReceiptJSON string
+//go:embed testdata/erc1155_approval_for_all_tx_receipt.json
+var erc1155ApprovalForAllTxReceiptJSON string
+
+//go:embed testdata/erc1155_transfer_batch_tx_receipt.json
+var erc1155TransferBatchTxReceiptJSON string
+
+//go:embed testdata/erc1155_transfer_single_tx_receipt.json
+var erc1155TransferSingleTxReceiptJSON string
+
+//go:embed testdata/erc1155_uri_tx_receipt.json
+var erc1155UriTxReceiptJSON string
 
 // Helper function to load and parse a transaction receipt from JSON file
 func loadTransactionReceipt(receiptJSON string) (*ethclient.Receipt, error) {
@@ -37,6 +55,40 @@ func loadTransactionReceipt(receiptJSON string) (*ethclient.Receipt, error) {
 	}
 
 	return &receipt, nil
+}
+
+func TestParseLog_ERC20Approval(t *testing.T) {
+	receipt, err := loadTransactionReceipt(erc20ApprovalTxReceiptJSON)
+	require.NoError(t, err)
+	require.Len(t, receipt.Logs, 1)
+
+	log := *receipt.Logs[0]
+	events := eventlog.ParseLog(log)
+
+	require.Len(t, events, 1)
+	event := events[0]
+
+	// Verify event structure
+	assert.Equal(t, eventlog.ERC20, event.ContractKey)
+	assert.Equal(t, eventlog.ERC20Approval, event.EventKey)
+	assert.NotNil(t, event.ContractABI)
+	assert.NotNil(t, event.ABIEvent)
+	assert.NotNil(t, event.Unpacked)
+
+	// Verify unpacked data
+	approval, ok := event.Unpacked.(erc20.Erc20Approval)
+	require.True(t, ok, "Expected erc20.Erc20Approval, got %T", event.Unpacked)
+
+	// Verify approval details from the JSON data
+	expectedOwner := common.HexToAddress("0x6a3c63d9ac2bbef74cb62fa10a579e43725ba474")
+	expectedSpender := common.HexToAddress("0x9cd8a5b91ee80fdee6c0e2832d75a56555b9f37f")
+	expectedValue := new(big.Int)
+	expectedValue.SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16) // max uint256
+
+	assert.Equal(t, expectedOwner, approval.Owner)
+	assert.Equal(t, expectedSpender, approval.Spender)
+	assert.Equal(t, expectedValue, approval.Value)
+	assert.Equal(t, log, approval.Raw)
 }
 
 func TestParseLog_ERC20Transfer(t *testing.T) {
@@ -72,6 +124,78 @@ func TestParseLog_ERC20Transfer(t *testing.T) {
 	assert.Equal(t, log, transfer.Raw)
 }
 
+func TestParseLog_ERC721ApprovalForAll(t *testing.T) {
+	receipt, err := loadTransactionReceipt(erc721ApprovalForAllTxReceiptJSON)
+	require.NoError(t, err)
+	require.Len(t, receipt.Logs, 1)
+
+	log := *receipt.Logs[0]
+	events := eventlog.ParseLog(log)
+
+	var event *eventlog.Event
+	for i := range events {
+		if events[i].ContractKey == eventlog.ERC721 {
+			event = &events[i]
+			break
+		}
+	}
+	require.NotNil(t, event, "Expected ERC721ApprovalForAll event not found")
+
+	// Verify event structure
+	assert.Equal(t, eventlog.ERC721, event.ContractKey)
+	assert.Equal(t, eventlog.ERC721ApprovalForAll, event.EventKey)
+	assert.NotNil(t, event.ContractABI)
+	assert.NotNil(t, event.ABIEvent)
+	assert.NotNil(t, event.Unpacked)
+
+	// Verify unpacked data
+	approvalForAll, ok := event.Unpacked.(erc721.Erc721ApprovalForAll)
+	require.True(t, ok, "Expected erc721.Erc721ApprovalForAll, got %T", event.Unpacked)
+
+	// Verify approval for all details from the JSON data
+	expectedOwner := common.HexToAddress("0x9e10002b5a242362fcdd689f9709dfe6a08f05f3")
+	expectedOperator := common.HexToAddress("0xa21917cd7a91d322ee88dc06cb11a6495f91c906")
+	expectedApproved := true
+
+	assert.Equal(t, expectedOwner, approvalForAll.Owner)
+	assert.Equal(t, expectedOperator, approvalForAll.Operator)
+	assert.Equal(t, expectedApproved, approvalForAll.Approved)
+	assert.Equal(t, log, approvalForAll.Raw)
+}
+
+func TestParseLog_ERC721Approval(t *testing.T) {
+	receipt, err := loadTransactionReceipt(erc721ApprovalTxReceiptJSON)
+	require.NoError(t, err)
+	require.Len(t, receipt.Logs, 1)
+
+	log := *receipt.Logs[0]
+	events := eventlog.ParseLog(log)
+
+	require.Len(t, events, 1)
+	event := events[0]
+
+	// Verify event structure
+	assert.Equal(t, eventlog.ERC721, event.ContractKey)
+	assert.Equal(t, eventlog.ERC721Approval, event.EventKey)
+	assert.NotNil(t, event.ContractABI)
+	assert.NotNil(t, event.ABIEvent)
+	assert.NotNil(t, event.Unpacked)
+
+	// Verify unpacked data
+	approval, ok := event.Unpacked.(erc721.Erc721Approval)
+	require.True(t, ok, "Expected erc721.Erc721Approval, got %T", event.Unpacked)
+
+	// Verify approval details from the JSON data
+	expectedOwner := common.HexToAddress("0x1f00db89777c0f5e6d8e74014df9970467da69d5")
+	expectedApproved := common.HexToAddress("0xe9827e11ed5e27ed7dea736d13e49cbaba0a4555")
+	expectedTokenId := big.NewInt(6898) // 0x1af2
+
+	assert.Equal(t, expectedOwner, approval.Owner)
+	assert.Equal(t, expectedApproved, approval.Approved)
+	assert.Equal(t, expectedTokenId, approval.TokenId)
+	assert.Equal(t, log, approval.Raw)
+}
+
 func TestParseLog_ERC721Transfer(t *testing.T) {
 	receipt, err := loadTransactionReceipt(erc721TransferTxReceiptJSON)
 	require.NoError(t, err)
@@ -105,8 +229,100 @@ func TestParseLog_ERC721Transfer(t *testing.T) {
 	assert.Equal(t, log, transfer.Raw)
 }
 
+func TestParseLog_ERC1155ApprovalForAll(t *testing.T) {
+	receipt, err := loadTransactionReceipt(erc1155ApprovalForAllTxReceiptJSON)
+	require.NoError(t, err)
+	require.Len(t, receipt.Logs, 1)
+
+	log := *receipt.Logs[0]
+	events := eventlog.ParseLog(log)
+
+	var event *eventlog.Event
+	for i := range events {
+		if events[i].ContractKey == eventlog.ERC1155 {
+			event = &events[i]
+			break
+		}
+	}
+	require.NotNil(t, event, "Expected ERC1155ApprovalForAll event not found")
+
+	// Verify event structure
+	assert.Equal(t, eventlog.ERC1155, event.ContractKey)
+	assert.Equal(t, eventlog.ERC1155ApprovalForAll, event.EventKey)
+	assert.NotNil(t, event.ContractABI)
+	assert.NotNil(t, event.ABIEvent)
+	assert.NotNil(t, event.Unpacked)
+
+	// Verify unpacked data
+	approvalForAll, ok := event.Unpacked.(erc1155.Erc1155ApprovalForAll)
+	require.True(t, ok, "Expected erc1155.Erc1155ApprovalForAll, got %T", event.Unpacked)
+
+	// Verify approval for all details from the JSON data
+	expectedAccount := common.HexToAddress("0xf98a39456903cfde206603bdd1e1d4227dbe1243")
+	expectedOperator := common.HexToAddress("0x994f997a8c1a7deb15cb33bbbbd17839a1c95e58")
+	expectedApproved := false
+
+	assert.Equal(t, expectedAccount, approvalForAll.Account)
+	assert.Equal(t, expectedOperator, approvalForAll.Operator)
+	assert.Equal(t, expectedApproved, approvalForAll.Approved)
+	assert.Equal(t, log, approvalForAll.Raw)
+}
+
+func TestParseLog_ERC1155TransferBatch(t *testing.T) {
+	receipt, err := loadTransactionReceipt(erc1155TransferBatchTxReceiptJSON)
+	require.NoError(t, err)
+	require.Len(t, receipt.Logs, 1)
+
+	log := *receipt.Logs[0]
+	events := eventlog.ParseLog(log)
+
+	require.Len(t, events, 1)
+	event := events[0]
+
+	// Verify event structure
+	assert.Equal(t, eventlog.ERC1155, event.ContractKey)
+	assert.Equal(t, eventlog.ERC1155TransferBatch, event.EventKey)
+	assert.NotNil(t, event.ContractABI)
+	assert.NotNil(t, event.ABIEvent)
+	assert.NotNil(t, event.Unpacked)
+
+	// Verify unpacked data
+	transferBatch, ok := event.Unpacked.(erc1155.Erc1155TransferBatch)
+	require.True(t, ok, "Expected erc1155.Erc1155TransferBatch, got %T", event.Unpacked)
+
+	// Verify transfer batch details from the JSON data
+	expectedOperator := common.HexToAddress("0xf161ff39e19f605b2115afaeccbb3a112bbe4004")
+	expectedFrom := common.HexToAddress("0xf161ff39e19f605b2115afaeccbb3a112bbe4004")
+	expectedTo := common.HexToAddress("0xd4012980ef607f79b839095781a31cb2595461cf")
+	expectedIds := []*big.Int{
+		big.NewInt(157), // 0x9d
+		big.NewInt(3),   // 0x3
+		big.NewInt(31),  // 0x1f
+		big.NewInt(69),  // 0x45
+	}
+	expectedValues := []*big.Int{
+		big.NewInt(1),
+		big.NewInt(1),
+		big.NewInt(1),
+		big.NewInt(1),
+	}
+
+	assert.Equal(t, expectedOperator, transferBatch.Operator)
+	assert.Equal(t, expectedFrom, transferBatch.From)
+	assert.Equal(t, expectedTo, transferBatch.To)
+	assert.Equal(t, len(expectedIds), len(transferBatch.Ids))
+	for i, id := range expectedIds {
+		assert.Equal(t, id, transferBatch.Ids[i])
+	}
+	assert.Equal(t, len(expectedValues), len(transferBatch.Values))
+	for i, value := range expectedValues {
+		assert.Equal(t, value, transferBatch.Values[i])
+	}
+	assert.Equal(t, log, transferBatch.Raw)
+}
+
 func TestParseLog_ERC1155TransferSingle(t *testing.T) {
-	receipt, err := loadTransactionReceipt(erc1155TransferTxReceiptJSON)
+	receipt, err := loadTransactionReceipt(erc1155TransferSingleTxReceiptJSON)
 	require.NoError(t, err)
 	require.Len(t, receipt.Logs, 1)
 
@@ -140,6 +356,37 @@ func TestParseLog_ERC1155TransferSingle(t *testing.T) {
 	assert.Equal(t, expectedId, transfer.Id)
 	assert.Equal(t, expectedValue, transfer.Value)
 	assert.Equal(t, log, transfer.Raw)
+}
+
+func TestParseLog_ERC1155URI(t *testing.T) {
+	receipt, err := loadTransactionReceipt(erc1155UriTxReceiptJSON)
+	require.NoError(t, err)
+	require.Len(t, receipt.Logs, 3)
+
+	log := *receipt.Logs[2]
+	events := eventlog.ParseLog(log)
+
+	require.Len(t, events, 1)
+	event := events[0]
+
+	// Verify event structure
+	assert.Equal(t, eventlog.ERC1155, event.ContractKey)
+	assert.Equal(t, eventlog.ERC1155URI, event.EventKey)
+	assert.NotNil(t, event.ContractABI)
+	assert.NotNil(t, event.ABIEvent)
+	assert.NotNil(t, event.Unpacked)
+
+	// Verify unpacked data
+	uri, ok := event.Unpacked.(erc1155.Erc1155URI)
+	require.True(t, ok, "Expected erc1155.Erc1155URI, got %T", event.Unpacked)
+
+	// Verify URI details from the JSON data
+	expectedId := big.NewInt(10045) // 0x273d
+	expectedValue := "/ipfs/QmZk5Vb8RDnMHgEMcQYHtRhYRxXgTGZG1u2aBJ4ysqyhWT"
+
+	assert.Equal(t, expectedId, uri.Id)
+	assert.Equal(t, expectedValue, uri.Value)
+	assert.Equal(t, log, uri.Raw)
 }
 
 func TestParseLog_UnknownEvent(t *testing.T) {

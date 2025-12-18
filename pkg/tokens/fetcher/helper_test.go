@@ -36,37 +36,37 @@ const (
 	uniswapNewEtagURL  = "/uniswap-with-new-etag.json"  // #nosec G101
 )
 
-//go:embed test/list_of_token_lists_wrong_schema.json
+//go:embed testdata/list_of_token_lists_wrong_schema.json
 var wrongSchemaResponse string
 
-//go:embed test/list_of_token_lists_response_template.json
+//go:embed testdata/list_of_token_lists_response_template.json
 var listOfTokenListsJsonResponseTemplate string
 
-//go:embed test/token_lists_response.json
+//go:embed testdata/token_lists_response.json
 var tokenListsJsonResponse string
 
-//go:embed test/token_lists_response_1.json
+//go:embed testdata/token_lists_response_1.json
 var tokenListsJsonResponse1 string
 
-//go:embed test/token_lists_response_2.json
+//go:embed testdata/token_lists_response_2.json
 var tokenListsJsonResponse2 string
 
-//go:embed test/list_of_token_lists_some_wrong_urls_response.json
+//go:embed testdata/list_of_token_lists_some_wrong_urls_response.json
 var listOfTokenListsSomeWrongUrlsResponse string
 
-//go:embed test/uniswap_token_list_response_template.json
+//go:embed testdata/uniswap_token_list_response_template.json
 var uniswapTokenListJsonResponseTemplate string
 
-//go:embed test/uniswap_tokens_response.json
+//go:embed testdata/uniswap_tokens_response.json
 var uniswapTokensJsonResponse string
 
-//go:embed test/uniswap_tokens_response_1.json
+//go:embed testdata/uniswap_tokens_response_1.json
 var uniswapTokensJsonResponse1 string
 
-//go:embed test/uniswap_tokens_response_2.json
+//go:embed testdata/uniswap_tokens_response_2.json
 var uniswapTokensJsonResponse2 string
 
-//go:embed test/uniswap_token_list_schema_response.json
+//go:embed testdata/uniswap_token_list_schema_response.json
 var uniswapTokenListSchemaResponse string
 
 func GetTestServer() (server *httptest.Server, close func()) {

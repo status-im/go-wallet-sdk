@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
@@ -17,29 +18,47 @@ import (
 	mock_ethclient "github.com/status-im/go-wallet-sdk/pkg/ethclient/mock"
 )
 
-//go:embed test/block_with_details.json
+//go:embed testdata/block_with_details.json
 var blockWithDetailsJSON string
 
-//go:embed test/block_without_details.json
+//go:embed testdata/block_without_details.json
 var blockWithoutDetailsJSON string
 
-//go:embed test/transaction.json
+//go:embed testdata/transaction.json
 var txJSON string
 
-//go:embed test/receipt.json
+//go:embed testdata/receipt.json
 var receiptJSON string
 
-//go:embed test/block_receipts.json
+//go:embed testdata/block_receipts.json
 var blockReceiptsJSON string
 
-//go:embed test/code.json
+//go:embed testdata/code.json
 var codeJSON string
 
-//go:embed test/proof.json
+//go:embed testdata/proof.json
 var proofJSON string
 
-//go:embed test/logs.json
+//go:embed testdata/logs.json
 var logsJSON string
+
+//go:embed testdata/accounts.json
+var accountsJSON string
+
+//go:embed testdata/fee_history.json
+var feeHistoryJSON string
+
+//go:embed testdata/blob_base_fee.json
+var blobBaseFeeJSON string
+
+//go:embed testdata/send_transaction.json
+var sendTransactionJSON string
+
+//go:embed testdata/submit_work.json
+var submitWorkJSON string
+
+//go:embed testdata/syncing.json
+var syncingJSON string
 
 func TestGethMethods(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -649,4 +668,141 @@ func TestLogs(t *testing.T) {
 	logs, err := client.EthGetLogs(context.Background(), ethereum.FilterQuery{})
 	assert.NoError(t, err)
 	assert.Len(t, logs, 2)
+}
+
+func TestEthAccounts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
+	client := ethclient.NewClient(mockRPC)
+
+	var accounts []common.Address
+	mockRPC.EXPECT().
+		CallContext(gomock.Any(), gomock.Any(), "eth_accounts").
+		DoAndReturn(func(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+			return json.Unmarshal([]byte(accountsJSON), result)
+		})
+
+	err := client.RPCCall(context.Background(), &accounts, "eth_accounts")
+	assert.NoError(t, err)
+	assert.Len(t, accounts, 2)
+	assert.Equal(t, common.HexToAddress("0x407d73d8a49eeb85d32cf465507dd71d507100c1"), accounts[0])
+	assert.Equal(t, common.HexToAddress("0x742d35cc6634c0532925a3b844bc9e6e5bb5c5b6"), accounts[1])
+}
+
+func TestEthFeeHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
+	client := ethclient.NewClient(mockRPC)
+
+	blockCount := uint64(3)
+	lastBlock := big.NewInt(436)
+	rewardPercentiles := []float64{25.0, 75.0}
+
+	mockRPC.EXPECT().
+		CallContext(gomock.Any(), gomock.Any(), "eth_feeHistory", hexutil.Uint(blockCount), "0x1b4", rewardPercentiles).
+		DoAndReturn(func(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+			return json.Unmarshal([]byte(feeHistoryJSON), result)
+		})
+
+	feeHistory, err := client.EthFeeHistory(context.Background(), blockCount, lastBlock, rewardPercentiles)
+	assert.NoError(t, err)
+	assert.NotNil(t, feeHistory)
+	assert.Equal(t, big.NewInt(436), feeHistory.OldestBlock)
+	assert.Len(t, feeHistory.BaseFee, 3)
+	assert.Len(t, feeHistory.GasUsedRatio, 3)
+	assert.Len(t, feeHistory.Reward, 3)
+}
+
+func TestEthBlobBaseFee(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
+	client := ethclient.NewClient(mockRPC)
+
+	mockRPC.EXPECT().
+		CallContext(gomock.Any(), gomock.Any(), "eth_blobBaseFee").
+		DoAndReturn(func(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+			return json.Unmarshal([]byte(blobBaseFeeJSON), result)
+		})
+
+	blobBaseFee, err := client.EthBlobBaseFee(context.Background())
+	assert.NoError(t, err)
+	assert.NotNil(t, blobBaseFee)
+	assert.Equal(t, big.NewInt(0x1a5e0), blobBaseFee)
+}
+
+func TestEthSendTransaction(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
+	client := ethclient.NewClient(mockRPC)
+
+	to := common.HexToAddress("0xf02c1c8e6114b1dbe8937a39260b5b0a374432bb")
+	from := common.HexToAddress("0xa7d9ddbe1f17865597fbd27ec712455208b6b76d")
+	tx := &ethclient.Transaction{
+		From:  from,
+		To:    &to,
+		Gas:   21000,
+		Value: big.NewInt(1000000000000000000),
+		Input: []byte{},
+	}
+
+	mockRPC.EXPECT().
+		CallContext(gomock.Any(), gomock.Any(), "eth_sendTransaction", tx).
+		DoAndReturn(func(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+			return json.Unmarshal([]byte(sendTransactionJSON), result)
+		})
+
+	txHash, err := client.EthSendTransaction(context.Background(), tx)
+	assert.NoError(t, err)
+	assert.Equal(t, common.HexToHash("0xe670ec64341771606e55d6b4ca35a1a6b75ee3d28e5ec2e4b0f1b2b3c4d5e6f7"), txHash)
+}
+
+func TestEthSubmitWork(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
+	client := ethclient.NewClient(mockRPC)
+
+	nonce := types.BlockNonce{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	powHash := common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+	mixDigest := common.HexToHash("0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")
+
+	mockRPC.EXPECT().
+		CallContext(gomock.Any(), gomock.Any(), "eth_submitWork", nonce, powHash, mixDigest).
+		DoAndReturn(func(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+			return json.Unmarshal([]byte(submitWorkJSON), result)
+		})
+
+	success, err := client.EthSubmitWork(context.Background(), nonce, powHash, mixDigest)
+	assert.NoError(t, err)
+	assert.True(t, success)
+}
+
+func TestEthSyncingWithProgress(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRPC := mock_ethclient.NewMockRPCClient(ctrl)
+	client := ethclient.NewClient(mockRPC)
+
+	mockRPC.EXPECT().
+		CallContext(gomock.Any(), gomock.Any(), "eth_syncing").
+		DoAndReturn(func(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+			return json.Unmarshal([]byte(syncingJSON), result)
+		})
+
+	syncProgress, err := client.EthSyncing(context.Background())
+	assert.NoError(t, err)
+	assert.NotNil(t, syncProgress)
+	assert.Equal(t, uint64(0x384), syncProgress.StartingBlock)
+	assert.Equal(t, uint64(0x386), syncProgress.CurrentBlock)
+	assert.Equal(t, uint64(0x3e8), syncProgress.HighestBlock)
 }

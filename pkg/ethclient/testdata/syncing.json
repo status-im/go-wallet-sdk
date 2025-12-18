@@ -1,0 +1,22 @@
+{
+  "startingBlock": "0x384",
+  "currentBlock": "0x386",
+  "highestBlock": "0x3e8",
+  "pulledStates": "0x1",
+  "knownStates": "0x2",
+  "syncedAccounts": "0x3",
+  "syncedAccountBytes": "0x4",
+  "syncedBytecodes": "0x5",
+  "syncedBytecodeBytes": "0x6",
+  "syncedStorage": "0x7",
+  "syncedStorageBytes": "0x8",
+  "healedTrienodes": "0x9",
+  "healedTrienodeBytes": "0xa",
+  "healedBytecodes": "0xb",
+  "healedBytecodeBytes": "0xc",
+  "healingTrienodes": "0xd",
+  "healingBytecode": "0xe",
+  "txIndexFinishedBlocks": "0xf",
+  "txIndexRemainingBlocks": "0x10"
+}
+
