@@ -37,6 +37,7 @@ go mod download
 | Batching | [`pkg/multicall`](pkg/multicall/README.md) | You want to batch thousands of contract reads via Multicall3 | `Build*Call`, `RunSync`, `RunAsync` |
 | Multi-standard balances | [`pkg/balance/multistandardfetcher`](pkg/balance/multistandardfetcher/README.md) | You want native+ERC20+ERC721+ERC1155 balances via one API | `FetchBalances`, `FetchConfig` |
 | Gas | [`pkg/gas`](pkg/gas/README.md) | You need fee suggestions + inclusion estimates across L1/L2s | `GetTxSuggestions`, `GetChainSuggestions` |
+| Transaction generation | [`pkg/txgenerator`](pkg/txgenerator/README.md) | You need to generate unsigned transactions for ETH/ERC20/ERC721/ERC1155 | `TransferETH`, `TransferERC20`, `ApproveERC20`, `TransferFromERC721`, `SafeTransferFromERC721`, `TransferERC1155` |
 | Transfers | [`pkg/eventfilter`](pkg/eventfilter/README.md) | You need to efficiently query ERC20/721/1155 transfers via `eth_getLogs` | `FilterTransfers`, `TransferQueryConfig` |
 | Log parsing | [`pkg/eventlog`](pkg/eventlog/README.md) | You need to detect/parse standard token events | `ParseLog`, `Event` |
 | Accounts | [`pkg/accounts/extkeystore`](pkg/accounts/extkeystore/README.md) | You need HD (BIP32) keystore + signing | `NewKeyStore`, `DeriveWithPassphrase`, `SignHash` |
@@ -74,6 +75,7 @@ This creates:
 The C library exposes core SDK functionality through a C-compatible API, including:
 - Ethereum client operations (RPC calls, chain ID, balances)
 - Multi-standard balance fetching (Native ETH, ERC20, ERC721, ERC1155)
+- Transaction generation (ETH transfers, ERC20, ERC721, ERC1155 operations)
 - Account management (extended keystore and standard keystore)
 - Mnemonic generation and key derivation utilities
 
@@ -108,6 +110,17 @@ go run . -fake
 # Test with real networks (requires Infura API key)
 go run . -infura-api-key YOUR_API_KEY
 ```
+
+### Transaction Generator Example
+
+```bash
+cd examples/txgenerator-example
+go run .
+```
+
+Access: http://localhost:8080
+
+Web interface for generating unsigned Ethereum transactions for ETH transfers, ERC20, ERC721, and ERC1155 operations.
 
 ### Multicall Usage
 
@@ -199,6 +212,7 @@ go test ./...
 - [Multicall](pkg/multicall/README.md) - Efficient contract call batching
 - [Ethereum Client](pkg/ethclient/README.md) - Complete Ethereum RPC client
 - [Gas Estimation](pkg/gas/README.md) - Gas fee estimation and suggestions
+- [Transaction Generator](pkg/txgenerator/README.md) - Generate unsigned transactions for ETH/ERC20/ERC721/ERC1155
 - [Event Filter](pkg/eventfilter/README.md) - Event filtering for transfers
 - [Event Log Parser](pkg/eventlog/README.md) - Event log parsing
 - [Extended Keystore](pkg/accounts/extkeystore/README.md) - HD wallet keystore with BIP32 support
@@ -215,6 +229,7 @@ go test ./...
 - [Web Balance Fetcher](examples/balance-fetcher-web/README.md) - Web interface for balance fetching
 - [Ethereum Client Usage](examples/ethclient-usage/README.md) - Ethereum client examples
 - [Gas Comparison](examples/gas-comparison/README.md) - Gas fee comparison tool
+- [Transaction Generator Example](examples/txgenerator-example/README.md) - Web interface for generating transactions
 - [Multicall Usage](examples/multiclient3-usage/README.md) - Multicall examples
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
 - [Accounts Example](examples/accounts/README.md) - Keystore management web interface
