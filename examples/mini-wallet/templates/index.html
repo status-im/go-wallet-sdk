@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Go Wallet SDK Mini-App</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
+            background: #f4f7f9; 
+            color: #333; 
+            line-height: 1.6; 
+            margin: 0;
+            padding: 0;
+        }
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 280px;
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        .sidebar h2 {
+            margin-top: 0;
+            font-size: 1.2em;
+            border-bottom: 2px solid #34495e;
+            padding-bottom: 10px;
+        }
+        .sidebar-section {
+            margin-bottom: 30px;
+        }
+        .sidebar-section h3 {
+            font-size: 0.9em;
+            text-transform: uppercase;
+            color: #bdc3c7;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .account-item, .chain-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #34495e;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .account-item:hover, .chain-item:hover {
+            background: #3d566e;
+        }
+        .account-item.active {
+            background: #3498db;
+        }
+        .chain-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chain-toggle {
+            width: 50px;
+            height: 24px;
+            background: #7f8c8d;
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .chain-toggle.enabled {
+            background: #27ae60;
+        }
+        .chain-toggle-slider {
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+        }
+        .chain-toggle.enabled .chain-toggle-slider {
+            transform: translateX(26px);
+        }
+        .main-content {
+            margin-left: 280px;
+            padding: 40px;
+            width: calc(100% - 280px);
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+        .card { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 25px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+        }
+        h1, h2, h3 { margin-top: 0; }
+        input, select, button { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 8px 0; 
+            border: 1px solid #ddd; 
+            border-radius: 6px; 
+            box-sizing: border-box; 
+        }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: background 0.2s; 
+        }
+        button:hover { background: #0056b3; }
+        .badge { 
+            background: #e1e4e8; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-size: 0.8em; 
+        }
+        .address-short {
+            font-size: 0.85em;
+            font-family: monospace;
+        }
+        .token-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+            display: inline-block;
+            background: #e1e4e8;
+            object-fit: cover;
+        }
+        .token-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .token-info {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .token-detail-row {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+        }
+        .token-detail-row:hover {
+            background: #f8f9fa;
+        }
+        .token-detail-info {
+            flex: 1;
+            margin-left: 10px;
+        }
+        .token-detail-name {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .token-detail-meta {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .token-address {
+            font-family: monospace;
+            font-size: 0.8em;
+            color: #007bff;
+            word-break: break-all;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .modal-header {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .preview-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .preview-label {
+            font-weight: bold;
+            color: #666;
+        }
+        .preview-value {
+            font-family: monospace;
+            text-align: right;
+            word-break: break-all;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+        .btn-confirm {
+            background: #28a745;
+            color: white;
+        }
+        .btn-confirm:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar">
+        <h2>🔐 Mini Wallet</h2>
+        
+        <div class="sidebar-section">
+            <h3>Accounts</h3>
+            <div id="accounts-list"></div>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>Chains</h3>
+            <div id="chains-list"></div>
+        </div>
+
+        <div class="sidebar-section">
+            <button onclick="showTokenListView()" id="token-list-btn" style="width: 100%; margin-top: 10px;">🔍 Explore Token List</button>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="container">
+            <h1>Mini Wallet SDK</h1>
+
+            <div id="setup-view" class="card">
+                <h2>1. Select Local Directory</h2>
+                <input type="text" id="dir-path" placeholder="Absolute path to keystore folder...">
+                <button onclick="initKeystore()">Initialize Keystore</button>
+            </div>
+
+            <div id="account-view" class="card" style="display:none">
+                <h2>2. Select Account</h2>
+                <select id="acc-list"></select>
+                <button onclick="unlockAccount()">Select Account</button>
+                <hr>
+                <p>Or create a new one in the same folder:</p>
+                <input type="password" id="new-pass" placeholder="New Account Password">
+                <button onclick="createAccount()" style="background:#28a745">Generate New Account</button>
+            </div>
+
+            <div id="wallet-view" style="display:none">
+                <div class="card">
+                    <h2>Active: <span id="active-addr" style="font-size: 0.6em; color: #666"></span></h2>
+                    <button onclick="loadBalances()" id="refresh-btn">🔄 Refresh All Balances</button>
+                    <div id="balance-container" style="margin-top:20px"></div>
+                </div>
+
+                <div class="card">
+                    <h3>Send Transaction</h3>
+                    <select id="tx-chain"></select>
+                    <input type="text" id="tx-to" placeholder="Recipient (0x... or ENS)">
+                    <input type="text" id="tx-token" placeholder="Token Address (empty for Native)">
+                    <input type="text" id="tx-amt" placeholder="Amount (in token units, e.g. 1.5)">
+                    <input type="password" id="tx-password" placeholder="Password (required for signing)">
+                    <button onclick="previewTx()" id="preview-btn">Preview Transaction</button>
+                    <p id="tx-hash" style="word-break: break-all; color: #28a745"></p>
+                </div>
+            </div>
+
+            <!-- Transaction Preview Modal -->
+            <div id="preview-modal" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="modal-header">📋 Transaction Preview</div>
+                    <div id="preview-details"></div>
+                    <div class="modal-buttons">
+                        <button class="btn-cancel" onclick="closePreview()">Cancel</button>
+                        <button class="btn-confirm" onclick="confirmSendTx()" id="confirm-send-btn">Confirm & Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="token-list-view" style="display:none">
+                <div class="card">
+                    <h2>🔍 Explore Token List</h2>
+                    <button onclick="loadTokenStats()" id="stats-btn">📊 Load Statistics</button>
+                    <div id="token-stats" style="margin-top:20px"></div>
+                    
+                    <div id="token-explorer" style="display:none; margin-top:20px">
+                        <h3>Browse Tokens by Chain</h3>
+                        <select id="explore-chain" onchange="loadChainTokens()" style="width: 100%; max-width: 400px; margin-bottom: 15px;">
+                            <option value="">Select a chain...</option>
+                        </select>
+                        <div id="chain-tokens" style="margin-top:20px; max-height: 600px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let activeAddress = "";
+    let accounts = [];
+    let chains = [];
+
+    async function initKeystore() {
+        const path = document.getElementById('dir-path').value;
+        const res = await fetch('/init-keystore', { method: 'POST', body: JSON.stringify({path}) });
+        const data = await res.json();
+        const sel = document.getElementById('acc-list');
+        sel.innerHTML = data.accounts.map(a => `<option value="${a}">${a}</option>`).join('');
+        document.getElementById('setup-view').style.display = 'none';
+        document.getElementById('account-view').style.display = 'block';
+        await loadAccounts();
+        await loadChains();
+    }
+
+    async function loadAccounts() {
+        const res = await fetch('/accounts');
+        accounts = await res.json();
+        const container = document.getElementById('accounts-list');
+        if (accounts.length === 0) {
+            container.innerHTML = '<p style="color: #95a5a6; font-size: 0.9em;">No accounts found</p>';
+            return;
+        }
+        container.innerHTML = accounts.map(addr => `
+            <div class="account-item ${addr === activeAddress ? 'active' : ''}" 
+                 onclick="switchAccount('${addr}')">
+                <div class="address-short">${addr.substring(0, 6)}...${addr.substring(38)}</div>
+            </div>
+        `).join('');
+    }
+
+    async function loadChains() {
+        const res = await fetch('/chains');
+        chains = await res.json();
+        const container = document.getElementById('chains-list');
+        container.innerHTML = chains.map(chain => `
+            <div class="chain-item">
+                <span>${chain.name}</span>
+                <div class="chain-toggle ${chain.enabled ? 'enabled' : ''}" 
+                     onclick="toggleChain(${chain.chainId}, ${!chain.enabled})">
+                    <div class="chain-toggle-slider"></div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Update chain dropdown
+        const chainSelect = document.getElementById('tx-chain');
+        chainSelect.innerHTML = chains
+            .filter(c => c.enabled)
+            .map(c => `<option value="${c.chainId}">${c.name}</option>`)
+            .join('');
+    }
+
+    async function toggleChain(chainId, enabled) {
+        const res = await fetch('/chains/toggle', {
+            method: 'POST',
+            body: JSON.stringify({chainId, enabled}),
+            headers: {'Content-Type': 'application/json'}
+        });
+        if (res.ok) {
+            await loadChains();
+            if (activeAddress) {
+                await loadBalances();
+            }
+        }
+    }
+
+    async function switchAccount(addr) {
+        if (addr === activeAddress) return;
+        activeAddress = addr;
+        await loadAccounts();
+        enterWallet(addr);
+    }
+
+    async function unlockAccount() {
+        const address = document.getElementById('acc-list').value;
+        const res = await fetch('/unlock', { method: 'POST', body: JSON.stringify({address}) });
+        if (res.ok) {
+            await loadAccounts();
+            enterWallet(address);
+        }
+    }
+
+    async function createAccount() {
+        const password = document.getElementById('new-pass').value;
+        const res = await fetch('/create-account', { method: 'POST', body: JSON.stringify({password}) });
+        const data = await res.json();
+        await loadAccounts();
+        enterWallet(data.address);
+    }
+
+    function enterWallet(addr) {
+        activeAddress = addr;
+        document.getElementById('active-addr').innerText = addr;
+        document.getElementById('account-view').style.display = 'none';
+        document.getElementById('wallet-view').style.display = 'block';
+        document.getElementById('token-list-view').style.display = 'none';
+        loadBalances();
+        loadChains();
+    }
+
+    function showTokenListView() {
+        document.getElementById('wallet-view').style.display = 'none';
+        document.getElementById('account-view').style.display = 'none';
+        document.getElementById('token-list-view').style.display = 'block';
+        // Load stats if not already loaded
+        if (document.getElementById('token-stats').innerHTML === '') {
+            loadTokenStats();
+        }
+    }
+
+    async function loadBalances() {
+        const btn = document.getElementById('refresh-btn');
+        btn.innerText = "Fetching...";
+        const res = await fetch(`/balances?address=${activeAddress}`);
+        const data = await res.json();
+        const container = document.getElementById('balance-container');
+        container.innerHTML = data.map(b => {
+            const iconSrc = b.logoURI || '';
+            const iconHtml = iconSrc 
+                ? `<img src="${iconSrc}" class="token-icon" onerror="this.style.display='none'">`
+                : `<div class="token-icon"></div>`;
+            
+            // Format token address (show shortened version for non-native tokens)
+            const isNative = b.token === '0x0000000000000000000000000000000000000000';
+            const addressDisplay = isNative 
+                ? '' 
+                : ` <span onclick="navigator.clipboard.writeText('${b.token}'); this.style.color='#28a745'; setTimeout(() => this.style.color='#666', 1000);" style="font-family: monospace; font-size: 0.85em; color: #666; cursor: pointer; text-decoration: underline;" title="Click to copy full address">${b.token.substring(0, 6)}...${b.token.substring(38)}</span>`;
+            
+            return `
+            <div class="token-row">
+                <div class="token-info">
+                    ${iconHtml}
+                    <span><span class="badge">${b.chainName || 'Chain ' + b.chainId}</span> <strong>${b.symbol}</strong>${addressDisplay}</span>
+                </div>
+                <span>${b.balanceFormatted || b.balance}</span>
+            </div>
+        `;
+        }).join('');
+        btn.innerText = "🔄 Refresh All Balances";
+    }
+
+    let previewData = null;
+
+    async function previewTx() {
+        const btn = document.getElementById('preview-btn');
+        btn.disabled = true;
+        btn.innerText = "Loading preview...";
+        
+        const payload = {
+            from: activeAddress,
+            to: document.getElementById('tx-to').value,
+            token: document.getElementById('tx-token').value || "0x0000000000000000000000000000000000000000",
+            amount: document.getElementById('tx-amt').value,
+            chainId: parseInt(document.getElementById('tx-chain').value)
+        };
+
+        try {
+            const res = await fetch('/transfer/preview', { method: 'POST', body: JSON.stringify(payload) });
+            if (!res.ok) {
+                const error = await res.text();
+                alert('Failed to preview transaction: ' + error);
+                btn.disabled = false;
+                btn.innerText = "Preview Transaction";
+                return;
+            }
+
+            previewData = await res.json();
+            showPreview(previewData);
+        } catch (error) {
+            alert('Error previewing transaction: ' + error);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Preview Transaction";
+        }
+    }
+
+    function showPreview(data) {
+        const modal = document.getElementById('preview-modal');
+        const details = document.getElementById('preview-details');
+        
+        const formatWei = (wei) => {
+            const bigInt = BigInt(wei);
+            if (bigInt === 0n) return "0";
+            const eth = Number(bigInt) / 1e18;
+            return eth.toFixed(6) + " ETH";
+        };
+        
+        const formatGwei = (gwei) => {
+            const num = parseFloat(gwei);
+            if (isNaN(num) || num === 0) return "0";
+            return num.toFixed(6) + " Gwei";
+        };
+
+        details.innerHTML = `
+            <div class="preview-row">
+                <span class="preview-label">From:</span>
+                <span class="preview-value">${data.from}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">To:</span>
+                <span class="preview-value">${data.to}</span>
+            </div>
+            ${data.resolvedENS ? `
+            <div class="preview-row">
+                <span class="preview-label">ENS Name:</span>
+                <span class="preview-value">${data.originalTo}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Resolved Address:</span>
+                <span class="preview-value">${data.resolvedENS}</span>
+            </div>
+            ` : ''}
+            <div class="preview-row">
+                <span class="preview-label">Amount:</span>
+                <span class="preview-value">${data.amount} ${data.tokenSymbol}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Chain:</span>
+                <span class="preview-value">${data.chainName} (${data.chainId})</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Nonce:</span>
+                <span class="preview-value">${data.nonce}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Gas Limit:</span>
+                <span class="preview-value">${data.gasLimit.toLocaleString()}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Gas Price:</span>
+                <span class="preview-value">${data.gasPriceGwei ? formatGwei(data.gasPriceGwei) : formatWei(data.gasPrice)}</span>
+            </div>
+            <div class="preview-row">
+                <span class="preview-label">Total Cost:</span>
+                <span class="preview-value"><strong>${data.totalCostGwei ? formatGwei(data.totalCostGwei) : formatWei(data.totalCost)}</strong></span>
+            </div>
+            ${!data.isNative ? `
+            <div class="preview-row">
+                <span class="preview-label">Token Address:</span>
+                <span class="preview-value">${data.tokenAddress}</span>
+            </div>
+            ` : ''}
+        `;
+        
+        modal.classList.add('show');
+    }
+
+    function closePreview() {
+        document.getElementById('preview-modal').classList.remove('show');
+        previewData = null;
+    }
+
+    async function confirmSendTx() {
+        const password = document.getElementById('tx-password').value;
+        if (!password) {
+            alert('Password is required for signing transactions');
+            return;
+        }
+
+        if (!previewData) {
+            alert('No preview data available');
+            return;
+        }
+
+        const btn = document.getElementById('confirm-send-btn');
+        btn.disabled = true;
+        btn.innerText = "Sending...";
+
+        const payload = {
+            from: activeAddress,
+            to: document.getElementById('tx-to').value,
+            token: document.getElementById('tx-token').value || "0x0000000000000000000000000000000000000000",
+            amount: document.getElementById('tx-amt').value,
+            chainId: parseInt(document.getElementById('tx-chain').value),
+            password: password
+        };
+
+        try {
+            const res = await fetch('/transfer', { method: 'POST', body: JSON.stringify(payload) });
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('tx-hash').innerText = "Tx Hash: " + data.hash;
+                document.getElementById('tx-password').value = '';
+                closePreview();
+            } else {
+                const error = await res.text();
+                alert('Transaction failed: ' + error);
+            }
+        } catch (error) {
+            alert('Error sending transaction: ' + error);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Confirm & Send";
+        }
+    }
+
+    async function loadTokenStats() {
+        const btn = document.getElementById('stats-btn');
+        const originalText = btn.innerText;
+        btn.innerText = "Loading...";
+        btn.disabled = true;
+        
+        try {
+            const res = await fetch('/tokens/stats');
+            const stats = await res.json();
+            
+            const container = document.getElementById('token-stats');
+            container.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.totalTokens}</div>
+                        <div class="stat-label">Total Tokens</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.totalChains}</div>
+                        <div class="stat-label">Chains</div>
+                    </div>
+                </div>
+                <h4>Tokens per Chain:</h4>
+                <div style="margin-top: 10px;">
+                    ${stats.tokensPerChain.map(c => `
+                        <div style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <strong>${c.chainName}</strong> (Chain ${c.chainId}): ${c.count} tokens
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            // Populate chain selector
+            const chainSelect = document.getElementById('explore-chain');
+            chainSelect.innerHTML = '<option value="">Select a chain...</option>' +
+                stats.tokensPerChain.map(c => 
+                    `<option value="${c.chainId}">${c.chainName} (${c.count} tokens)</option>`
+                ).join('');
+            
+            document.getElementById('token-explorer').style.display = 'block';
+        } catch (error) {
+            alert('Failed to load token statistics: ' + error);
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    async function loadChainTokens() {
+        const chainId = document.getElementById('explore-chain').value;
+        if (!chainId) {
+            document.getElementById('chain-tokens').innerHTML = '';
+            return;
+        }
+        
+        const container = document.getElementById('chain-tokens');
+        container.innerHTML = '<p>Loading tokens...</p>';
+        
+        try {
+            const res = await fetch(`/tokens/chain?chainId=${chainId}`);
+            const tokens = await res.json();
+            
+            if (tokens.length === 0) {
+                container.innerHTML = '<p>No tokens found for this chain.</p>';
+                return;
+            }
+            
+            container.innerHTML = tokens.map(t => {
+                const iconHtml = t.logoURI 
+                    ? `<img src="${t.logoURI}" class="token-icon" onerror="this.style.display='none'">`
+                    : `<div class="token-icon"></div>`;
+                return `
+                    <div class="token-detail-row">
+                        ${iconHtml}
+                        <div class="token-detail-info">
+                            <div class="token-detail-name">${t.symbol} - ${t.name}</div>
+                            <div class="token-detail-meta">
+                                Decimals: ${t.decimals} | 
+                                ${t.crossChainId ? 'Cross-Chain ID: ' + t.crossChainId : ''}
+                            </div>
+                            <div class="token-address" onclick="navigator.clipboard.writeText('${t.address}')" style="cursor: pointer;" title="Click to copy">
+                                ${t.address}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (error) {
+            container.innerHTML = '<p style="color: #d32f2f;">Failed to load tokens: ' + error + '</p>';
+        }
+    }
+</script>
+</body>
+</html>
