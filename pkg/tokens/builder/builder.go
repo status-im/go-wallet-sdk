@@ -2,6 +2,7 @@ package builder
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/status-im/go-wallet-sdk/pkg/common"
@@ -28,17 +29,24 @@ var (
 
 // Builder builds token lists into a single list of unique tokens.
 type Builder struct {
-	chains     []uint64
-	tokens     map[string]*types.Token
-	tokenLists map[string]*types.TokenList
+	chains           []uint64
+	tokens           map[string]*types.Token
+	tokenLists       map[string]*types.TokenList
+	skippedTokenKeys map[string]bool // Set of token keys to skip (for fast lookup)
 }
 
 // New creates a new Builder instance.
-func New(chains []uint64) *Builder {
+func New(chains []uint64, skippedTokenKeys []string) *Builder {
+	skippedKeysMap := make(map[string]bool)
+	for _, key := range skippedTokenKeys {
+		skippedKeysMap[strings.ToLower(key)] = true
+	}
+
 	return &Builder{
-		chains:     chains,
-		tokens:     make(map[string]*types.Token),
-		tokenLists: make(map[string]*types.TokenList),
+		chains:           chains,
+		tokens:           make(map[string]*types.Token),
+		tokenLists:       make(map[string]*types.TokenList),
+		skippedTokenKeys: skippedKeysMap,
 	}
 }
 
@@ -91,11 +99,16 @@ func (b *Builder) AddNativeTokenList() error {
 }
 
 // AddTokenList adds a token list to the builder and adds the tokens to the list of unique tokens.
+// Tokens with keys in the skippedTokenKeys list will be excluded.
 func (b *Builder) AddTokenList(tokenListID string, tokenList *types.TokenList) {
 	b.tokenLists[tokenListID] = tokenList
 	for _, token := range tokenList.Tokens {
-		if _, exists := b.tokens[token.Key()]; !exists {
-			b.tokens[token.Key()] = token
+		tokenKey := token.Key()
+		if b.skippedTokenKeys[tokenKey] {
+			continue
+		}
+		if _, exists := b.tokens[tokenKey]; !exists {
+			b.tokens[tokenKey] = token
 		}
 	}
 }

@@ -52,7 +52,8 @@ type manager struct {
 	initialLists  map[string][]byte
 	customParsers map[string]parsers.TokenListParser
 
-	chains []uint64
+	chains           []uint64
+	skippedTokenKeys []string
 
 	started         bool
 	refreshCancelFn context.CancelFunc
@@ -72,10 +73,11 @@ func New(config *Config,
 	}
 
 	manager := &manager{
-		mainListID:    config.MainListID,
-		initialLists:  config.InitialLists,
-		customParsers: config.CustomParsers,
-		chains:        config.Chains,
+		mainListID:       config.MainListID,
+		initialLists:     config.InitialLists,
+		customParsers:    config.CustomParsers,
+		chains:           config.Chains,
+		skippedTokenKeys: config.SkippedTokenKeys,
 
 		contentStore:     contentStore,
 		customTokenStore: customTokenStore,
@@ -371,7 +373,7 @@ func (m *manager) TokenLists() []*types.TokenList {
 }
 
 func (m *manager) buildState() error {
-	builder := builder.New(m.chains)
+	builder := builder.New(m.chains, m.skippedTokenKeys)
 
 	// 1. native token list
 	if err := builder.AddNativeTokenList(); err != nil {

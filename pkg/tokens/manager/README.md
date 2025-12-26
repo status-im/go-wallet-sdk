@@ -94,6 +94,25 @@ config := &manager.Config{
 }
 ```
 
+### Token Filtering Configuration
+
+The manager supports **token filtering** through the `SkippedTokenKeys` field:
+
+- **🚫 Exclude Invalid Tokens**: Skip tokens with no value or deprecated tokens
+- **🔑 Token Key Format**: Use `"{chainID}-{lowercaseAddress}"` format (e.g., `"10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"`)
+- **⚡ Automatic Filtering**: Filtered tokens are excluded from all token lists during building
+- **📋 List Preservation**: Token lists are still stored even if all their tokens are filtered
+
+```go
+config := &manager.Config{
+    SkippedTokenKeys: []string{
+        "10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000", // Optimism ETH with no value
+    },
+}
+```
+
+**Note:** Token keys are matched case-insensitively. The filtering applies to all token sources (native tokens, remote lists, local lists, and custom tokens).
+
 ### Basic Configuration
 
 ```go
@@ -109,6 +128,9 @@ config := &manager.Config{
         // "uniswap-default" and "compound" will use StandardTokenListParser automatically
     },
     Chains: []uint64{1, 56, 8453}, // Ethereum, BSC, Base
+    SkippedTokenKeys: []string{
+        "10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000", // Skip Optimism ETH with no value
+    },
 }
 
 // Create HTTP fetcher for remote token list fetching
@@ -137,6 +159,9 @@ config := &manager.Config{
         // "uniswap-default" will use StandardTokenListParser automatically
     },
     Chains: []uint64{1, 56},
+    SkippedTokenKeys: []string{
+        // Optional: tokens to exclude from all token lists, format: "{chainID}-{lowercaseAddress}"
+    },
 
     // Auto-fetcher configuration
     AutoFetcherConfig: &autofetcher.ConfigRemoteListOfTokenLists{

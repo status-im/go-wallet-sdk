@@ -24,6 +24,8 @@ type Config struct {
 	CustomParsers map[string]parsers.TokenListParser // key: list ID, value: parser, is no match for the list ID, the StandardTokenList parser will be used
 
 	Chains []uint64
+
+	SkippedTokenKeys []string // list of token keys (in the format: "{chainID}-{lowercaseAddress}") that should be excluded from token list
 }
 
 func (c *Config) Validate() error {
