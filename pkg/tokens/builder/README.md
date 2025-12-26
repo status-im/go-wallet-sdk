@@ -10,7 +10,7 @@ The `builder` package provides functionality for building token collections by p
 
 ## Key entrypoints
 
-- `builder.New(chains)`
+- `builder.New(chains, skippedTokenKeys)`
 - `(*Builder).AddNativeTokenList()`
 - `(*Builder).AddTokenList(...)` / `(*Builder).AddRawTokenList(...)`
 - `(*Builder).GetTokens()` / `(*Builder).GetTokenLists()`
@@ -29,6 +29,7 @@ The builder package is designed to:
 
 - **Builder Pattern**: Start with empty state and progressively build up token collections
 - **Deduplication**: Automatically prevents duplicate tokens using chain ID and address combinations
+- **Token Filtering**: Skip specific tokens by their keys (useful for excluding invalid or unwanted tokens)
 - **Native Token Support**: Generates native tokens (ETH, BNB, etc.) for supported chains
 - **Multiple Formats**: Supports parsing various token list formats through pluggable parsers
 - **Stateful Construction**: Maintains internal state between operations
@@ -43,9 +44,10 @@ The main struct that manages incremental token list building operations:
 
 ```go
 type Builder struct {
-    chains     []uint64                     // Supported chain IDs
-    tokens     map[string]*types.Token      // Unified token collection (deduplicated)
-    tokenLists map[string]*types.TokenList  // Individual token lists by ID
+    chains           []uint64                     // Supported chain IDs
+    tokens           map[string]*types.Token      // Unified token collection (deduplicated)
+    tokenLists       map[string]*types.TokenList  // Individual token lists by ID
+    skippedTokenKeys map[string]bool              // Set of token keys to skip (for fast lookup)
 }
 ```
 
@@ -80,19 +82,28 @@ var (
 
 ### Constructor
 
-#### `New(chains []uint64) *Builder`
+#### `New(chains []uint64, skippedTokenKeys []string) *Builder`
 
 Creates a new Builder instance with empty token collections.
 
 **Parameters:**
 - `chains`: List of supported blockchain network IDs
+- `skippedTokenKeys`: Optional list of token keys to exclude from token collections. Token keys are in the format `"{chainID}-{lowercaseAddress}"` (e.g., `"10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"`). Pass `nil` or empty slice to skip no tokens.
 
 **Returns:** New Builder instance ready for incremental construction
 
 **Example:**
 ```go
 chains := []uint64{1, 56, 10} // Ethereum, BSC, Optimism
-builder := builder.New(chains)
+
+// Without skipping any tokens
+builder := builder.New(chains, nil)
+
+// Skip specific tokens (e.g., invalid Optimism ETH token)
+skippedKeys := []string{
+    "10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000", // Optimism ETH with no value
+}
+builder := builder.New(chains, skippedKeys)
 
 // Builder starts empty and builds up
 ```
@@ -131,7 +142,7 @@ if err != nil {
 
 #### `AddTokenList(tokenListID string, tokenList *types.TokenList)`
 
-Adds a parsed token list to the builder.
+Adds a parsed token list to the builder. Tokens with keys in the `skippedTokenKeys` list (provided during construction) will be automatically excluded from the token collection, but the token list itself will still be stored.
 
 **Parameters:**
 - `tokenListID`: Unique identifier for the token list
@@ -146,7 +157,7 @@ tokenList := &types.TokenList{
     },
 }
 
-builder.AddTokenList("uniswap", tokenList)
+builder.AddTokenList("uniswap", tokenList) // Tokens matching skippedTokenKeys are filtered out automatically
 ```
 
 #### `AddRawTokenList(tokenListID string, raw []byte, sourceURL string, fetchedAt time.Time, parser parsers.TokenListParser) error`
@@ -198,6 +209,37 @@ builder.AddTokenList("list3", &types.TokenList{Tokens: []*types.Token{token3, to
 
 // Result: 2 unique tokens (token1 on chain 1, token4 on chain 56)
 ```
+
+## Token Filtering
+
+The builder supports filtering out specific tokens by their keys. This is useful for excluding invalid or unwanted tokens (e.g., tokens with no value or deprecated tokens).
+
+**Token Key Format:**
+Token keys follow the format: `"{chainID}-{lowercaseAddress}"`
+
+**Example:**
+```go
+// Skip Optimism ETH token that has no value
+skippedKeys := []string{
+    "10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000", // Optimism ETH
+}
+
+builder := builder.New([]uint64{10}, skippedKeys)
+
+// Add a token list containing the skipped token
+tokenList := &types.TokenList{
+    Tokens: []*types.Token{
+        {ChainID: 10, Address: common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000")},
+        {ChainID: 10, Address: common.HexToAddress("0x4200000000000000000000000000000000000006")},
+    },
+}
+
+builder.AddTokenList("test-list", tokenList)
+
+tokens := builder.GetTokens() // tokens will only contain the second token (0x4200...), the skipped token (0xdead...) is excluded
+```
+
+**Note:** Token lists are still stored in the builder even if all their tokens are filtered out. Only the tokens themselves are excluded from the unified token collection.
 
 ## Thread Safety
 

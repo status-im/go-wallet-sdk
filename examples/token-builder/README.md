@@ -141,7 +141,7 @@ import "github.com/status-im/go-wallet-sdk/pkg/tokens/builder"
 
 // Create builder for specific chains
 supportedChains := []uint64{1, 56, 10, 137} // Ethereum, BSC, Optimism, Polygon
-tokenBuilder := builder.New(supportedChains)
+tokenBuilder := builder.New(supportedChains, nil) // nil = no tokens to skip
 
 // Start empty - Builder pattern
 fmt.Printf("Initial: %d tokens\n", len(tokenBuilder.GetTokens())) // 0
@@ -165,7 +165,7 @@ fmt.Printf("Final: %d tokens\n", len(tokenBuilder.GetTokens()))
 ### Incremental Building
 
 ```go
-tokenBuilder := builder.New(supportedChains)
+tokenBuilder := builder.New(supportedChains, nil)
 
 // Build step by step
 tokenBuilder.AddNativeTokenList()
@@ -187,7 +187,7 @@ lists := tokenBuilder.GetTokenLists()
 ```go
 import "github.com/status-im/go-wallet-sdk/pkg/tokens/parsers"
 
-tokenBuilder := builder.New(supportedChains)
+tokenBuilder := builder.New(supportedChains, nil)
 
 // Process raw JSON with appropriate parser
 rawJSON := []byte(`{
@@ -213,7 +213,7 @@ if err != nil {
 ### Automatic Deduplication
 
 ```go
-tokenBuilder := builder.New([]uint64{1}) // Ethereum only
+tokenBuilder := builder.New([]uint64{1}, nil) // Ethereum only
 
 // Create overlapping lists
 list1 := &types.TokenList{
@@ -288,6 +288,37 @@ key := fmt.Sprintf("%d-%s", token.ChainID, token.Address.Hex())
 - Chain ID: 1, Address: 0x123... (Ethereum USDC)
 - Chain ID: 56, Address: 0x456... (BSC USDC)
 
+### Token Filtering
+
+The builder supports filtering out specific tokens by their keys. This is useful for excluding invalid or unwanted tokens (e.g., tokens with no value or deprecated tokens).
+
+**Token Key Format:**
+Token keys follow the format: `"{chainID}-{lowercaseAddress}"`
+
+```go
+// Skip specific tokens (e.g., Optimism ETH with no value)
+skippedKeys := []string{
+    "10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000", // Optimism ETH
+}
+
+builder := builder.New([]uint64{10}, skippedKeys)
+
+// Add a token list containing the skipped token
+tokenList := &types.TokenList{
+    Tokens: []*types.Token{
+        {ChainID: 10, Address: common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000")},
+        {ChainID: 10, Address: common.HexToAddress("0x4200000000000000000000000000000000000006")},
+    },
+}
+
+builder.AddTokenList("test-list", tokenList)
+
+tokens := builder.GetTokens()
+// tokens will only contain the second token (0x4200...), the skipped token (0xdead...) is excluded
+```
+
+**Note:** Token lists are still stored in the builder even if all their tokens are filtered out. Only the tokens themselves are excluded from the unified token collection.
+
 ### Native Token Support
 
 Native tokens are automatically generated for supported chains:
@@ -335,7 +366,7 @@ func buildTokenCollection(includeTestnets bool) *builder.Builder {
         chains = append(chains, 11155111, 97) // Sepolia, BSC Testnet
     }
 
-    builder := builder.New(chains)
+    builder := builder.New(chains, nil)
     builder.AddNativeTokenList()
 
     return builder
@@ -346,7 +377,7 @@ func buildTokenCollection(includeTestnets bool) *builder.Builder {
 
 ```go
 func buildWithErrorTolerance(rawLists map[string][]byte) (*builder.Builder, []error) {
-    builder := builder.New(supportedChains)
+    builder := builder.New(supportedChains, nil)
     builder.AddNativeTokenList()
 
     var errors []error
@@ -390,12 +421,12 @@ func (f *BuilderFactory) CreateBuilder(profile string) *builder.Builder {
     case "trading":
         return f.createTradingBuilder()
     default:
-        return builder.New(f.defaultChains)
+        return builder.New(f.defaultChains, nil)
     }
 }
 
 func (f *BuilderFactory) createDefiBuilder() *builder.Builder {
-    builder := builder.New(f.defaultChains)
+    builder := builder.New(f.defaultChains, nil)
     builder.AddNativeTokenList()
     // Add DeFi-specific token lists
     return builder
@@ -447,7 +478,7 @@ func safeAddRawTokenList(builder *builder.Builder, listID string, data []byte, p
 
 ```go
 // Build token collection then create manager
-builder := builder.New(supportedChains)
+builder := builder.New(supportedChains, nil)
 builder.AddNativeTokenList()
 builder.AddTokenList("uniswap", uniswapList)
 
@@ -469,7 +500,7 @@ config := &manager.Config{
 ### 1. **Start with Native Tokens**
 ```go
 // Always add native tokens first for completeness
-builder := builder.New(chains)
+builder := builder.New(chains, nil)
 builder.AddNativeTokenList() // ETH, BNB, etc.
 ```
 
@@ -495,7 +526,7 @@ allChains := append(mainnetChains, testnetChains...) // Development
 ### 4. **Monitor Builder State**
 ```go
 // Track building progress
-builder := builder.New(chains)
+builder := builder.New(chains, nil)
 fmt.Printf("Initial: %d tokens\n", len(builder.GetTokens()))
 
 builder.AddNativeTokenList()
