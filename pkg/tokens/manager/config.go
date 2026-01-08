@@ -24,6 +24,12 @@ type Config struct {
 	CustomParsers map[string]parsers.TokenListParser // key: list ID, value: parser, is no match for the list ID, the StandardTokenList parser will be used
 
 	Chains []uint64
+
+	// SkippedTokenKeys is a list of token keys (format: "{chainID}-{lowercaseAddress}") that should be excluded from the
+	// manager's *unique token collection* (e.g. UniqueTokens / GetTokenByChainAddress / GetTokensByChain / GetTokensByKeys).
+	//
+	// Note: this does NOT modify token lists themselves; `TokenList` / `TokenLists` still return the original lists as loaded.
+	SkippedTokenKeys []string
 }
 
 func (c *Config) Validate() error {

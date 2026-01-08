@@ -53,6 +53,9 @@ type manager struct {
 	customParsers map[string]parsers.TokenListParser
 
 	chains []uint64
+	// skippedTokenKeys are applied when building the manager's unique token collection (see builder.Builder.GetTokens()).
+	// They do NOT alter token lists returned by TokenList / TokenLists (those return the original lists as loaded).
+	skippedTokenKeys []string
 
 	started         bool
 	refreshCancelFn context.CancelFunc
@@ -72,10 +75,11 @@ func New(config *Config,
 	}
 
 	manager := &manager{
-		mainListID:    config.MainListID,
-		initialLists:  config.InitialLists,
-		customParsers: config.CustomParsers,
-		chains:        config.Chains,
+		mainListID:       config.MainListID,
+		initialLists:     config.InitialLists,
+		customParsers:    config.CustomParsers,
+		chains:           config.Chains,
+		skippedTokenKeys: config.SkippedTokenKeys,
 
 		contentStore:     contentStore,
 		customTokenStore: customTokenStore,
@@ -344,6 +348,9 @@ func (m *manager) GetTokensByKeys(keys []string) ([]*types.Token, error) {
 }
 
 // TokenList returns a token list by ID.
+//
+// Note: token lists are returned as loaded (unfiltered). `SkippedTokenKeys` only affects the manager's unique token
+// collection APIs (e.g. UniqueTokens / GetTokenByChainAddress / GetTokensByChain / GetTokensByKeys).
 func (m *manager) TokenList(id string) (*types.TokenList, bool) {
 	m.builderMu.RLock()
 	defer m.builderMu.RUnlock()
@@ -356,6 +363,9 @@ func (m *manager) TokenList(id string) (*types.TokenList, bool) {
 }
 
 // TokenLists returns all token lists.
+//
+// Note: token lists are returned as loaded (unfiltered). `SkippedTokenKeys` only affects the manager's unique token
+// collection APIs (e.g. UniqueTokens / GetTokenByChainAddress / GetTokensByChain / GetTokensByKeys).
 func (m *manager) TokenLists() []*types.TokenList {
 	m.builderMu.RLock()
 	defer m.builderMu.RUnlock()
@@ -371,7 +381,7 @@ func (m *manager) TokenLists() []*types.TokenList {
 }
 
 func (m *manager) buildState() error {
-	builder := builder.New(m.chains)
+	builder := builder.New(m.chains, m.skippedTokenKeys)
 
 	// 1. native token list
 	if err := builder.AddNativeTokenList(); err != nil {

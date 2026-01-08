@@ -45,12 +45,17 @@ func main() {
 	fmt.Println("============================")
 	demonstrateAdvancedPatterns(supportedChains)
 
+	// Example 6: Builder with skipped tokens
+	fmt.Println("\n🔄 Builder with skipped tokens")
+	fmt.Println("============================")
+	demonstrateBuilderWithSkippedTokens(supportedChains)
+
 	fmt.Println("\n✅ Token Builder examples completed!")
 }
 
 func demonstrateBasicBuilder(supportedChains []uint64) {
 	// Create new builder starting empty
-	tokenBuilder := builder.New(supportedChains)
+	tokenBuilder := builder.New(supportedChains, nil)
 
 	fmt.Printf("🏗️  Created builder for %d chains\n", len(supportedChains))
 	fmt.Printf("📊 Initial state: %d tokens, %d lists\n",
@@ -80,7 +85,7 @@ func demonstrateBasicBuilder(supportedChains []uint64) {
 
 func demonstrateIncrementalBuilding(supportedChains []uint64) {
 	// Start with empty builder
-	tokenBuilder := builder.New(supportedChains)
+	tokenBuilder := builder.New(supportedChains, nil)
 
 	fmt.Println("🏗️  Building token collection incrementally...")
 
@@ -123,7 +128,7 @@ func demonstrateIncrementalBuilding(supportedChains []uint64) {
 }
 
 func demonstrateRawTokenListProcessing(supportedChains []uint64) {
-	tokenBuilder := builder.New(supportedChains)
+	tokenBuilder := builder.New(supportedChains, nil)
 
 	// Add native tokens first
 	err := tokenBuilder.AddNativeTokenList()
@@ -229,7 +234,7 @@ func demonstrateRawTokenListProcessing(supportedChains []uint64) {
 }
 
 func demonstrateDeduplication(supportedChains []uint64) {
-	tokenBuilder := builder.New(supportedChains)
+	tokenBuilder := builder.New(supportedChains, nil)
 
 	// Add native tokens
 	err := tokenBuilder.AddNativeTokenList()
@@ -339,7 +344,7 @@ func demonstrateAdvancedPatterns(supportedChains []uint64) {
 
 	// Pattern 1: Builder with validation
 	fmt.Println("\n1️⃣ Builder with validation:")
-	validationBuilder := builder.New(supportedChains)
+	validationBuilder := builder.New(supportedChains, nil)
 	err := validationBuilder.AddNativeTokenList()
 	if err != nil {
 		log.Printf("❌ Validation failed: %v", err)
@@ -349,7 +354,7 @@ func demonstrateAdvancedPatterns(supportedChains []uint64) {
 
 	// Pattern 2: Conditional building
 	fmt.Println("\n2️⃣ Conditional building based on chain support:")
-	conditionalBuilder := builder.New([]uint64{1}) // Only Ethereum
+	conditionalBuilder := builder.New([]uint64{1}, nil) // Only Ethereum
 
 	// This will only include Ethereum native token
 	err = conditionalBuilder.AddNativeTokenList()
@@ -361,7 +366,7 @@ func demonstrateAdvancedPatterns(supportedChains []uint64) {
 
 	// Pattern 3: Builder state inspection
 	fmt.Println("\n3️⃣ Builder state inspection:")
-	inspectionBuilder := builder.New(supportedChains)
+	inspectionBuilder := builder.New(supportedChains, nil)
 	inspectionBuilder.AddNativeTokenList()
 
 	lists := inspectionBuilder.GetTokenLists()
@@ -535,7 +540,7 @@ func estimateTokenMemoryUsage(tokens map[string]*types.Token) int {
 func demonstrateErrorHandling() {
 	fmt.Println("   🛠️  Error handling examples:")
 
-	builder := builder.New([]uint64{1})
+	builder := builder.New([]uint64{1}, nil)
 
 	// Test 1: Empty raw data
 	fmt.Println("      📝 Testing empty raw data...")
@@ -560,4 +565,51 @@ func demonstrateErrorHandling() {
 	}
 
 	fmt.Println("      🎯 Error handling validation complete!")
+}
+
+func demonstrateBuilderWithSkippedTokens(supportedChains []uint64) {
+	skippedTokenKeys := []string{"10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"}
+	builder := builder.New(supportedChains, skippedTokenKeys)
+
+	tokenList := &types.TokenList{
+		Name: "Skipped Tokens List",
+		Tokens: []*types.Token{
+			{
+				CrossChainID: "sample-token-1",
+				ChainID:      10,
+				Address:      gethcommon.HexToAddress("0x4200000000000000000000000000000000000006"),
+				Symbol:       "SAMPLE1",
+				Name:         "Sample Token 1",
+				Decimals:     18,
+			},
+			{
+				CrossChainID: "sample-token-2",
+				ChainID:      10,
+				Address:      gethcommon.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"),
+				Symbol:       "SAMPLE2",
+				Name:         "Sample Token 2",
+				Decimals:     18,
+			},
+		},
+	}
+
+	fmt.Println("📊 Tokens to skip:")
+	for _, key := range skippedTokenKeys {
+		fmt.Printf("   • %s\n", key)
+	}
+
+	fmt.Println("📊 Adding token list to builder...")
+	for _, token := range tokenList.Tokens {
+		fmt.Printf("   • %s: %s\n", token.Key(), token.Address.Hex())
+	}
+
+	builder.AddTokenList("skipped-tokens", tokenList)
+
+	tokens := builder.GetTokens()
+	fmt.Println("📊 Tokens from builder:")
+	for key, token := range tokens {
+		fmt.Printf("   • %s: %s\n", key, token.Address.Hex())
+	}
+
+	fmt.Println("✅ Builder with skipped tokens complete!")
 }
