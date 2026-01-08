@@ -11,9 +11,10 @@ Quick navigation:
     - `pkg/balance/fetcher/README.md`
     - `pkg/balance/multistandardfetcher/README.md`
     - `pkg/multicall/README.md`
-    - `pkg/gas/README.md`
-    - `pkg/eventfilter/README.md`
-    - `pkg/eventlog/README.md`
+- `pkg/gas/README.md`
+- `pkg/txgenerator/README.md`
+- `pkg/eventfilter/README.md`
+- `pkg/eventlog/README.md`
     - `pkg/accounts/extkeystore/README.md`
     - `pkg/accounts/mnemonic/README.md`
     - `pkg/tokens/types/README.md`
@@ -36,6 +37,7 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/multicall`       | Efficient batching of multiple Ethereum contract calls into single transactions using Multicall3. Supports native ETH, ERC20, ERC721, and ERC1155 balance queries with chunked processing, error handling, and both synchronous and asynchronous execution modes. |
 | `pkg/ethclient`       | Chain‑agnostic Ethereum JSON‑RPC client.  It provides two method sets: a drop‑in replacement compatible with go‑ethereum's `ethclient` and a custom implementation that follows the Ethereum JSON‑RPC specification without assuming chain‑specific types. It supports JSON‑RPC methods covering `eth_`, `net_` and `web3_` namespace |
 | `pkg/gas`             | Comprehensive gas estimation and fee suggestion package for Ethereum and L2 networks. Provides smart fee estimation with priority fees, base fees, max fees, and inclusion time estimates. Supports multiple chain classes including L1 (Ethereum, Polygon, BSC), Arbitrum Stack, Optimism Stack, and Linea Stack with chain-specific optimizations. |
+| `pkg/txgenerator`     | Transaction generation package for creating unsigned Ethereum transactions. Supports ETH transfers, ERC20 transfers and approvals, ERC721 transfers (transferFrom and safeTransferFrom), approvals, and operator management, as well as ERC1155 single and batch transfers and operator management. Automatically detects transaction type (legacy or EIP-1559) based on provided gas parameters. |
 | `pkg/eventfilter`     | Efficient filtering for Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls while capturing all relevant transfers involving specified addresses with optimized query generation and direction-based filtering. |
 | `pkg/eventlog`        | Ethereum event log parser for ERC20, ERC721, and ERC1155 events. Automatically detects and parses token events with type-safe access to event data, supporting Transfer, Approval, and other standard token events. |
 | `pkg/common`          | Shared types and constants. Such as canonical chain IDs (e.g., Ethereum Mainnet, Optimism, Arbitrum, BSC, Base). Developers use these values when configuring the SDK or examples.                               |
@@ -43,8 +45,8 @@ Go Wallet SDK is a modular Go library intended to support the development of m
 | `pkg/accounts/extkeystore` | Extended keystore for Ethereum accounts with BIP32 hierarchical deterministic (HD) wallet support. Stores BIP32 extended keys instead of just private keys, enabling derivation of child accounts from parent keys. Provides encrypted storage following Web3 Secret Storage specification, account management (create, unlock, lock, sign, delete), and import/export functionality for both extended keys and standard private keys. |
 | `pkg/accounts/mnemonic` | Utilities for generating BIP39 mnemonic phrases and creating extended keys from them. Provides functions to create random mnemonics (12, 15, 18, 21, or 24 words) and derive BIP32 extended keys from existing phrases with optional BIP39 passphrase support. |
 | `pkg/ens`             | Ethereum Name Service (ENS) resolution package. Supports forward resolution (ENS name to Ethereum address) and reverse resolution (Ethereum address to ENS name). Uses go-ens/v3 library internally. Provides `IsSupportedChain()` to check if ENS is available on Mainnet, Sepolia, or Holesky. |
-| `clib/`               | C library bindings (shared and static) that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, retrieving account balances, and fetching multi-standard token balances (Native ETH, ERC20, ERC721, ERC1155). The package can be compiled as a shared library (.so/.dylib) or static library (.a) with a generated C header file. |
-| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing), `c-app` (a C application example demonstrating how to use the shared library from C code), and `ens-resolver-example` (a CLI tool for ENS forward and reverse resolution). |
+| `clib/`               | C library bindings (shared and static) that expose core SDK functionality to non-Go applications. Provides C-compatible functions for Ethereum client operations including creating clients, fetching chain IDs, retrieving account balances, fetching multi-standard token balances (Native ETH, ERC20, ERC721, ERC1155), and generating unsigned transactions for ETH, ERC20, ERC721, and ERC1155 operations. The package can be compiled as a shared library (.so/.dylib) or static library (.a) with a generated C header file. |
+| `examples/`           | Demonstrations of SDK usage.  Includes `balance-fetcher-web` (a web interface for batch balance fetching), `ethclient‑usage` (an example that exercises the Ethereum client across multiple RPC endpoints), `multiclient3-usage` (demonstrates multicall functionality), `multistandardfetcher-example` (shows multi-standard balance fetching across all token types), `eventfilter-example` (shows event filtering and parsing capabilities), `gas-comparison` (compares gas estimation implementations across multiple networks), `txgenerator-example` (a web interface for generating unsigned Ethereum transactions for ETH, ERC20, ERC721, and ERC1155 operations), `accounts` (an interactive web interface for testing extkeystore and standard keystore functionality including mnemonic generation, account creation, derivation, import/export, and signing), `c-app` (a C application example demonstrating how to use the shared library from C code), and `ens-resolver-example` (a CLI tool for ENS forward and reverse resolution). |
 
 ## 2. Architecture
 
@@ -55,6 +57,7 @@ Go Wallet SDK follows a modular architecture where each package encapsulates a s
 - **Multicall** – Efficiently batches multiple Ethereum contract calls into single transactions using Multicall3. Supports native ETH, ERC20, ERC721, and ERC1155 balance queries with automatic chunking, error handling, and both synchronous and asynchronous execution modes. Provides call builders and result processors for different token types.
 - **Ethereum Client** – Exposes the full Ethereum JSON‑RPC API. It wraps a standard RPC client and offers two sets of methods: chain‑agnostic versions prefixed with `Eth*` and a drop‑in `BalanceAt`, `BlockNumber` etc. that mirror go‑ethereum's ethclient. The client covers methods including network info, block and transaction queries, account state, contract code and gas estimation
 - **Gas Estimation** – Provides comprehensive gas fee estimation and suggestions for Ethereum and L2 networks. Analyzes historical fee data to suggest optimal priority fees, base fees, and max fees for three priority levels (low, medium, high). Estimates transaction inclusion time based on network congestion and chain parameters. Supports multiple chain classes with specific optimizations for L1, Arbitrum Stack, Optimism Stack, and Linea Stack.
+- **Transaction Generator** – Provides utilities for generating unsigned Ethereum transactions for ETH transfers, ERC20 operations (transfers and approvals), ERC721 operations (transfers, approvals, operator management), and ERC1155 operations (single and batch transfers, operator management). Automatically detects transaction type (legacy or EIP-1559) based on provided gas parameters and returns unsigned `types.Transaction` objects ready for signing.
 - **Event Filter** – Efficiently filters Ethereum transfer events across ERC20, ERC721, and ERC1155 tokens. Minimizes `eth_getLogs` API calls through optimized query generation and supports direction-based filtering (send, receive, or both). Uses intelligent query merging to reduce the number of RPC calls required.
 - **Event Log Parser** – Automatically detects and parses Ethereum event logs for ERC20, ERC721, and ERC1155 tokens. Provides type-safe access to event data with support for Transfer, Approval, and other standard token events. Works seamlessly with the Event Filter package.
 - **Extended Keystore** – An enhanced keystore that stores BIP32 extended keys instead of just private keys, enabling hierarchical deterministic (HD) wallet functionality. Supports derivation of child accounts from parent keys using BIP44 derivation paths, encrypted storage following Web3 Secret Storage specification, and full account lifecycle management (create, unlock, lock, sign, delete). Can import/export both extended keys and standard private keys, making it compatible with existing keystore implementations.
@@ -255,6 +258,17 @@ The `pkg/ens` package provides Ethereum Name Service resolution capabilities:
 - **Chain Support Detection** – The `IsSupportedChain()` function checks if the given chain ID is one of the supported ENS chains: Ethereum Mainnet (1), Sepolia (11155111), or Holesky (17000).
 - **Minimal Validation** – Performs basic structural validation on ENS names (must contain a dot, cannot start/end with a dot) while delegating full validation to the go-ens library for ENSIP-15 compliance including unicode support.
 - **Thin Wrapper** – Designed as a lightweight wrapper around go-ens/v3, passing through errors directly without additional wrapping to maintain transparency.
+
+### 2.19 Transaction Generator Design
+
+The `pkg/txgenerator` package provides utilities for generating unsigned Ethereum transactions:
+
+- **Multi-Token Standard Support** – Supports generating transactions for native ETH transfers, ERC20 operations (transfers and approvals), ERC721 operations (transfers via transferFrom and safeTransferFrom, approvals, and operator management), and ERC1155 operations (single and batch transfers, operator management).
+- **Automatic Transaction Type Detection** – Automatically determines whether to create a legacy (type 0) or EIP-1559 (type 2) transaction based on the provided gas parameters. If `GasPrice` is provided, creates a legacy transaction. If `MaxFeePerGas` or `MaxPriorityFeePerGas` is provided, creates an EIP-1559 transaction.
+- **Parameter Validation** – Comprehensive validation of all transaction parameters including address validation (non-zero addresses), amount validation (non-negative values), and chain ID requirements. Returns specific errors for common issues such as missing gas parameters or invalid addresses.
+- **Contract ABI Integration** – Uses contract bindings from `pkg/contracts` to properly encode function calls for ERC20, ERC721, and ERC1155 operations, ensuring compatibility with standard token interfaces.
+- **Unsigned Transactions** – All generated transactions are unsigned and ready for signing using keystore or extkeystore modules. Returns standard `types.Transaction` objects that can be serialized, signed, and broadcast to the network.
+- **Chain Agnostic** – Works with any EVM-compatible chain by accepting chain ID as a parameter. Does not make assumptions about chain-specific transaction formats beyond legacy vs EIP-1559 distinction.
 
 ## 3. API Description
 
@@ -1147,6 +1161,123 @@ The ENS package provides Ethereum Name Service resolution.
 |----------|-------|-------------|
 | `ENSRegistryAddress` | `0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e` | ENS registry contract address (same on all supported chains) |
 
+### 3.15 Transaction Generator API (`pkg/txgenerator`)
+
+The transaction generator package provides functions for creating unsigned Ethereum transactions for various token operations.
+
+#### 3.15.1 Core Functions
+
+| Function | Purpose | Parameters | Returns |
+|----------|---------|------------|---------|
+| `TransferETH(params)` | Generate ETH transfer transaction | `params`: `TransferETHParams` | `*types.Transaction`, `error` |
+| `TransferERC20(params)` | Generate ERC20 token transfer transaction | `params`: `TransferERC20Params` | `*types.Transaction`, `error` |
+| `ApproveERC20(params)` | Generate ERC20 approval transaction | `params`: `ApproveERC20Params` | `*types.Transaction`, `error` |
+| `TransferFromERC721(params)` | Generate ERC721 transferFrom transaction | `params`: `TransferERC721Params` | `*types.Transaction`, `error` |
+| `SafeTransferFromERC721(params)` | Generate ERC721 safeTransferFrom transaction | `params`: `TransferERC721Params` | `*types.Transaction`, `error` |
+| `ApproveERC721(params)` | Generate ERC721 approval transaction | `params`: `ApproveERC721Params` | `*types.Transaction`, `error` |
+| `SetApprovalForAllERC721(params)` | Generate ERC721 setApprovalForAll transaction | `params`: `SetApprovalForAllERC721Params` | `*types.Transaction`, `error` |
+| `TransferERC1155(params)` | Generate ERC1155 single token transfer transaction | `params`: `TransferERC1155Params` | `*types.Transaction`, `error` |
+| `BatchTransferERC1155(params)` | Generate ERC1155 batch transfer transaction | `params`: `BatchTransferERC1155Params` | `*types.Transaction`, `error` |
+| `SetApprovalForAllERC1155(params)` | Generate ERC1155 setApprovalForAll transaction | `params`: `SetApprovalForAllERC1155Params` | `*types.Transaction`, `error` |
+
+#### 3.15.2 Parameter Types
+
+```go
+type BaseTxParams struct {
+    Nonce                uint64
+    GasLimit             uint64
+    ChainID              *big.Int
+    GasPrice             *big.Int  // For legacy transactions
+    MaxFeePerGas         *big.Int  // For EIP-1559 transactions
+    MaxPriorityFeePerGas *big.Int  // For EIP-1559 transactions
+}
+
+type TransferETHParams struct {
+    BaseTxParams
+    To    common.Address
+    Value *big.Int
+}
+
+type TransferERC20Params struct {
+    BaseTxParams
+    TokenAddress common.Address
+    To           common.Address
+    Amount       *big.Int
+}
+
+type ApproveERC20Params struct {
+    BaseTxParams
+    TokenAddress common.Address
+    Spender      common.Address
+    Amount       *big.Int
+}
+
+type TransferERC721Params struct {
+    BaseTxParams
+    TokenAddress common.Address
+    From         common.Address
+    To           common.Address
+    TokenID      *big.Int
+}
+
+type ApproveERC721Params struct {
+    BaseTxParams
+    TokenAddress common.Address
+    To           common.Address
+    TokenID      *big.Int
+}
+
+type SetApprovalForAllERC721Params struct {
+    BaseTxParams
+    TokenAddress common.Address
+    Operator     common.Address
+    Approved     bool
+}
+
+type TransferERC1155Params struct {
+    BaseTxParams
+    TokenAddress common.Address
+    From         common.Address
+    To           common.Address
+    TokenID      *big.Int
+    Value        *big.Int
+}
+
+type BatchTransferERC1155Params struct {
+    BaseTxParams
+    TokenAddress common.Address
+    From         common.Address
+    To           common.Address
+    TokenIDs     []*big.Int
+    Values       []*big.Int
+}
+
+type SetApprovalForAllERC1155Params struct {
+    BaseTxParams
+    TokenAddress common.Address
+    Operator     common.Address
+    Approved     bool
+}
+```
+
+#### 3.15.3 Transaction Type Detection
+
+The transaction type is automatically determined based on the provided parameters:
+
+- **Legacy (type 0)**: If `GasPrice` is provided in `BaseTxParams`
+- **EIP-1559 (type 2)**: If `MaxFeePerGas` or `MaxPriorityFeePerGas` is provided in `BaseTxParams`
+
+For EIP-1559 transactions, both `MaxFeePerGas` and `MaxPriorityFeePerGas` must be provided.
+
+#### 3.15.4 Error Types
+
+| Error | Description |
+|-------|-------------|
+| `ErrInvalidParams` | Invalid transaction parameters (e.g., zero address, negative amount) |
+| `ErrMissingGasPrice` | GasPrice required for legacy transactions |
+| `ErrMissingMaxFeePerGas` | MaxFeePerGas required for EIP-1559 transactions |
+| `ErrMissingMaxPriorityFeePerGas` | MaxPriorityFeePerGas required for EIP-1559 transactions |
+
 ## 4. Example Applications
 
 ### 4.1 Multicall Usage Example
@@ -1399,6 +1530,16 @@ The `examples/token-parser` folder demonstrates parsing different token list for
 - **Performance** – Includes performance characteristics comparison between parsers, memory usage patterns, and processing speed benchmarks for different formats.
 - **Integration** – Shows integration with token manager and token fetcher, batch processing patterns, and parser selection strategies for different data sources.
 
+### 4.13 Transaction Generator Example
+
+The `examples/txgenerator-example` folder demonstrates a web-based interface for generating unsigned Ethereum transactions:
+
+- **Features** – The web UI allows users to select transaction types (ETH transfers, ERC20, ERC721, ERC1155 operations), choose fee types (Legacy or EIP-1559), fill in transaction parameters, and generate unsigned transactions in JSON format. Supports all major token standards with comprehensive parameter validation.
+- **Usage** – Running `go run .` in the example directory starts an HTTP server on `localhost:8080`. Users can select transaction types from a dropdown, configure gas parameters, fill in transaction-specific fields, and click "Generate Transaction" to receive the unsigned transaction as JSON.
+- **Project Structure** – The example is organized into `main.go` (entry point and server setup), `handlers.go` (transaction generation logic), and `templates.go` (HTML templates and frontend JavaScript).
+- **Transaction Types** – Supports native ETH transfers, ERC20 transfers and approvals, ERC721 transfers (transferFrom and safeTransferFrom), approvals, and operator management, as well as ERC1155 single and batch transfers and operator management.
+- **Response Format** – Generated transactions are returned as JSON with all standard transaction fields including type, nonce, gas parameters, to, value, data, chainID, and signature fields (v, r, s) set to zero for unsigned transactions.
+
 ## 5. Testing & Development
 
 ### 5.1 Fetching  SDK
@@ -1539,6 +1680,18 @@ Note: ERC1155 collectibles use the format `"contractAddress:tokenID"` where toke
 - `char* GoWSK_accounts_extkeystore_Derive(uintptr_t handle, char* address, char* pathStr, char* pin, char** errOut)` - Derives a child account from a parent account and optionally pins it to the keystore. The `pin` parameter determines if the derived account should be saved (non-NULL) or ephemeral (NULL). Returns a JSON object with `address` and `url` fields. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
 - `char* GoWSK_accounts_extkeystore_DeriveWithPassphrase(uintptr_t handle, char* address, char* passphrase, char* pathStr, char* pin, char** errOut)` - Derives a child account using a passphrase. Returns a JSON object with `address` and `url` fields. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
 - `char* GoWSK_accounts_extkeystore_Find(uintptr_t handle, char* address, char* url, char** errOut)` - Finds an account by address and URL. Returns a JSON object with `address` and `url` fields, or NULL if not found. The returned string must be freed with `GoWSK_FreeCString`.
+
+**Transaction Generator:**
+- `char* GoWSK_txgenerator_TransferETH(char* paramsJSON, char** errOut)` - Generates an unsigned ETH transfer transaction. The `paramsJSON` should be a JSON string with transaction parameters (nonce, gasLimit, chainID, gasPrice or maxFeePerGas/maxPriorityFeePerGas, to, value). Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_TransferERC20(char* paramsJSON, char** errOut)` - Generates an unsigned ERC20 token transfer transaction. The `paramsJSON` should include tokenAddress, to, and amount fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_ApproveERC20(char* paramsJSON, char** errOut)` - Generates an unsigned ERC20 approval transaction. The `paramsJSON` should include tokenAddress, spender, and amount fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_TransferFromERC721(char* paramsJSON, char** errOut)` - Generates an unsigned ERC721 transferFrom transaction. The `paramsJSON` should include tokenAddress, from, to, and tokenID fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_SafeTransferFromERC721(char* paramsJSON, char** errOut)` - Generates an unsigned ERC721 safeTransferFrom transaction. The `paramsJSON` should include tokenAddress, from, to, and tokenID fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_ApproveERC721(char* paramsJSON, char** errOut)` - Generates an unsigned ERC721 approval transaction. The `paramsJSON` should include tokenAddress, to, and tokenID fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_SetApprovalForAllERC721(char* paramsJSON, char** errOut)` - Generates an unsigned ERC721 setApprovalForAll transaction. The `paramsJSON` should include tokenAddress, operator, and approved fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_TransferERC1155(char* paramsJSON, char** errOut)` - Generates an unsigned ERC1155 single token transfer transaction. The `paramsJSON` should include tokenAddress, from, to, tokenID, and value fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_BatchTransferERC1155(char* paramsJSON, char** errOut)` - Generates an unsigned ERC1155 batch transfer transaction. The `paramsJSON` should include tokenAddress, from, to, tokenIDs (array), and values (array) fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
+- `char* GoWSK_txgenerator_SetApprovalForAllERC1155(char* paramsJSON, char** errOut)` - Generates an unsigned ERC1155 setApprovalForAll transaction. The `paramsJSON` should include tokenAddress, operator, and approved fields. Returns the transaction as a JSON string. Returns NULL on error. The returned string must be freed with `GoWSK_FreeCString`.
 
 **Standard Keystore:**
 - `uintptr_t GoWSK_accounts_keystore_NewKeyStore(char* keydir, int scryptN, int scryptP, char** errOut)` - Creates a new standard keystore instance (go-ethereum compatible). Returns a handle on success, or 0 on error.
