@@ -8,10 +8,16 @@ import (
 )
 
 var (
-	ErrMainListIDNotProvided = errors.New("main list ID is not provided")
-	ErrMainListNotProvided   = errors.New("main list is not provided")
-	ErrChainsNotProvided     = errors.New("chains are not provided")
+	ErrMainListIDNotProvided          = errors.New("main list ID is not provided")
+	ErrMainListNotProvided            = errors.New("main list is not provided")
+	ErrInitialListIDsNotProvided      = errors.New("initial list IDs are not provided")
+	ErrInitialListProviderNotProvided = errors.New("initial list provider is not provided")
+	ErrChainsNotProvided              = errors.New("chains are not provided")
 )
+
+// InitialListProvider provides the raw bytes for an initial token list by its ID.
+// Implementations can load from disk, embedded assets, a database, etc.
+type InitialListProvider func(id string) ([]byte, error)
 
 // Config holds the configuration for manager.
 type Config struct {
@@ -20,8 +26,9 @@ type Config struct {
 	MainListID string // used to select the main list from the initial lists and process it first
 
 	// initial lists are processed in alphabetical order of their IDs after the main list is processed
-	InitialLists  map[string][]byte                  // key: list ID, value: list data
-	CustomParsers map[string]parsers.TokenListParser // key: list ID, value: parser, is no match for the list ID, the StandardTokenList parser will be used
+	InitialListIDs      []string                           // list of initial list IDs to process
+	InitialListProvider InitialListProvider                // provider of initial list bytes by ID
+	CustomParsers       map[string]parsers.TokenListParser // key: list ID, value: parser, is no match for the list ID, the StandardTokenList parser will be used
 
 	Chains []uint64
 
@@ -42,8 +49,23 @@ func (c *Config) Validate() error {
 	if c.MainListID == "" {
 		return ErrMainListIDNotProvided
 	}
-	_, existsInInitialLists := c.InitialLists[c.MainListID]
-	if !existsInInitialLists {
+
+	if len(c.InitialListIDs) == 0 {
+		return ErrInitialListIDsNotProvided
+	}
+
+	if c.InitialListProvider == nil {
+		return ErrInitialListProviderNotProvided
+	}
+
+	foundMain := false
+	for _, id := range c.InitialListIDs {
+		if id == c.MainListID {
+			foundMain = true
+			break
+		}
+	}
+	if !foundMain {
 		return ErrMainListNotProvided
 	}
 

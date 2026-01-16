@@ -24,12 +24,15 @@ go run main.go
 ### 1. Manager Configuration
 
 ```go
+initialLists := map[string][]byte{
+    "uniswap-default": uniswapTokenListData,
+    "compound":        compoundTokenListData,
+}
+
 config := &manager.Config{
     MainListID: "uniswap-default",
-    InitialLists: map[string][]byte{
-        "uniswap-default": uniswapTokenListData,
-        "compound":        compoundTokenListData,
-    },
+    InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+    InitialListProvider: manager.StaticInitialListProvider(initialLists),
     CustomParsers: map[string]parsers.TokenListParser{
         "status": &parsers.StatusTokenListParser{},
     },

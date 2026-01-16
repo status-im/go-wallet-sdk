@@ -17,13 +17,15 @@ import (
 
 func TestConfig_Validate(t *testing.T) {
 	t.Run("valid config", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"main-list":  []byte(`{"name": "Main List", "tokens": []}`),
+			"other-list": []byte(`{"name": "Other List", "tokens": []}`),
+		}
 		config := &manager.Config{
-			MainListID: "main-list",
-			InitialLists: map[string][]byte{
-				"main-list":  []byte(`{"name": "Main List", "tokens": []}`),
-				"other-list": []byte(`{"name": "Other List", "tokens": []}`),
-			},
-			Chains: []uint64{common.EthereumMainnet, common.BSCMainnet},
+			MainListID:          "main-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              []uint64{common.EthereumMainnet, common.BSCMainnet},
 		}
 
 		err := config.Validate()
@@ -31,11 +33,13 @@ func TestConfig_Validate(t *testing.T) {
 	})
 
 	t.Run("empty main list ID", func(t *testing.T) {
+		initialLists := map[string][]byte{"main-list": []byte(``)}
 		config := &manager.Config{
-			MainListID:    "",
-			InitialLists:  map[string][]byte{},
-			CustomParsers: map[string]parsers.TokenListParser{},
-			Chains:        []uint64{common.EthereumMainnet},
+			MainListID:          "",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			CustomParsers:       map[string]parsers.TokenListParser{},
+			Chains:              []uint64{common.EthereumMainnet},
 		}
 
 		err := config.Validate()
@@ -43,12 +47,14 @@ func TestConfig_Validate(t *testing.T) {
 	})
 
 	t.Run("main list not in initial lists", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"other-list": []byte(`{"name": "Other List", "tokens": []}`),
+		}
 		config := &manager.Config{
-			MainListID: "main-list",
-			InitialLists: map[string][]byte{
-				"other-list": []byte(`{"name": "Other List", "tokens": []}`),
-			},
-			Chains: []uint64{common.EthereumMainnet},
+			MainListID:          "main-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              []uint64{common.EthereumMainnet},
 		}
 
 		err := config.Validate()
@@ -56,12 +62,14 @@ func TestConfig_Validate(t *testing.T) {
 	})
 
 	t.Run("missing custom parser defaults to standard parser", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"main-list":  []byte(`{"name": "Main List", "tokens": []}`),
+			"other-list": []byte(`{"name": "Other List", "tokens": []}`),
+		}
 		config := &manager.Config{
-			MainListID: "main-list",
-			InitialLists: map[string][]byte{
-				"main-list":  []byte(`{"name": "Main List", "tokens": []}`),
-				"other-list": []byte(`{"name": "Other List", "tokens": []}`),
-			},
+			MainListID:          "main-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
 			CustomParsers: map[string]parsers.TokenListParser{
 				"main-list": &parsers.CoinGeckoAllTokensParser{},
 				// no custom parser for "other-list" - should default to StandardTokenListParser
@@ -74,12 +82,14 @@ func TestConfig_Validate(t *testing.T) {
 	})
 
 	t.Run("empty chains", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"main-list": []byte(`{"name": "Main List", "tokens": []}`),
+		}
 		config := &manager.Config{
-			MainListID: "main-list",
-			InitialLists: map[string][]byte{
-				"main-list": []byte(`{"name": "Main List", "tokens": []}`),
-			},
-			Chains: []uint64{}, // empty chains
+			MainListID:          "main-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              []uint64{}, // empty chains
 		}
 
 		err := config.Validate()
@@ -87,12 +97,14 @@ func TestConfig_Validate(t *testing.T) {
 	})
 
 	t.Run("nil chains", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"main-list": []byte(`{"name": "Main List", "tokens": []}`),
+		}
 		config := &manager.Config{
-			MainListID: "main-list",
-			InitialLists: map[string][]byte{
-				"main-list": []byte(`{"name": "Main List", "tokens": []}`),
-			},
-			Chains: nil, // nil chains
+			MainListID:          "main-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              nil, // nil chains
 		}
 
 		err := config.Validate()
@@ -104,13 +116,15 @@ func TestConfig_Validate(t *testing.T) {
 		defer ctrl.Finish()
 
 		mockParser := mock_parsers.NewMockListOfTokenListsParser(ctrl)
+		initialLists := map[string][]byte{
+			"main-list": []byte(`{"name": "Main List", "tokens": []}`),
+		}
 
 		config := &manager.Config{
-			MainListID: "main-list",
-			InitialLists: map[string][]byte{
-				"main-list": []byte(`{"name": "Main List", "tokens": []}`),
-			},
-			Chains: []uint64{common.EthereumMainnet, common.BSCMainnet},
+			MainListID:          "main-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              []uint64{common.EthereumMainnet, common.BSCMainnet},
 			AutoFetcherConfig: &autofetcher.ConfigRemoteListOfTokenLists{
 				Config: autofetcher.Config{
 					AutoRefreshInterval:      time.Hour,
@@ -134,13 +148,15 @@ func TestConfig_Validate(t *testing.T) {
 		defer ctrl.Finish()
 
 		mockParser := mock_parsers.NewMockListOfTokenListsParser(ctrl)
+		initialLists := map[string][]byte{
+			"main-list": []byte(`{"name": "Main List", "tokens": []}`),
+		}
 
 		config := &manager.Config{
-			MainListID: "main-list",
-			InitialLists: map[string][]byte{
-				"main-list": []byte(`{"name": "Main List", "tokens": []}`),
-			},
-			Chains: []uint64{common.EthereumMainnet},
+			MainListID:          "main-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              []uint64{common.EthereumMainnet},
 			AutoFetcherConfig: &autofetcher.ConfigRemoteListOfTokenLists{
 				Config: autofetcher.Config{
 					AutoRefreshInterval:      time.Minute,
@@ -160,14 +176,16 @@ func TestConfig_Validate(t *testing.T) {
 	})
 
 	t.Run("complex valid config", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"uniswap-default": []byte(`{"name": "Uniswap Default List", "tokens": []}`),
+			"compound":        []byte(`{"name": "Compound Token List", "tokens": []}`),
+			"aave":            []byte(`{"name": "Aave Token List", "tokens": []}`),
+			"status":          []byte(`{"name": "Status Token List", "tokens": {}}`),
+		}
 		config := &manager.Config{
-			MainListID: "uniswap-default",
-			InitialLists: map[string][]byte{
-				"uniswap-default": []byte(`{"name": "Uniswap Default List", "tokens": []}`),
-				"compound":        []byte(`{"name": "Compound Token List", "tokens": []}`),
-				"aave":            []byte(`{"name": "Aave Token List", "tokens": []}`),
-				"status":          []byte(`{"name": "Status Token List", "tokens": {}}`),
-			},
+			MainListID:          "uniswap-default",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
 			CustomParsers: map[string]parsers.TokenListParser{
 				"status": &parsers.StatusTokenListParser{},
 			},
@@ -181,12 +199,14 @@ func TestConfig_Validate(t *testing.T) {
 
 func TestConfig_ValidationEdgeCases(t *testing.T) {
 	t.Run("only main list", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"only-list": []byte(`{"name": "Only List", "tokens": []}`),
+		}
 		config := &manager.Config{
-			MainListID: "only-list",
-			InitialLists: map[string][]byte{
-				"only-list": []byte(`{"name": "Only List", "tokens": []}`),
-			},
-			Chains: []uint64{common.EthereumMainnet},
+			MainListID:          "only-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              []uint64{common.EthereumMainnet},
 		}
 
 		err := config.Validate()
@@ -194,14 +214,16 @@ func TestConfig_ValidationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("main list with different parsers", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"main-list": []byte(`{"name": "Main List", "tokens": []}`),
+			"standard":  []byte(`{"name": "Standard List", "tokens": []}`),
+			"status":    []byte(`{"name": "Status List", "tokens": {}}`),
+			"coingecko": []byte(`{"bitcoin": {"id": "bitcoin", "platforms": {}}}`),
+		}
 		config := &manager.Config{
-			MainListID: "main-list",
-			InitialLists: map[string][]byte{
-				"main-list": []byte(`{"name": "Main List", "tokens": []}`),
-				"standard":  []byte(`{"name": "Standard List", "tokens": []}`),
-				"status":    []byte(`{"name": "Status List", "tokens": {}}`),
-				"coingecko": []byte(`{"bitcoin": {"id": "bitcoin", "platforms": {}}}`),
-			},
+			MainListID:          "main-list",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
 			CustomParsers: map[string]parsers.TokenListParser{
 				"status":    &parsers.StatusTokenListParser{},
 				"coingecko": &parsers.CoinGeckoAllTokensParser{},
@@ -214,12 +236,14 @@ func TestConfig_ValidationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("single chain configuration", func(t *testing.T) {
+		initialLists := map[string][]byte{
+			"eth-only": []byte(`{"name": "Ethereum Only", "tokens": []}`),
+		}
 		config := &manager.Config{
-			MainListID: "eth-only",
-			InitialLists: map[string][]byte{
-				"eth-only": []byte(`{"name": "Ethereum Only", "tokens": []}`),
-			},
-			Chains: []uint64{common.EthereumMainnet},
+			MainListID:          "eth-only",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              []uint64{common.EthereumMainnet},
 		}
 
 		err := config.Validate()
@@ -236,12 +260,14 @@ func TestConfig_ValidationEdgeCases(t *testing.T) {
 			common.StatusNetworkSepolia,
 		}
 
+		initialLists := map[string][]byte{
+			"multi-chain": []byte(`{"name": "Multi Chain List", "tokens": []}`),
+		}
 		config := &manager.Config{
-			MainListID: "multi-chain",
-			InitialLists: map[string][]byte{
-				"multi-chain": []byte(`{"name": "Multi Chain List", "tokens": []}`),
-			},
-			Chains: manyChains,
+			MainListID:          "multi-chain",
+			InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+			InitialListProvider: manager.StaticInitialListProvider(initialLists),
+			Chains:              manyChains,
 		}
 
 		err := config.Validate()

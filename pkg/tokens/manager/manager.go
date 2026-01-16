@@ -48,9 +48,10 @@ type manager struct {
 	contentStore     autofetcher.ContentStore
 	customTokenStore CustomTokenStore
 
-	mainListID    string
-	initialLists  map[string][]byte
-	customParsers map[string]parsers.TokenListParser
+	mainListID          string
+	initialListIDSet    map[string]struct{} // keeps initial list IDs and is used for fast checks of IDs existence.
+	initialListProvider InitialListProvider
+	customParsers       map[string]parsers.TokenListParser
 
 	chains []uint64
 	// skippedTokenKeys are applied when building the manager's unique token collection (see builder.Builder.GetTokens()).
@@ -80,14 +81,18 @@ func New(config *Config,
 	}
 
 	manager := &manager{
-		mainListID:       config.MainListID,
-		initialLists:     config.InitialLists,
-		customParsers:    config.CustomParsers,
-		chains:           chains,
-		skippedTokenKeys: append([]string(nil), config.SkippedTokenKeys...),
+		mainListID:          config.MainListID,
+		initialListProvider: config.InitialListProvider,
+		customParsers:       config.CustomParsers,
+		chains:              chains,
+		skippedTokenKeys:    append([]string(nil), config.SkippedTokenKeys...),
 
 		contentStore:     contentStore,
 		customTokenStore: customTokenStore,
+	}
+	manager.initialListIDSet = make(map[string]struct{}, len(config.InitialListIDs))
+	for _, id := range config.InitialListIDs {
+		manager.initialListIDSet[id] = struct{}{}
 	}
 
 	if config.AutoFetcherConfig != nil {
@@ -498,12 +503,14 @@ func (m *manager) mergeList(builder *builder.Builder, tokenListID string, fallba
 			return err
 		}
 
-		// don't return error but instead use the provided initial list
-		content.Data, exists = m.initialLists[tokenListID]
-		if !exists {
-			// this should never happen, because execution gets here only if fallbackToInitialList is true and that's the case
-			// for the initial lists (main list and other initial lists) only.
-			return ErrNotFoundInInitialLists
+		if m.initialListProvider == nil {
+			return ErrInitialListProviderNotProvided
+		}
+
+		// don't return error from `tryToGetLastFetchedTokenList` call, but instead use the provided initial list via provider
+		content.Data, err = m.initialListProvider(tokenListID)
+		if err != nil {
+			return err
 		}
 
 		content.SourceURL = LocalSourceURL
@@ -519,9 +526,9 @@ func (m *manager) mergeMainList(builder *builder.Builder) error {
 
 func (m *manager) mergeInitialLists(builder *builder.Builder) error {
 	// sort keys for deterministic order, skip main list
-	keys := make([]string, 0, len(m.initialLists))
-	for key := range m.initialLists {
-		if key == m.mainListID {
+	keys := make([]string, 0, len(m.initialListIDSet))
+	for key := range m.initialListIDSet {
+		if key == "" || key == m.mainListID {
 			continue
 		}
 		keys = append(keys, key)
@@ -547,7 +554,7 @@ func (m *manager) mergeRemoteLists(builder *builder.Builder) error {
 	// sort keys for deterministic order, skip main list and initial lists
 	keys := make([]string, 0, len(allStoredContent))
 	for key := range allStoredContent {
-		if _, exists := m.initialLists[key]; exists { // main list is also in initial lists
+		if _, exists := m.initialListIDSet[key]; exists { // main list is also in initial lists
 			continue
 		}
 		if m.remoteListOfTokenListsID != "" && key == m.remoteListOfTokenListsID {

@@ -29,13 +29,15 @@ var (
 )
 
 func createTestConfig() *manager.Config {
+	initialLists := map[string][]byte{
+		"main-list": []byte(`{"name": "Main List", "tokens": []}`),
+		"list2":     []byte(`{"name": "List 2", "tokens": []}`),
+	}
 	return &manager.Config{
-		MainListID: "main-list",
-		InitialLists: map[string][]byte{
-			"main-list": []byte(`{"name": "Main List", "tokens": []}`),
-			"list2":     []byte(`{"name": "List 2", "tokens": []}`),
-		},
-		Chains: testChains,
+		MainListID:          "main-list",
+		InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+		InitialListProvider: manager.StaticInitialListProvider(initialLists),
+		Chains:              testChains,
 	}
 }
 

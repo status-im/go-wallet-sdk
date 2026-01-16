@@ -1115,11 +1115,12 @@ type Manager interface {
 
 ```go
 type Config struct {
-    MainListID      string                                    // Primary token list ID
-    InitialLists    map[string][]byte                         // Initial token list data
+    MainListID      string                                   // Primary token list ID
+    InitialListIDs  []string                                 // Initial token list IDs
+    InitialListProvider InitialListProvider                  // Initial token list provider
     CustomParsers   map[string]parsers.TokenListParser       // Custom parsers
-    Chains          []uint64                                  // Supported chain IDs
-    AutoFetcherConfig interface{}                             // AutoFetcher configuration
+    Chains          []uint64                                 // Supported chain IDs
+    AutoFetcherConfig interface{}                            // AutoFetcher configuration
 }
 ```
 
