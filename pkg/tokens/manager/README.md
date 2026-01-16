@@ -50,6 +50,9 @@ type Manager interface {
     DisableAutoRefresh(ctx context.Context) error
     TriggerRefresh(ctx context.Context) error
 
+    // Chain Configuration
+    SetChains(chains []uint64) error
+
     // Token Operations
     UniqueTokens() []*types.Token
     GetTokenByChainAddress(chainID uint64, addr common.Address) (*types.Token, bool)
@@ -241,6 +244,20 @@ if exists {
 allLists := manager.TokenLists()
 for _, list := range allLists {
     fmt.Printf("List: %s (%d tokens)\n", list.Name, len(list.Tokens))
+}
+```
+
+### Updating Chains
+
+You can update the manager's configured chains after creation using `SetChains`. If the manager is already started, this
+triggers an immediate rebuild of the in-memory state (native token list, parsed lists, and custom token validation) using
+the new chains. If you provided a `notifyCh` during `Start`, it will be notified after a successful rebuild.
+
+```go
+// Switch to Ethereum-only
+err := manager.SetChains([]uint64{1})
+if err != nil {
+    log.Printf("Failed to update chains: %v", err)
 }
 ```
 
