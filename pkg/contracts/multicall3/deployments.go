@@ -43,6 +43,7 @@ var Multicall3Addresses = map[int64]common.Address{
 	250:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Fantom Opera
 	64240:        common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Fantom Sonic
 	146:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Sonic Network
+	14601:        common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Sonic Testnet
 	56:           common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // BNB Smart Chain
 	97:           common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // BNB Smart Chain Testnet
 	5611:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // opBNB Testnet
@@ -61,7 +62,7 @@ var Multicall3Addresses = map[int64]common.Address{
 	14:           common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Flare Mainnet
 	19:           common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Songbird Canary Network
 	16:           common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Coston Testnet
-	114:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Coston2 Testnet
+	114:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Flare Testnet Coston2
 	288:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Boba
 	1313161554:   common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Aurora
 	592:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Astar
@@ -235,6 +236,7 @@ var Multicall3Addresses = map[int64]common.Address{
 	88817:        common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Unit Zero Testnet
 	713715:       common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Sei EVM Devnet
 	1329:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Sei EVM Mainnet
+	1328:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Sei EVM Testnet
 	167009:       common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Hekla (Taiko A7 Testnet)
 	167000:       common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Taiko Mainnet
 	7560:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Cyber Mainnet
@@ -280,6 +282,7 @@ var Multicall3Addresses = map[int64]common.Address{
 	132902:       common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Form Testnet
 	3338:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // peaq
 	10143:        common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Monad Testnet
+	143:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Monad
 	7869:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Powerloom Mainnet
 	560048:       common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Hoodi
 	6342:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // MegaETH Testnet
@@ -289,6 +292,12 @@ var Multicall3Addresses = map[int64]common.Address{
 	1875:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Whitechain
 	3799:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Tangle Testnet
 	8545:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Tangle Mainnet
+	130:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Unichain Mainnet
+	1301:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Unichain Sepolia
+	747474:       common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Katana Mainnet
+	737373:       common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Katana Bokuto
+	1868:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Soneium Mainnet
+	1946:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Soneium Minato
 	1660990954:   common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Status Network Sepolia
 }
 
