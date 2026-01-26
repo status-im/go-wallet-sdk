@@ -179,6 +179,11 @@ func createExampleConfig() *manager.Config {
 		]
 	}`
 
+	initialLists := map[string][]byte{
+		"uniswap-default": []byte(uniswapTokenList),
+		"compound":        []byte(compoundTokenList),
+	}
+
 	return &manager.Config{
 		AutoFetcherConfig: &autofetcher.ConfigRemoteListOfTokenLists{
 			Config: autofetcher.Config{
@@ -192,11 +197,9 @@ func createExampleConfig() *manager.Config {
 			},
 			RemoteListOfTokenListsParser: &parsers.StatusListOfTokenListsParser{},
 		},
-		MainListID: "uniswap-default",
-		InitialLists: map[string][]byte{
-			"uniswap-default": []byte(uniswapTokenList),
-			"compound":        []byte(compoundTokenList),
-		},
+		MainListID:          "uniswap-default",
+		InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+		InitialListProvider: manager.StaticInitialListProvider(initialLists),
 		CustomParsers: map[string]parsers.TokenListParser{
 			"status": &parsers.StatusTokenListParser{},
 		},

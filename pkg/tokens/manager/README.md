@@ -119,13 +119,16 @@ config := &manager.Config{
 ### Basic Configuration
 
 ```go
+initialLists := map[string][]byte{
+    "uniswap-default": uniswapTokenListData,
+    "compound":        compoundTokenListData,
+    "custom-local":    customTokenListData,
+}
+
 config := &manager.Config{
     MainListID: "uniswap-default",
-    InitialLists: map[string][]byte{
-        "uniswap-default": uniswapTokenListData,
-        "compound":        compoundTokenListData,
-        "custom-local":    customTokenListData,
-    },
+    InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+    InitialListProvider: manager.StaticInitialListProvider(initialLists),
     CustomParsers: map[string]parsers.TokenListParser{
         "custom-local": &parsers.StatusTokenListParser{}, // Custom parser needed
         // "uniswap-default" and "compound" will use StandardTokenListParser automatically
@@ -152,11 +155,14 @@ if err != nil {
 ### With Auto-Fetcher
 
 ```go
+initialLists := map[string][]byte{
+    "uniswap-default": uniswapData,
+}
+
 config := &manager.Config{
     MainListID: "uniswap-default",
-    InitialLists: map[string][]byte{
-        "uniswap-default": uniswapData,
-    },
+    InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+    InitialListProvider: manager.StaticInitialListProvider(initialLists),
     CustomParsers: map[string]parsers.TokenListParser{
         // Optional: only specify if you need non-standard parsers
         // "uniswap-default" will use StandardTokenListParser automatically
@@ -359,6 +365,8 @@ var (
     ErrAutoRefreshEnabledButNotifyChannelNotProvided = fmt.Errorf("auto refresh enabled but notify channel not provided")
     ErrManagerNotConfiguredForAutoRefresh            = fmt.Errorf("manager not configured for auto refresh")
     ErrNotFoundInInitialLists                        = fmt.Errorf("not found in initial lists")
+    ErrInitialListIDsNotProvided                     = fmt.Errorf("initial list IDs are not provided")
+    ErrInitialListProviderNotProvided                = fmt.Errorf("initial list provider is not provided")
 )
 ```
 

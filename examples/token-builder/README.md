@@ -483,11 +483,11 @@ builder.AddNativeTokenList()
 builder.AddTokenList("uniswap", uniswapList)
 
 // Manager would use builder internally
+initialLists := map[string][]byte{"uniswap": uniswapData}
 config := &manager.Config{
     MainListID: "uniswap",
-    InitialLists: map[string][]byte{
-        "uniswap": uniswapData,
-    },
+    InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+    InitialListProvider: manager.StaticInitialListProvider(initialLists),
     Parsers: map[string]parsers.TokenListParser{
         "uniswap": &parsers.StandardTokenListParser{},
     },
