@@ -346,6 +346,135 @@ func TestManager_TokenOperations(t *testing.T) {
 	})
 }
 
+func TestManager_SetChains(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	t.Run("SetChains before Start is applied when Start builds state", func(t *testing.T) {
+		mockFetcher := mock_fetcher.NewMockFetcher(ctrl)
+		contentStore := mock_autofetcher.NewMockContentStore(ctrl)
+		customTokenStore := mock_manager.NewMockCustomTokenStore(ctrl)
+		config := createTestConfig()
+
+		contentStore.EXPECT().GetAll().Return(map[string]autofetcher.Content{}, nil).AnyTimes()
+		contentStore.EXPECT().Get(gomock.Any()).Return(autofetcher.Content{}, nil).AnyTimes()
+		customTokenStore.EXPECT().GetAll().Return([]*types.Token{}, nil).AnyTimes()
+
+		m, err := manager.New(config, mockFetcher, contentStore, customTokenStore)
+		require.NoError(t, err)
+
+		// Update chains before Start; should not rebuild yet, but should be used by Start().
+		err = m.SetChains([]uint64{common.EthereumMainnet})
+		require.NoError(t, err)
+
+		err = m.Start(ctx, false, nil)
+		require.NoError(t, err)
+		defer func() {
+			err := m.Stop()
+			require.NoError(t, err)
+		}()
+
+		tokens := m.UniqueTokens()
+		foundEth := false
+		foundBsc := false
+		for _, token := range tokens {
+			if token.ChainID == common.EthereumMainnet && token.Symbol == "ETH" {
+				foundEth = true
+			}
+			if token.ChainID == common.BSCMainnet && token.Symbol == "BNB" {
+				foundBsc = true
+			}
+		}
+		require.True(t, foundEth, "Should include ETH native token after Start with chains set pre-Start")
+		require.False(t, foundBsc, "Should not include BNB native token after Start with Ethereum-only chains set pre-Start")
+	})
+
+	t.Run("SetChains triggers rebuild and notifies when started with notifyCh", func(t *testing.T) {
+		mockFetcher := mock_fetcher.NewMockFetcher(ctrl)
+		contentStore := mock_autofetcher.NewMockContentStore(ctrl)
+		customTokenStore := mock_manager.NewMockCustomTokenStore(ctrl)
+		mockParser := mock_parsers.NewMockListOfTokenListsParser(ctrl)
+		config := createTestConfig()
+
+		config.AutoFetcherConfig = &autofetcher.ConfigRemoteListOfTokenLists{
+			Config: autofetcher.Config{
+				AutoRefreshInterval:      time.Hour,
+				AutoRefreshCheckInterval: time.Hour,
+			},
+			RemoteListOfTokenListsFetchDetails: types.ListDetails{
+				ID:        "remote-list",
+				SourceURL: "https://example.com/remote.json",
+				Schema:    "standard",
+			},
+			RemoteListOfTokenListsParser: mockParser,
+		}
+
+		contentStore.EXPECT().GetAll().Return(map[string]autofetcher.Content{}, nil).AnyTimes()
+		contentStore.EXPECT().Get(gomock.Any()).Return(autofetcher.Content{}, nil).AnyTimes()
+		customTokenStore.EXPECT().GetAll().Return([]*types.Token{}, nil).AnyTimes()
+
+		m, err := manager.New(config, mockFetcher, contentStore, customTokenStore)
+		require.NoError(t, err)
+
+		notifyCh := make(chan struct{}, 1)
+		err = m.Start(ctx, false, notifyCh) // auto refresh disabled, but notifyCh allowed because autoFetcher is configured
+		require.NoError(t, err)
+		defer func() {
+			err := m.Stop()
+			require.NoError(t, err)
+		}()
+
+		// Ensure channel is empty before SetChains.
+		for len(notifyCh) > 0 {
+			<-notifyCh
+		}
+
+		err = m.SetChains([]uint64{common.EthereumMainnet})
+		require.NoError(t, err)
+
+		select {
+		case <-notifyCh:
+			// expected
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("Expected notification after SetChains succeeds")
+		}
+
+		// Rebuild effect (BNB should be gone).
+		tokens := m.UniqueTokens()
+		foundEth := false
+		foundBsc := false
+		for _, token := range tokens {
+			if token.ChainID == common.EthereumMainnet && token.Symbol == "ETH" {
+				foundEth = true
+			}
+			if token.ChainID == common.BSCMainnet && token.Symbol == "BNB" {
+				foundBsc = true
+			}
+		}
+		require.True(t, foundEth, "Should include ETH native token after SetChains")
+		require.False(t, foundBsc, "Should not include BNB native token after SetChains to Ethereum-only")
+	})
+
+	t.Run("empty chains returns error", func(t *testing.T) {
+		mockFetcher := mock_fetcher.NewMockFetcher(ctrl)
+		contentStore := mock_autofetcher.NewMockContentStore(ctrl)
+		customTokenStore := mock_manager.NewMockCustomTokenStore(ctrl)
+		config := createTestConfig()
+
+		contentStore.EXPECT().GetAll().Return(map[string]autofetcher.Content{}, nil).AnyTimes()
+		contentStore.EXPECT().Get(gomock.Any()).Return(autofetcher.Content{}, nil).AnyTimes()
+		customTokenStore.EXPECT().GetAll().Return([]*types.Token{}, nil).AnyTimes()
+
+		m, err := manager.New(config, mockFetcher, contentStore, customTokenStore)
+		require.NoError(t, err)
+
+		err = m.SetChains([]uint64{})
+		assert.ErrorIs(t, err, manager.ErrChainsNotProvided)
+	})
+}
+
 func TestManager_CustomTokens(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

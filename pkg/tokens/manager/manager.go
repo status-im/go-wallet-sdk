@@ -74,19 +74,23 @@ func New(config *Config,
 		return nil, ErrContentStoreNotProvided
 	}
 
+	chains, err := processChains(config.Chains)
+	if err != nil {
+		return nil, err
+	}
+
 	manager := &manager{
 		mainListID:       config.MainListID,
 		initialLists:     config.InitialLists,
 		customParsers:    config.CustomParsers,
-		chains:           config.Chains,
-		skippedTokenKeys: config.SkippedTokenKeys,
+		chains:           chains,
+		skippedTokenKeys: append([]string(nil), config.SkippedTokenKeys...),
 
 		contentStore:     contentStore,
 		customTokenStore: customTokenStore,
 	}
 
 	if config.AutoFetcherConfig != nil {
-		var err error
 		manager.autoFetcher, err = autofetcher.NewAutofetcherFromRemoteListOfTokenLists(*config.AutoFetcherConfig, fetcher,
 			contentStore)
 		if err != nil {
@@ -166,6 +170,36 @@ func (m *manager) Stop() error {
 	return nil
 }
 
+func (m *manager) notify() {
+	if m.notifyCh == nil {
+		return
+	}
+	select {
+	case m.notifyCh <- struct{}{}:
+		// notification sent
+	default:
+		// Channel is full or closed, skip notification
+	}
+}
+
+func processChains(chains []uint64) ([]uint64, error) {
+	if len(chains) == 0 {
+		return nil, ErrChainsNotProvided
+	}
+
+	processed := make([]uint64, 0, len(chains))
+	seen := make(map[uint64]struct{}, len(chains))
+	for _, c := range chains {
+		if _, exists := seen[c]; exists {
+			continue
+		}
+		seen[c] = struct{}{}
+		processed = append(processed, c)
+	}
+
+	return processed, nil
+}
+
 func (m *manager) manageRefresh(ctx context.Context) error {
 	if m.autoFetcher == nil {
 		return nil
@@ -208,14 +242,7 @@ func (m *manager) manageRefresh(ctx context.Context) error {
 					continue
 				}
 
-				if m.notifyCh != nil {
-					select {
-					case m.notifyCh <- struct{}{}:
-						// notification sent
-					default:
-						// Channel is full or closed, skip notification
-					}
-				}
+				m.notify()
 				m.mu.Unlock()
 
 			case <-refreshCtx.Done():
@@ -278,6 +305,31 @@ func (m *manager) TriggerRefresh(ctx context.Context) error {
 	}
 
 	return m.manageRefresh(ctx)
+}
+
+func (m *manager) SetChains(chains []uint64) error {
+	chains, err := processChains(chains)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.chains = chains
+
+	// If not started yet, Start() will build initial state using the updated chains.
+	if !m.started {
+		return nil
+	}
+
+	if err := m.buildState(); err != nil {
+		return err
+	}
+
+	m.notify()
+
+	return nil
 }
 
 // UniqueTokens returns all unique tokens.

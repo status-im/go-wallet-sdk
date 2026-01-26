@@ -26,6 +26,11 @@ type Manager interface {
 	// TriggerRefresh triggers a manual refresh of the token lists.
 	TriggerRefresh(ctx context.Context) error
 
+	// SetChains updates the manager's configured chains. If the manager is started, this triggers an immediate rebuild of
+	// the in-memory state (native tokens, parsed token lists, and custom token validation) using the new chain set.
+	// If a notify channel was provided during Start, it will be notified after a successful rebuild.
+	SetChains(chains []uint64) error
+
 	// UniqueTokens returns all unique tokens.
 	UniqueTokens() []*types.Token
 	// GetTokenByChainAddress retrieves a token by chain ID and address.
