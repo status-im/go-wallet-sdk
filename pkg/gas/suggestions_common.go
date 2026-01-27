@@ -9,8 +9,8 @@ import (
 )
 
 // Fetch fee history and check result correctness
-func getFeeHistory(ctx context.Context, ethClient EthClient, blockCount uint64, lastBlock *big.Int, rewardPercentiles []float64) (*ethereum.FeeHistory, error) {
-	feeHistory, err := ethClient.FeeHistory(ctx, blockCount, lastBlock, rewardPercentiles)
+func getFeeHistory(ctx context.Context, feeHistoryClient feeHistoryReader, blockCount uint64, lastBlock *big.Int, rewardPercentiles []float64) (*ethereum.FeeHistory, error) {
+	feeHistory, err := feeHistoryClient.FeeHistory(ctx, blockCount, lastBlock, rewardPercentiles)
 	if err != nil {
 		return nil, err
 	}

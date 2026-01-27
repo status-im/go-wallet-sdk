@@ -16,8 +16,8 @@ import (
 )
 
 // setupDefaultMockClient configures the mock client with default responses
-func setupDefaultMockClient(ctrl *gomock.Controller) *mock_gas.MockEthClient {
-	mockClient := mock_gas.NewMockEthClient(ctrl)
+func setupDefaultMockClient(ctrl *gomock.Controller) *mock_gas.MockGasClient {
+	mockClient := mock_gas.NewMockGasClient(ctrl)
 
 	// Default EstimateGas behavior
 	mockClient.EXPECT().EstimateGas(gomock.Any(), gomock.Any()).
@@ -47,6 +47,24 @@ func setupDefaultMockClient(ctrl *gomock.Controller) *mock_gas.MockEthClient {
 				BaseFee:      baseFees,
 				Reward:       rewards,
 				GasUsedRatio: make([]float64, int(blockCount)),
+			}, nil
+		}).AnyTimes()
+
+	mockClient.EXPECT().SuggestGasPrice(gomock.Any()).
+		Return(big.NewInt(20000000000), nil).AnyTimes() // 20 gwei
+
+	mockClient.EXPECT().BlockNumber(gomock.Any()).
+		Return(uint64(123), nil).AnyTimes()
+	mockClient.EXPECT().EthGetBlockByNumberWithFullTxs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, number *big.Int) (*ethclient.BlockWithFullTxs, error) {
+			return &ethclient.BlockWithFullTxs{
+				Number:        big.NewInt(123),
+				BaseFeePerGas: big.NewInt(20000000000), // present => EIP1559 for resolver
+				Transactions: []ethclient.Transaction{
+					{GasPrice: big.NewInt(10)},
+					{GasPrice: big.NewInt(20)},
+					{GasPrice: big.NewInt(30)},
+				},
 			}, nil
 		}).AnyTimes()
 
@@ -156,6 +174,101 @@ func TestGetTxSuggestions_ChainClassLineaStack(t *testing.T) {
 	assert.NotNil(t, fs.Low)
 	assert.NotNil(t, fs.Medium)
 	assert.NotNil(t, fs.High)
+}
+
+func TestGetTxSuggestions_LegacyFeeModel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := setupDefaultMockClient(ctrl)
+
+	params := gas.ChainParameters{
+		ChainClass:       gas.ChainClassL1,
+		NetworkBlockTime: 12,
+		FeeModel:         gas.FeeModelLegacy,
+	}
+
+	config := gas.DefaultConfig(params.ChainClass)
+
+	callMsg := &ethereum.CallMsg{
+		To:    &common.Address{},
+		Data:  []byte{},
+		Value: big.NewInt(0),
+	}
+
+	suggestions, err := gas.GetTxSuggestions(ctx, mockClient, params, config, callMsg)
+	require.NoError(t, err)
+	require.NotNil(t, suggestions)
+	require.NotNil(t, suggestions.FeeSuggestions)
+
+	fs := suggestions.FeeSuggestions
+	require.Equal(t, gas.FeeModelLegacy, fs.FeeModel)
+
+	require.NotNil(t, fs.Low.GasPrice)
+	require.NotNil(t, fs.Medium.GasPrice)
+	require.NotNil(t, fs.High.GasPrice)
+
+	assert.Nil(t, fs.Low.MaxFeePerGas)
+	assert.Nil(t, fs.Low.MaxPriorityFeePerGas)
+	assert.Nil(t, fs.Medium.MaxFeePerGas)
+	assert.Nil(t, fs.Medium.MaxPriorityFeePerGas)
+	assert.Nil(t, fs.High.MaxFeePerGas)
+	assert.Nil(t, fs.High.MaxPriorityFeePerGas)
+}
+
+func TestEstimateInclusion_LegacyFeeModel_UnknownUpperBound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	inclusionClient := mock_gas.NewMockBlockInclusionEstimator(ctrl)
+	inclusionClient.EXPECT().BlockNumber(gomock.Any()).Return(uint64(0), assert.AnError).AnyTimes()
+	inclusionClient.EXPECT().EthGetBlockByNumberWithFullTxs(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).AnyTimes()
+	inclusionClient.EXPECT().FeeHistory(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, assert.AnError).AnyTimes()
+
+	params := gas.ChainParameters{
+		ChainClass:       gas.ChainClassL1,
+		NetworkBlockTime: 12,
+		FeeModel:         gas.FeeModelLegacy,
+	}
+	config := gas.DefaultConfig(params.ChainClass)
+
+	fee := gas.Fee{
+		GasPrice: big.NewInt(20_000_000_000), // 20 gwei
+	}
+
+	inc, err := gas.EstimateInclusion(ctx, inclusionClient, params, config, fee)
+	require.NoError(t, err)
+	require.NotNil(t, inc)
+
+	assert.Equal(t, 1, inc.MinBlocksUntilInclusion)
+	assert.Equal(t, 12.0, inc.MinTimeUntilInclusion)
+	assert.Equal(t, -1, inc.MaxBlocksUntilInclusion)
+	assert.Equal(t, -1.0, inc.MaxTimeUntilInclusion)
+}
+
+func TestResolveFeeModel_DetectsLegacyViaMissingBaseFee(t *testing.T) {
+	ctx := context.Background()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	feeResolver := mock_gas.NewMockFeeModelResolver(ctrl)
+	feeResolver.EXPECT().SuggestGasTipCap(gomock.Any()).Return(big.NewInt(1), nil).AnyTimes()
+	feeResolver.EXPECT().FeeHistory(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&ethereum.FeeHistory{
+			BaseFee:      []*big.Int{big.NewInt(1), big.NewInt(1)},
+			Reward:       [][]*big.Int{{big.NewInt(1)}},
+			GasUsedRatio: []float64{1},
+		}, nil).AnyTimes()
+	feeResolver.EXPECT().BlockNumber(gomock.Any()).Return(uint64(123), nil).AnyTimes()
+	feeResolver.EXPECT().EthGetBlockByNumberWithFullTxs(gomock.Any(), gomock.Any()).
+		Return(&ethclient.BlockWithFullTxs{Number: big.NewInt(123), BaseFeePerGas: nil}, nil).AnyTimes()
+
+	fm, err := gas.ResolveFeeModel(ctx, feeResolver)
+	require.NoError(t, err)
+	assert.Equal(t, gas.FeeModelLegacy, fm)
 }
 
 func TestGetTxSuggestions_ChainClassArbStack(t *testing.T) {
@@ -281,11 +394,11 @@ func TestGetTxSuggestions_FeeHistoryError(t *testing.T) {
 	defer ctrl.Finish()
 
 	ctx := context.Background()
-	mockClient := mock_gas.NewMockEthClient(ctrl)
+	mockClient := mock_gas.NewMockGasClient(ctrl)
 
 	// Configure mock to return error for FeeHistory
 	mockClient.EXPECT().FeeHistory(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil, assert.AnError)
+		Return(nil, assert.AnError).AnyTimes()
 
 	mockClient.EXPECT().EstimateGas(gomock.Any(), gomock.Any()).
 		Return(uint64(21000), nil).AnyTimes()

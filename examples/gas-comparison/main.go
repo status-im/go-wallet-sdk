@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 	"github.com/status-im/go-wallet-sdk/pkg/gas"
 	"github.com/status-im/go-wallet-sdk/pkg/gas/infura"
 )
@@ -38,12 +37,8 @@ type NetworkInfo struct {
 }
 
 type GasDataClient interface {
-	gas.EthClient
-	SuggestGasPrice(ctx context.Context) (*big.Int, error)
-	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
-	BlockNumber(ctx context.Context) (uint64, error)
-	BlockByNumber(ctx context.Context, number *big.Int) (*ethclient.BlockWithFullTxs, error)
-	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
+	gas.GasClient
+	gas.FeeModelResolver
 	GetGasSuggestions(ctx context.Context, networkID int) (*infura.GasResponse, error)
 	Close()
 }
@@ -521,6 +516,14 @@ func compareNetwork(network NetworkInfo, client GasDataClient) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
+	// Detect fee model for this network (legacy vs EIP-1559) and pass it explicitly to gas package.
+	feeModel, err := gas.ResolveFeeModel(ctx, client)
+	if err != nil {
+		return fmt.Errorf("failed to resolve fee model: %w", err)
+	}
+	fmt.Printf("📊 Fee model: %s\n", feeModel)
+	network.ChainParameters.FeeModel = feeModel
+
 	gasPrice, err := client.SuggestGasPrice(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get gas price: %w", err)
@@ -576,6 +579,14 @@ func compareNetwork(network NetworkInfo, client GasDataClient) error {
 
 // displayOurSuggestions displays only our suggestions when Infura is not available
 func displayOurSuggestions(suggestions *gas.FeeSuggestions, gasPrice *big.Int, gasTipCap *big.Int) {
+	if suggestions.FeeModel == gas.FeeModelLegacy {
+		fmt.Printf("📋 OUR IMPLEMENTATION RESULTS (LEGACY)\n")
+		fmt.Printf("Gas Price (node): %v\n", gasPrice)
+		fmt.Printf("Low/Medium/High gasPrice: %s / %s / %s\n",
+			suggestions.Low.GasPrice, suggestions.Medium.GasPrice, suggestions.High.GasPrice)
+		return
+	}
+
 	ourLow := suggestions.Low.MaxPriorityFeePerGas
 	ourMedium := suggestions.Medium.MaxPriorityFeePerGas
 	ourHigh := suggestions.High.MaxPriorityFeePerGas

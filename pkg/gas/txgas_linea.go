@@ -8,6 +8,6 @@ import (
 	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 )
 
-func estimateLineaTxGas(ctx context.Context, ethClient EthClient, callMsg *ethereum.CallMsg) (*ethclient.LineaEstimateGasResult, error) {
-	return ethClient.LineaEstimateGas(ctx, *callMsg)
+func estimateLineaTxGas(ctx context.Context, gasClient GasClient, callMsg *ethereum.CallMsg) (*ethclient.LineaEstimateGasResult, error) {
+	return gasClient.LineaEstimateGas(ctx, *callMsg)
 }

@@ -10,15 +10,17 @@ A comprehensive gas estimation and fee suggestion package for Ethereum and L2 ne
 
 ## Key entrypoints
 
-- `gas.GetTxSuggestions(ctx, ethClient, params, config, callMsg)`
-- `gas.GetChainSuggestions(ctx, ethClient, params, config, account)`
-- `gas.EstimateInclusion(ctx, ethClient, params, config, fee)`
+- `gas.GetTxSuggestions(ctx, gasClient, params, config, callMsg)`
+- `gas.GetChainSuggestions(ctx, gasClient, params, config, account)`
+- `gas.EstimateInclusion(ctx, inclusionEstimatorClient, params, config, fee)`
+- `gas.ResolveFeeModel(ctx, feeResolverClient)` (detect legacy vs EIP-1559)
 - `gas.DefaultConfig(chainClass)` and `gas.ChainParameters`
 
 ## Features
 
 - **Multi-chain support**: Ethereum L1, Arbitrum Stack, Optimism Stack, Linea Stack
 - **Smart fee estimation**: Priority fees, base fees, and max fees with inclusion time estimates
+- **Legacy chain support**: Support for non-EIP-1559 chains via `gasPrice` suggestions
 
 ## Quick Start
 
@@ -29,7 +31,14 @@ import "github.com/status-im/go-wallet-sdk/pkg/gas"
 params := gas.ChainParameters{
     ChainClass:       gas.ChainClassL1,
     NetworkBlockTime: 12.0, // seconds
+    // FeeModel: gas.FeeModelLegacy, // optional: set only if you want legacy gasPrice txs; otherwise EIP-1559 is assumed
 }
+
+// Optional: detect if the chain is legacy vs EIP-1559, then set params.FeeModel explicitly.
+// This is recommended if you want to support "any EVM chain" without hard-coding the fee model.
+//
+// params.FeeModel, err = gas.ResolveFeeModel(ctx, feeResolverClient)
+// if err != nil { return err }
 
 // Get default config for the chain class
 config := gas.DefaultConfig(params.ChainClass)
@@ -42,14 +51,22 @@ callMsg := &ethereum.CallMsg{
 }
 
 // Get fee suggestions
-suggestions, err := gas.GetTxSuggestions(ctx, ethClient, params, config, callMsg)
+suggestions, err := gas.GetTxSuggestions(ctx, gasClient, params, config, callMsg)
 if err != nil {
     return err
 }
 
 // Access fee suggestions
-lowFee := suggestions.FeeSuggestions.Low.MaxFeePerGas
-lowMaxFee := suggestions.FeeSuggestions.Low.MaxFeePerGas
+if suggestions.FeeSuggestions.FeeModel == gas.FeeModelLegacy {
+    lowGasPrice := suggestions.FeeSuggestions.Low.GasPrice
+    _ = lowGasPrice
+} else {
+    lowMaxFee := suggestions.FeeSuggestions.Low.MaxFeePerGas
+    lowTip := suggestions.FeeSuggestions.Low.MaxPriorityFeePerGas
+    _ = lowMaxFee
+    _ = lowTip
+}
+
 lowMinTime := suggestions.FeeSuggestions.LowInclusion.MinTimeUntilInclusion
 lowMaxTime := suggestions.FeeSuggestions.LowInclusion.MaxTimeUntilInclusion
 ```
@@ -75,7 +92,7 @@ config := gas.DefaultConfig(params.ChainClass)
 // Or customize:
 config := gas.SuggestionsConfig{
     NetworkCongestionBlocks:           10,    // blocks to analyze for congestion
-    GasPriceEstimationBlocks:          10,    // blocks for gas price estimation
+    GasPriceEstimationBlocks:          10,    // blocks for gas estimation
     LowRewardPercentile:               10,    // %
     MediumRewardPercentile:            45,    // %
     HighRewardPercentile:              90,    // %
@@ -85,6 +102,11 @@ config := gas.SuggestionsConfig{
     LowBaseFeeCongestionMultiplier:    0.0,   // congestion factor for low (L1 only)
     MediumBaseFeeCongestionMultiplier: 10.0,  // congestion factor for medium (L1 only)
     HighBaseFeeCongestionMultiplier:   10.0,  // congestion factor for high (L1 only)
+
+    // Legacy-only (FeeModelLegacy): used if sampling recent tx gasPrice isn't available.
+    LowGasPriceMultiplier:             1.00,
+    MediumGasPriceMultiplier:          1.10,
+    HighGasPriceMultiplier:            1.20,
 }
 ```
 
@@ -97,7 +119,7 @@ Get fee suggestions for a specific account without requiring a transaction call 
 ```go
 func GetChainSuggestions(
     ctx context.Context,
-    ethClient EthClient,
+    gasClient GasClient,
     params ChainParameters,
     config SuggestionsConfig,
     account common.Address,
@@ -106,7 +128,7 @@ func GetChainSuggestions(
 
 **Parameters:**
 - `ctx`: Context for cancellation and timeout
-- `ethClient`: Ethereum client implementing `EthClient` interface
+- `gasClient`: Client implementing `GasClient`
 - `params`: Chain parameters (class and block time)
 - `config`: Configuration for estimation (use `DefaultConfig()` or customize)
 - `account`: Account address for account-specific fee suggestions (required for LineaStack)
@@ -119,14 +141,21 @@ func GetChainSuggestions(
 ```go
 // Get general fee suggestions for an account
 account := common.HexToAddress("0x...")
-suggestions, err := gas.GetChainSuggestions(ctx, ethClient, params, config, account)
+suggestions, err := gas.GetChainSuggestions(ctx, gasClient, params, config, account)
 if err != nil {
     return err
 }
 
 // Use medium priority fees
-maxPriorityFee := suggestions.Medium.MaxPriorityFeePerGas
-maxFee := suggestions.Medium.MaxFeePerGas
+if suggestions.FeeModel == gas.FeeModelLegacy {
+    gasPrice := suggestions.Medium.GasPrice
+    _ = gasPrice
+} else {
+    maxPriorityFee := suggestions.Medium.MaxPriorityFeePerGas
+    maxFee := suggestions.Medium.MaxFeePerGas
+    _ = maxPriorityFee
+    _ = maxFee
+}
 
 // Check estimated wait time
 minWait := suggestions.MediumInclusion.MinTimeUntilInclusion
@@ -140,7 +169,7 @@ Get comprehensive fee suggestions and gas limit estimation for a transaction.
 ```go
 func GetTxSuggestions(
     ctx context.Context,
-    ethClient EthClient,
+    gasClient GasClient,
     params ChainParameters,
     config SuggestionsConfig,
     callMsg *ethereum.CallMsg,
@@ -149,7 +178,7 @@ func GetTxSuggestions(
 
 **Parameters:**
 - `ctx`: Context for cancellation and timeout
-- `ethClient`: Ethereum client implementing `EthClient` interface
+- `gasClient`: Client implementing `GasClient`
 - `params`: Chain parameters (class and block time)
 - `config`: Configuration for estimation (use `DefaultConfig()` or customize)
 - `callMsg`: Transaction call message (can be `nil` to skip gas limit estimation)
@@ -160,7 +189,7 @@ func GetTxSuggestions(
 
 **Example:**
 ```go
-suggestions, err := gas.GetTxSuggestions(ctx, ethClient, params, config, callMsg)
+suggestions, err := gas.GetTxSuggestions(ctx, gasClient, params, config, callMsg)
 if err != nil {
     return err
 }
@@ -185,7 +214,7 @@ Estimate transaction inclusion time for a custom fee configuration.
 ```go
 func EstimateInclusion(
     ctx context.Context,
-    ethClient EthClient,
+    inclusionEstimatorClient BlockInclusionEstimator,
     params ChainParameters,
     config SuggestionsConfig,
     fee Fee,
@@ -194,7 +223,7 @@ func EstimateInclusion(
 
 **Parameters:**
 - `ctx`: Context for cancellation and timeout
-- `ethClient`: Ethereum client implementing `EthClient` interface
+- `inclusionEstimatorClient`: Client implementing `BlockInclusionEstimator`
 - `params`: Chain parameters (class and block time)
 - `config`: Configuration for estimation
 - `fee`: Custom fee with `MaxPriorityFeePerGas` and `MaxFeePerGas`
@@ -211,7 +240,7 @@ customFee := gas.Fee{
     MaxFeePerGas:         big.NewInt(30000000000), // 30 gwei
 }
 
-inclusion, err := gas.EstimateInclusion(ctx, ethClient, params, config, customFee)
+inclusion, err := gas.EstimateInclusion(ctx, inclusionEstimatorClient, params, config, customFee)
 if err != nil {
     return err
 }
