@@ -136,7 +136,7 @@ func (c *FakeClient) BlockNumber(ctx context.Context) (uint64, error) {
 	return c.gasData.LatestBlock.Number.Uint64(), nil
 }
 
-func (c *FakeClient) BlockByNumber(ctx context.Context, number *big.Int) (*ethclient.BlockWithFullTxs, error) {
+func (c *FakeClient) EthGetBlockByNumberWithFullTxs(ctx context.Context, number *big.Int) (*ethclient.BlockWithFullTxs, error) {
 	if c.gasData == nil || c.gasData.LatestBlock == nil {
 		return nil, fmt.Errorf("no gas data available")
 	}

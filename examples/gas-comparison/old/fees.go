@@ -77,7 +77,7 @@ type EthClient interface {
 	FeeHistory(ctx context.Context, blockCount uint64, lastBlock *big.Int, rewardPercentiles []float64) (*ethereum.FeeHistory, error)
 	BlockNumber(ctx context.Context) (uint64, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
-	BlockByNumber(ctx context.Context, number *big.Int) (*ethclient.BlockWithFullTxs, error)
+	EthGetBlockByNumberWithFullTxs(ctx context.Context, number *big.Int) (*ethclient.BlockWithFullTxs, error)
 	LineaEstimateGas(ctx context.Context, msg eth.CallMsg) (*ethclient.LineaEstimateGasResult, error)
 }
 
@@ -105,7 +105,7 @@ func (f *FeeManager) IsEIP1559Enabled(ctx context.Context, chainID uint64) (bool
 		return eip1559Enabled, nil
 	}
 
-	block, err := f.ethClient.BlockByNumber(ctx, nil)
+	block, err := f.ethClient.EthGetBlockByNumberWithFullTxs(ctx, nil)
 	if err != nil {
 		return false, err
 	}

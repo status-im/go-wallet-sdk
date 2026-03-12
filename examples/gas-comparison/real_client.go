@@ -60,7 +60,7 @@ func (c *RealClient) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 	return c.ethClient.SuggestGasTipCap(ctx)
 }
 
-func (c *RealClient) BlockByNumber(ctx context.Context, number *big.Int) (*ethclient.BlockWithFullTxs, error) {
+func (c *RealClient) EthGetBlockByNumberWithFullTxs(ctx context.Context, number *big.Int) (*ethclient.BlockWithFullTxs, error) {
 	return c.ethClient.EthGetBlockByNumberWithFullTxs(ctx, number)
 }
 

@@ -9,13 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func getLineaChainSuggestions(ctx context.Context, ethClient EthClient, params ChainParameters, config SuggestionsConfig, account common.Address) (*FeeSuggestions, error) {
-	gasPrice, err := suggestLineaGasPriceForAccount(ctx, ethClient, account)
+func getLineaChainSuggestions(ctx context.Context, gasClient GasClient, params ChainParameters, config SuggestionsConfig, account common.Address) (*FeeSuggestions, error) {
+	gasPrice, err := suggestLineaGasPriceForAccount(ctx, gasClient, account)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get linea suggestions: %w", err)
 	}
 
-	txSuggestions, err := calculateLineaTxSuggestions(ctx, ethClient, params, config, gasPrice, big.NewInt(0))
+	txSuggestions, err := calculateLineaTxSuggestions(ctx, gasClient, params, config, gasPrice, big.NewInt(0))
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate linea tx suggestions: %w", err)
 	}
@@ -23,8 +23,8 @@ func getLineaChainSuggestions(ctx context.Context, ethClient EthClient, params C
 	return txSuggestions.FeeSuggestions, nil
 }
 
-func getLineaTxSuggestions(ctx context.Context, ethClient EthClient, params ChainParameters, config SuggestionsConfig, callMsg *ethereum.CallMsg) (*TxSuggestions, error) {
-	lineaEstimateGasResult, err := estimateLineaTxGas(ctx, ethClient, callMsg)
+func getLineaTxSuggestions(ctx context.Context, gasClient GasClient, params ChainParameters, config SuggestionsConfig, callMsg *ethereum.CallMsg) (*TxSuggestions, error) {
+	lineaEstimateGasResult, err := estimateLineaTxGas(ctx, gasClient, callMsg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to estimate linea gas: %w", err)
 	}
@@ -34,10 +34,10 @@ func getLineaTxSuggestions(ctx context.Context, ethClient EthClient, params Chai
 		return nil, fmt.Errorf("failed to get linea suggestions: %w", err)
 	}
 
-	return calculateLineaTxSuggestions(ctx, ethClient, params, config, gasPrice, lineaEstimateGasResult.GasLimit)
+	return calculateLineaTxSuggestions(ctx, gasClient, params, config, gasPrice, lineaEstimateGasResult.GasLimit)
 }
 
-func calculateLineaTxSuggestions(ctx context.Context, ethClient EthClient, params ChainParameters, config SuggestionsConfig, gasPrice *GasPrice, gasLimit *big.Int) (*TxSuggestions, error) {
+func calculateLineaTxSuggestions(ctx context.Context, gasClient GasClient, params ChainParameters, config SuggestionsConfig, gasPrice *GasPrice, gasLimit *big.Int) (*TxSuggestions, error) {
 	twiceBaseFee := big.NewInt(0).Mul(gasPrice.BaseFeePerGas, big.NewInt(2))
 
 	ret := &TxSuggestions{
@@ -66,7 +66,7 @@ func calculateLineaTxSuggestions(ctx context.Context, ethClient EthClient, param
 	blockCount := uint64(config.NetworkCongestionBlocks)
 	rewardPercentiles := []float64{config.MediumRewardPercentile}
 
-	feeHistory, err := getFeeHistory(ctx, ethClient, blockCount, nil, rewardPercentiles)
+	feeHistory, err := getFeeHistory(ctx, gasClient, blockCount, nil, rewardPercentiles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get fee history: %w", err)
 	}

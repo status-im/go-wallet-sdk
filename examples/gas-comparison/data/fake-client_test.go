@@ -115,7 +115,7 @@ func TestFakeClient_BlockByNumber(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			block, err := client.BlockByNumber(context.Background(), tt.number)
+			block, err := client.EthGetBlockByNumberWithFullTxs(context.Background(), tt.number)
 			if err != nil {
 				t.Fatalf("BlockByNumber returned error: %v", err)
 			}
@@ -480,7 +480,7 @@ func TestFakeClient_NilGasData(t *testing.T) {
 		t.Error("Expected error for BlockNumber with nil gas data")
 	}
 
-	_, err = client.BlockByNumber(context.Background(), nil)
+	_, err = client.EthGetBlockByNumberWithFullTxs(context.Background(), nil)
 	if err == nil {
 		t.Error("Expected error for BlockByNumber with nil gas data")
 	}

@@ -13,7 +13,7 @@ import (
 // getLineaGasPriceForAccount calculates gas price suggestions for Linea-based chains
 // Results might change depending on the account placing the transaction (i.e. gasless chains like Status Network),
 // so the address always needs to be provided.
-func suggestLineaGasPriceForAccount(ctx context.Context, ethClient EthClient, address gethcommon.Address) (*GasPrice, error) {
+func suggestLineaGasPriceForAccount(ctx context.Context, gasClient GasClient, address gethcommon.Address) (*GasPrice, error) {
 	// Dummy transaction
 	toAddress := gethcommon.Address{}
 	callMsg := &ethereum.CallMsg{
@@ -23,7 +23,7 @@ func suggestLineaGasPriceForAccount(ctx context.Context, ethClient EthClient, ad
 	}
 
 	var estimateGasResult *ethclient.LineaEstimateGasResult
-	estimateGasResult, err := estimateLineaTxGas(ctx, ethClient, callMsg)
+	estimateGasResult, err := estimateLineaTxGas(ctx, gasClient, callMsg)
 	if err != nil {
 		return nil, err
 	}
