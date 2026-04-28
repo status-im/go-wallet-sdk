@@ -3,6 +3,8 @@ package manager
 import (
 	"errors"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/status-im/go-wallet-sdk/pkg/tokens/autofetcher"
 	"github.com/status-im/go-wallet-sdk/pkg/tokens/parsers"
 )
@@ -37,6 +39,18 @@ type Config struct {
 	//
 	// Note: this does NOT modify token lists themselves; `TokenList` / `TokenLists` still return the original lists as loaded.
 	SkippedTokenKeys []string
+
+	// AdditionalAddressesForNativeToken registers extra addresses that resolve to a chain's native token. Some chains
+	// expose the native token at more than one address (e.g. on zkSync Era the native token is reachable both at the
+	// zero address and at the system-contract alias 0x000000000000000000000000000000000000800a).
+	//
+	// Each registered address is surfaced through the manager's *unique token collection* APIs (UniqueTokens /
+	// GetTokenByChainAddress / GetTokensByChain / GetTokensByKeys) as a distinct entry whose fields match the chain's
+	// native token, except that Address is set to the registered address. It is NOT added to the "native" token list
+	// returned by `TokenList` / `TokenLists`.
+	//
+	// Entries whose chain is not in `Chains` and entries equal to the zero address are ignored.
+	AdditionalAddressesForNativeToken map[uint64][]common.Address
 }
 
 func (c *Config) Validate() error {

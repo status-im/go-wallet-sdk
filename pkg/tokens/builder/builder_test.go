@@ -60,7 +60,7 @@ var (
 func TestNew(t *testing.T) {
 	chains := []uint64{common.EthereumMainnet, common.BSCMainnet}
 
-	builder := New(chains, nil)
+	builder := New(chains, nil, nil)
 
 	assert.NotNil(t, builder)
 	assert.Equal(t, chains, builder.chains)
@@ -71,7 +71,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestBuilder_GetTokens(t *testing.T) {
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 	builder.AddTokenList("test-list", testTokenList1)
 
 	result := builder.GetTokens()
@@ -79,7 +79,7 @@ func TestBuilder_GetTokens(t *testing.T) {
 }
 
 func TestBuilder_GetTokenLists(t *testing.T) {
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 	builder.AddTokenList("test-list", testTokenList1)
 
 	result := builder.GetTokenLists()
@@ -141,7 +141,7 @@ func TestGetNativeToken(t *testing.T) {
 
 func TestBuilder_AddNativeTokenList(t *testing.T) {
 	chains := []uint64{common.EthereumMainnet, common.BSCMainnet, common.OptimismMainnet}
-	builder := New(chains, nil)
+	builder := New(chains, nil, nil)
 
 	err := builder.AddNativeTokenList()
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestBuilder_AddNativeTokenList(t *testing.T) {
 }
 
 func TestBuilder_AddTokenList(t *testing.T) {
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 
 	tokenListID := "test-list"
 	builder.AddTokenList(tokenListID, testTokenList1)
@@ -190,7 +190,7 @@ func TestBuilder_AddTokenList(t *testing.T) {
 }
 
 func TestBuilder_AddTokenList_DuplicateTokens(t *testing.T) {
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 
 	tokenList1 := &types.TokenList{
 		Name:   "List 1",
@@ -218,7 +218,7 @@ func TestBuilder_AddRawTokenList_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 
 	rawData := []byte(`{"name": "Test List", "tokens": []}`)
 	sourceURL := "https://example.com/test.json"
@@ -244,7 +244,7 @@ func TestBuilder_AddRawTokenList_EmptyRawData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 	mockParser := mock_parsers.NewMockTokenListParser(ctrl)
 
 	err := builder.AddRawTokenList("test-list", []byte{}, "url", time.Now(), mockParser)
@@ -255,7 +255,7 @@ func TestBuilder_AddRawTokenList_EmptyRawData(t *testing.T) {
 }
 
 func TestBuilder_AddRawTokenList_NilParser(t *testing.T) {
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 
 	err := builder.AddRawTokenList("test-list", []byte(`{}`), "url", time.Now(), nil)
 	assert.ErrorIs(t, err, ErrParserIsNil)
@@ -265,7 +265,7 @@ func TestBuilder_AddRawTokenList_ParserError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 
 	expectedError := errors.New("parser error")
 	rawData := []byte(`{}`)
@@ -281,7 +281,7 @@ func TestBuilder_AddRawTokenList_ParserError(t *testing.T) {
 }
 
 func TestBuilder_ComplexBuildScenario(t *testing.T) {
-	builder := New([]uint64{common.EthereumMainnet, common.BSCMainnet}, nil)
+	builder := New([]uint64{common.EthereumMainnet, common.BSCMainnet}, nil, nil)
 
 	err := builder.AddNativeTokenList()
 	require.NoError(t, err)
@@ -313,7 +313,7 @@ func TestBuilder_ComplexBuildScenario(t *testing.T) {
 }
 
 func TestBuilder_EmptyChains(t *testing.T) {
-	builder := New([]uint64{}, nil)
+	builder := New([]uint64{}, nil, nil)
 
 	err := builder.AddNativeTokenList()
 	require.NoError(t, err)
@@ -330,7 +330,7 @@ func TestBuilder_EmptyChains(t *testing.T) {
 }
 
 func TestBuilder_API(t *testing.T) {
-	builder := New([]uint64{common.EthereumMainnet}, nil)
+	builder := New([]uint64{common.EthereumMainnet}, nil, nil)
 
 	err := builder.AddNativeTokenList()
 	require.NoError(t, err)
@@ -346,7 +346,7 @@ func TestBuilder_API(t *testing.T) {
 }
 
 func TestBuilder_BuilderPattern_EmptyInitialization(t *testing.T) {
-	builder := New(testChains, nil)
+	builder := New(testChains, nil, nil)
 
 	assert.Empty(t, builder.GetTokens())
 	assert.Empty(t, builder.GetTokenLists())
@@ -371,7 +371,7 @@ func TestBuilder_SkipTokenKeys(t *testing.T) {
 		"10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000",
 	}
 
-	builder := New(testChains, skippedKeys)
+	builder := New(testChains, skippedKeys, nil)
 
 	builder.AddTokenList("test-list", testTokenList1)
 
@@ -396,11 +396,81 @@ func TestBuilder_SkipTokenKeys_CaseInsensitive(t *testing.T) {
 		strings.ToUpper(testToken1.Key()),
 	}
 
-	builder := New(testChains, skippedKeys)
+	builder := New(testChains, skippedKeys, nil)
 
 	builder.AddTokenList("test-list", testTokenList1)
 
 	tokens := builder.GetTokens()
 	assert.NotContains(t, tokens, testToken1.Key())
 	assert.Empty(t, tokens)
+}
+
+func TestBuilder_AddNativeTokenList_AdditionalAddresses(t *testing.T) {
+	zkSyncSystemNative := gethcommon.HexToAddress("0x000000000000000000000000000000000000800a")
+	chains := []uint64{common.EthereumMainnet, common.BSCMainnet}
+	additional := map[uint64][]gethcommon.Address{
+		common.EthereumMainnet: {zkSyncSystemNative},
+	}
+
+	b := New(chains, nil, additional)
+	require.NoError(t, b.AddNativeTokenList())
+
+	t.Run("alias is not added to the native token list", func(t *testing.T) {
+		nativeList := b.GetTokenLists()[NativeTokenListID]
+		require.NotNil(t, nativeList)
+		assert.Len(t, nativeList.Tokens, len(chains))
+		for _, tk := range nativeList.Tokens {
+			assert.True(t, tk.IsNative(), "native list must only contain zero-address entries")
+		}
+	})
+
+	t.Run("alias is registered in the unique-token map as a separate entry", func(t *testing.T) {
+		tokens := b.GetTokens()
+		assert.Len(t, tokens, len(chains)+1)
+
+		aliasKey := types.TokenKey(common.EthereumMainnet, zkSyncSystemNative)
+		alias, ok := tokens[aliasKey]
+		require.True(t, ok, "alias entry must be present in the unique-token map")
+
+		canonical := getNativeToken(common.EthereumMainnet)
+		assert.Equal(t, zkSyncSystemNative, alias.Address, "alias address must match what was registered")
+		assert.Equal(t, canonical.Address, gethcommon.Address{})
+		assert.Equal(t, canonical.CrossChainID, alias.CrossChainID)
+		assert.Equal(t, canonical.ChainID, alias.ChainID)
+		assert.Equal(t, canonical.Symbol, alias.Symbol)
+		assert.Equal(t, canonical.Name, alias.Name)
+		assert.Equal(t, canonical.Decimals, alias.Decimals)
+		assert.Equal(t, canonical.LogoURI, alias.LogoURI)
+	})
+}
+
+func TestBuilder_AddNativeTokenList_AdditionalAddresses_Edges(t *testing.T) {
+	zkSyncSystemNative := gethcommon.HexToAddress("0x000000000000000000000000000000000000800a")
+	chains := []uint64{common.EthereumMainnet}
+
+	t.Run("zero address is ignored", func(t *testing.T) {
+		b := New(chains, nil, map[uint64][]gethcommon.Address{
+			common.EthereumMainnet: {gethcommon.Address{}},
+		})
+		require.NoError(t, b.AddNativeTokenList())
+		assert.Len(t, b.GetTokens(), len(chains))
+	})
+
+	t.Run("entries for unknown chains are ignored", func(t *testing.T) {
+		b := New(chains, nil, map[uint64][]gethcommon.Address{
+			common.BSCMainnet: {zkSyncSystemNative}, // BSC is not in chains
+		})
+		require.NoError(t, b.AddNativeTokenList())
+		assert.Len(t, b.GetTokens(), len(chains))
+	})
+
+	t.Run("alias respects skippedTokenKeys", func(t *testing.T) {
+		aliasKey := types.TokenKey(common.EthereumMainnet, zkSyncSystemNative)
+		b := New(chains, []string{aliasKey}, map[uint64][]gethcommon.Address{
+			common.EthereumMainnet: {zkSyncSystemNative},
+		})
+		require.NoError(t, b.AddNativeTokenList())
+		_, ok := b.GetTokens()[aliasKey]
+		assert.False(t, ok, "alias must be excluded when its key is in skippedTokenKeys")
+	})
 }

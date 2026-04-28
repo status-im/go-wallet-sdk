@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	gethcommon "github.com/ethereum/go-ethereum/common"
+
 	"github.com/status-im/go-wallet-sdk/pkg/common"
 	"github.com/status-im/go-wallet-sdk/pkg/tokens/parsers"
 	"github.com/status-im/go-wallet-sdk/pkg/tokens/types"
@@ -29,24 +31,27 @@ var (
 
 // Builder builds token lists into a single list of unique tokens.
 type Builder struct {
-	chains           []uint64
-	tokens           map[string]*types.Token
-	tokenLists       map[string]*types.TokenList
-	skippedTokenKeys map[string]bool // Set of token keys to skip (for fast lookup)
+	chains                            []uint64
+	tokens                            map[string]*types.Token
+	tokenLists                        map[string]*types.TokenList
+	skippedTokenKeys                  map[string]bool // Set of token keys to skip (for fast lookup)
+	additionalAddressesForNativeToken map[uint64][]gethcommon.Address
 }
 
 // New creates a new Builder instance.
-func New(chains []uint64, skippedTokenKeys []string) *Builder {
+func New(chains []uint64, skippedTokenKeys []string,
+	additionalAddressesForNativeToken map[uint64][]gethcommon.Address) *Builder {
 	skippedKeysMap := make(map[string]bool)
 	for _, key := range skippedTokenKeys {
 		skippedKeysMap[strings.ToLower(key)] = true
 	}
 
 	return &Builder{
-		chains:           chains,
-		tokens:           make(map[string]*types.Token),
-		tokenLists:       make(map[string]*types.TokenList),
-		skippedTokenKeys: skippedKeysMap,
+		chains:                            chains,
+		tokens:                            make(map[string]*types.Token),
+		tokenLists:                        make(map[string]*types.TokenList),
+		skippedTokenKeys:                  skippedKeysMap,
+		additionalAddressesForNativeToken: additionalAddressesForNativeToken,
 	}
 }
 
@@ -95,6 +100,25 @@ func (b *Builder) AddNativeTokenList() error {
 	}
 
 	b.AddTokenList(NativeTokenListID, nativeTokenList)
+
+	// add additional addresses for native token if configured
+	for _, chainID := range b.chains {
+		for _, addr := range b.additionalAddressesForNativeToken[chainID] {
+			if (addr == gethcommon.Address{}) {
+				continue
+			}
+			alias := *getNativeToken(chainID)
+			alias.Address = addr
+			key := alias.Key()
+			if b.skippedTokenKeys[key] {
+				continue
+			}
+			if _, exists := b.tokens[key]; !exists {
+				b.tokens[key] = &alias
+			}
+		}
+	}
+
 	return nil
 }
 

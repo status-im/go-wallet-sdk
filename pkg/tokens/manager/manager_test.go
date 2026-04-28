@@ -1094,3 +1094,156 @@ func TestManager_EmptyState(t *testing.T) {
 		assert.Nil(t, list)
 	})
 }
+
+func TestManager_AdditionalAddressesForNativeToken(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockFetcher := mock_fetcher.NewMockFetcher(ctrl)
+	contentStore := mock_autofetcher.NewMockContentStore(ctrl)
+	customTokenStore := mock_manager.NewMockCustomTokenStore(ctrl)
+
+	contentStore.EXPECT().GetAll().Return(map[string]autofetcher.Content{}, nil).AnyTimes()
+	contentStore.EXPECT().Get(gomock.Any()).Return(autofetcher.Content{}, nil).AnyTimes()
+	customTokenStore.EXPECT().GetAll().Return([]*types.Token{}, nil).AnyTimes()
+
+	zkSyncSystemNative := gethcommon.HexToAddress("0x000000000000000000000000000000000000800a")
+	zeroAddr := gethcommon.Address{}
+
+	initialLists := map[string][]byte{
+		"main-list": []byte(`{"name": "Main List", "tokens": []}`),
+		"list2":     []byte(`{"name": "List 2", "tokens": []}`),
+	}
+	config := &manager.Config{
+		MainListID:          "main-list",
+		InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+		InitialListProvider: manager.StaticInitialListProvider(initialLists),
+		Chains:              testChains,
+		AdditionalAddressesForNativeToken: map[uint64][]gethcommon.Address{
+			common.EthereumMainnet: {zkSyncSystemNative},
+		},
+	}
+
+	m, err := manager.New(config, mockFetcher, contentStore, customTokenStore)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	require.NoError(t, m.Start(ctx, false, nil))
+	defer func() { _ = m.Stop() }()
+
+	aliasKey := types.TokenKey(common.EthereumMainnet, zkSyncSystemNative)
+
+	t.Run("alias does not appear in TokenList(native)", func(t *testing.T) {
+		nativeList, ok := m.TokenList("native")
+		require.True(t, ok)
+		require.NotNil(t, nativeList)
+		assert.Len(t, nativeList.Tokens, len(testChains), "native list size must match number of chains")
+		for _, tk := range nativeList.Tokens {
+			assert.True(t, tk.IsNative(), "native list must only contain zero-address entries")
+			assert.NotEqual(t, zkSyncSystemNative, tk.Address)
+		}
+	})
+
+	t.Run("GetTokenByChainAddress resolves the alias to a clone of the chain's native token", func(t *testing.T) {
+		token, ok := m.GetTokenByChainAddress(common.EthereumMainnet, zkSyncSystemNative)
+		require.True(t, ok)
+		require.NotNil(t, token)
+
+		canonicalEth, okZero := m.GetTokenByChainAddress(common.EthereumMainnet, zeroAddr)
+		require.True(t, okZero)
+		require.NotNil(t, canonicalEth)
+
+		assert.Equal(t, zkSyncSystemNative, token.Address, "alias address must round-trip")
+		assert.Equal(t, canonicalEth.CrossChainID, token.CrossChainID)
+		assert.Equal(t, canonicalEth.ChainID, token.ChainID)
+		assert.Equal(t, canonicalEth.Symbol, token.Symbol)
+		assert.Equal(t, canonicalEth.Name, token.Name)
+		assert.Equal(t, canonicalEth.Decimals, token.Decimals)
+		assert.Equal(t, canonicalEth.LogoURI, token.LogoURI)
+	})
+
+	t.Run("GetTokensByChain includes the alias as a separate entry", func(t *testing.T) {
+		ethTokens := m.GetTokensByChain(common.EthereumMainnet)
+		var sawZero, sawAlias bool
+		for _, tk := range ethTokens {
+			if tk.Address == zeroAddr {
+				sawZero = true
+			}
+			if tk.Address == zkSyncSystemNative {
+				sawAlias = true
+			}
+		}
+		assert.True(t, sawZero, "canonical zero-address native must be present")
+		assert.True(t, sawAlias, "alias entry must be present")
+
+		// Aliases configured for one chain must not leak into other chains.
+		bscTokens := m.GetTokensByChain(common.BSCMainnet)
+		for _, tk := range bscTokens {
+			assert.NotEqual(t, zkSyncSystemNative, tk.Address, "alias must not leak to other chains")
+		}
+	})
+
+	t.Run("GetTokensByKeys resolves the alias key", func(t *testing.T) {
+		tokens, err := m.GetTokensByKeys([]string{aliasKey})
+		require.NoError(t, err)
+		require.Len(t, tokens, 1)
+		assert.Equal(t, zkSyncSystemNative, tokens[0].Address)
+		assert.Equal(t, common.EthereumMainnet, tokens[0].ChainID)
+	})
+
+	t.Run("UniqueTokens includes the alias", func(t *testing.T) {
+		var sawAlias bool
+		for _, tk := range m.UniqueTokens() {
+			if tk.ChainID == common.EthereumMainnet && tk.Address == zkSyncSystemNative {
+				sawAlias = true
+				break
+			}
+		}
+		assert.True(t, sawAlias, "alias must be visible via UniqueTokens")
+	})
+}
+
+func TestManager_AdditionalAddressesForNativeToken_SkippedKeyExcludesAlias(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockFetcher := mock_fetcher.NewMockFetcher(ctrl)
+	contentStore := mock_autofetcher.NewMockContentStore(ctrl)
+	customTokenStore := mock_manager.NewMockCustomTokenStore(ctrl)
+
+	contentStore.EXPECT().GetAll().Return(map[string]autofetcher.Content{}, nil).AnyTimes()
+	contentStore.EXPECT().Get(gomock.Any()).Return(autofetcher.Content{}, nil).AnyTimes()
+	customTokenStore.EXPECT().GetAll().Return([]*types.Token{}, nil).AnyTimes()
+
+	zkSyncSystemNative := gethcommon.HexToAddress("0x000000000000000000000000000000000000800a")
+	aliasKey := types.TokenKey(common.EthereumMainnet, zkSyncSystemNative)
+
+	initialLists := map[string][]byte{
+		"main-list": []byte(`{"name": "Main List", "tokens": []}`),
+		"list2":     []byte(`{"name": "List 2", "tokens": []}`),
+	}
+	config := &manager.Config{
+		MainListID:          "main-list",
+		InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+		InitialListProvider: manager.StaticInitialListProvider(initialLists),
+		Chains:              testChains,
+		SkippedTokenKeys:    []string{aliasKey},
+		AdditionalAddressesForNativeToken: map[uint64][]gethcommon.Address{
+			common.EthereumMainnet: {zkSyncSystemNative},
+		},
+	}
+
+	m, err := manager.New(config, mockFetcher, contentStore, customTokenStore)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	require.NoError(t, m.Start(ctx, false, nil))
+	defer func() { _ = m.Stop() }()
+
+	_, ok := m.GetTokenByChainAddress(common.EthereumMainnet, zkSyncSystemNative)
+	assert.False(t, ok, "alias must be excluded when its key is in SkippedTokenKeys")
+
+	tokens, err := m.GetTokensByKeys([]string{aliasKey})
+	require.NoError(t, err)
+	assert.Empty(t, tokens, "alias must not resolve via GetTokensByKeys when skipped")
+}
