@@ -116,6 +116,30 @@ config := &manager.Config{
 
 **Note:** Token keys are matched case-insensitively. The filtering applies to all token sources (native tokens, remote lists, local lists, and custom tokens).
 
+### Additional Native Token Addresses
+
+Some chains expose the native token at more than one address. For example, on zkSync Era the native token is reachable both at the zero address `0x0000…0000` and at the system-contract alias `0x0000…800a`. Use `AdditionalAddressesForNativeToken` to register such per-chain aliases:
+
+- **🪞 Aliases as separate entries**: Each registered address is added to the manager's *unique token collection* as its own entry. The entry is a clone of the chain's canonical native token with `Address` set to the registered address (so callers see a `Token` whose `Address` matches what they queried). `CrossChainID` stays the same, so clients can dedupe by asset identity.
+- **📋 Native list excludes aliases**: Aliases do NOT appear in the `"native"` token list returned by `TokenList` / `TokenLists`. Those lists still contain exactly one zero-address entry per chain.
+- **🚫 Filtering and validation**: Entries whose chain is not in `Chains` and entries equal to the zero address are silently ignored. Aliases respect `SkippedTokenKeys`.
+
+```go
+config := &manager.Config{
+    Chains: []uint64{1, 324}, // Ethereum, zkSync Era
+    AdditionalAddressesForNativeToken: map[uint64][]common.Address{
+        324: { // zkSync Era native token has a system-contract alias
+            common.HexToAddress("0x000000000000000000000000000000000000800a"),
+        },
+    },
+}
+
+// After Start():
+//   GetTokenByChainAddress(324, 0x...800a) -> Token{Address: 0x...800a, Symbol: "ETH", ...}
+//   GetTokenByChainAddress(324, 0x0)       -> Token{Address: 0x0,       Symbol: "ETH", ...}
+//   TokenList("native").Tokens             -> one entry per chain (zero-address only)
+```
+
 ### Basic Configuration
 
 ```go

@@ -10,7 +10,7 @@ The `builder` package provides functionality for building token collections by p
 
 ## Key entrypoints
 
-- `builder.New(chains, skippedTokenKeys)`
+- `builder.New(chains, skippedTokenKeys, additionalAddressesForNativeToken)`
 - `(*Builder).AddNativeTokenList()`
 - `(*Builder).AddTokenList(...)` / `(*Builder).AddRawTokenList(...)`
 - `(*Builder).GetTokens()` / `(*Builder).GetTokenLists()`
@@ -44,10 +44,11 @@ The main struct that manages incremental token list building operations:
 
 ```go
 type Builder struct {
-    chains           []uint64                     // Supported chain IDs
-    tokens           map[string]*types.Token      // Unified token collection (deduplicated)
-    tokenLists       map[string]*types.TokenList  // Individual token lists by ID
-    skippedTokenKeys map[string]bool              // Set of token keys to skip (for fast lookup)
+    chains                            []uint64                       // Supported chain IDs
+    tokens                            map[string]*types.Token        // Unified token collection (deduplicated)
+    tokenLists                        map[string]*types.TokenList    // Individual token lists by ID
+    skippedTokenKeys                  map[string]bool                // Set of token keys to skip (for fast lookup)
+    additionalAddressesForNativeToken map[uint64][]common.Address    // Extra addresses that resolve to a chain's native token
 }
 ```
 
@@ -82,13 +83,14 @@ var (
 
 ### Constructor
 
-#### `New(chains []uint64, skippedTokenKeys []string) *Builder`
+#### `New(chains []uint64, skippedTokenKeys []string, additionalAddressesForNativeToken map[uint64][]common.Address) *Builder`
 
 Creates a new Builder instance with empty token collections.
 
 **Parameters:**
 - `chains`: List of supported blockchain network IDs
 - `skippedTokenKeys`: Optional list of token keys to exclude from token collections. Token keys are in the format `"{chainID}-{lowercaseAddress}"` (e.g., `"10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"`). Pass `nil` or empty slice to skip no tokens.
+- `additionalAddressesForNativeToken`: Optional map of extra addresses that should resolve to a chain's native token (e.g., zkSync Era's `0x...800a` system alias). Aliases are added to the unified token collection by `AddNativeTokenList` but are NOT added to the returned native `*types.TokenList`. Entries whose chain is not in `chains` and entries equal to the zero address are ignored.
 
 **Returns:** New Builder instance ready for incremental construction
 
@@ -96,14 +98,20 @@ Creates a new Builder instance with empty token collections.
 ```go
 chains := []uint64{1, 56, 10} // Ethereum, BSC, Optimism
 
-// Without skipping any tokens
-builder := builder.New(chains, nil)
+// Without skipping any tokens or registering aliases
+builder := builder.New(chains, nil, nil)
 
 // Skip specific tokens (e.g., invalid Optimism ETH token)
 skippedKeys := []string{
     "10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000", // Optimism ETH with no value
 }
-builder := builder.New(chains, skippedKeys)
+builder := builder.New(chains, skippedKeys, nil)
+
+// Register an alternative native-token address (zkSync system alias on chain 324)
+aliases := map[uint64][]common.Address{
+    324: {common.HexToAddress("0x000000000000000000000000000000000000800a")},
+}
+builder := builder.New([]uint64{324}, nil, aliases)
 
 // Builder starts empty and builds up
 ```
@@ -127,6 +135,8 @@ Returns all individual token lists indexed by their IDs.
 #### `AddNativeTokenList() error`
 
 Generates and adds native tokens for all supported chains.
+
+If `additionalAddressesForNativeToken` was passed to `New`, one extra alias entry per registered address is added directly to the unified token collection. Each alias is a value-clone of the chain's native token with `Address` overridden to the registered address; aliases are NOT added to the returned native `*types.TokenList`. Aliases respect `skippedTokenKeys` and the "first wins" rule for the unified token collection.
 
 **Example:**
 ```go
@@ -224,7 +234,7 @@ skippedKeys := []string{
     "10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000", // Optimism ETH
 }
 
-builder := builder.New([]uint64{10}, skippedKeys)
+builder := builder.New([]uint64{10}, skippedKeys, nil)
 
 // Add a token list containing the skipped token
 tokenList := &types.TokenList{

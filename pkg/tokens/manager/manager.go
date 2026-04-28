@@ -57,6 +57,8 @@ type manager struct {
 	// skippedTokenKeys are applied when building the manager's unique token collection (see builder.Builder.GetTokens()).
 	// They do NOT alter token lists returned by TokenList / TokenLists (those return the original lists as loaded).
 	skippedTokenKeys []string
+	// additionalAddressesForNativeToken registers extra addresses that resolve to a chain's native token.
+	additionalAddressesForNativeToken map[uint64][]common.Address
 
 	started         bool
 	refreshCancelFn context.CancelFunc
@@ -81,11 +83,12 @@ func New(config *Config,
 	}
 
 	manager := &manager{
-		mainListID:          config.MainListID,
-		initialListProvider: config.InitialListProvider,
-		customParsers:       config.CustomParsers,
-		chains:              chains,
-		skippedTokenKeys:    append([]string(nil), config.SkippedTokenKeys...),
+		mainListID:                        config.MainListID,
+		initialListProvider:               config.InitialListProvider,
+		customParsers:                     config.CustomParsers,
+		chains:                            chains,
+		skippedTokenKeys:                  append([]string(nil), config.SkippedTokenKeys...),
+		additionalAddressesForNativeToken: cloneAddressesByChain(config.AdditionalAddressesForNativeToken),
 
 		contentStore:     contentStore,
 		customTokenStore: customTokenStore,
@@ -185,6 +188,20 @@ func (m *manager) notify() {
 	default:
 		// Channel is full or closed, skip notification
 	}
+}
+
+func cloneAddressesByChain(src map[uint64][]common.Address) map[uint64][]common.Address {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[uint64][]common.Address, len(src))
+	for chainID, addrs := range src {
+		if len(addrs) == 0 {
+			continue
+		}
+		dst[chainID] = append([]common.Address(nil), addrs...)
+	}
+	return dst
 }
 
 func processChains(chains []uint64) ([]uint64, error) {
@@ -438,7 +455,7 @@ func (m *manager) TokenLists() []*types.TokenList {
 }
 
 func (m *manager) buildState() error {
-	builder := builder.New(m.chains, m.skippedTokenKeys)
+	builder := builder.New(m.chains, m.skippedTokenKeys, m.additionalAddressesForNativeToken)
 
 	// 1. native token list
 	if err := builder.AddNativeTokenList(); err != nil {
