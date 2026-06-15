@@ -360,6 +360,247 @@ func TestRunSync_ErrorHandling_SubsequentChunk(t *testing.T) {
 	assert.Equal(t, common.Hash{}, result.BlockHash)
 }
 
+func TestRunSync_ErrorHandling_MultipleJobs_SubsequentChunkFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+
+	callsJob0 := []multicall3.IMulticall3Call{
+		{Target: common.HexToAddress("0x1"), CallData: []byte("call1")},
+		{Target: common.HexToAddress("0x2"), CallData: []byte("call2")},
+	}
+	callsJob1 := []multicall3.IMulticall3Call{
+		{Target: common.HexToAddress("0x3"), CallData: []byte("call3")},
+		{Target: common.HexToAddress("0x4"), CallData: []byte("call4")},
+	}
+	callsJob2 := []multicall3.IMulticall3Call{
+		{Target: common.HexToAddress("0x5"), CallData: []byte("call5")},
+		{Target: common.HexToAddress("0x6"), CallData: []byte("call6")},
+	}
+
+	expectedBlockNumber := big.NewInt(12345)
+	expectedBlockHash := [32]byte{1, 2, 3, 4}
+	expectedError := errors.New("network error")
+
+	mockCaller.EXPECT().
+		ViewTryBlockAndAggregate(
+			gomock.Any(),
+			false,
+			callsJob0,
+		).
+		Return(expectedBlockNumber, expectedBlockHash, []multicall3.IMulticall3Result{
+			{Success: true, ReturnData: []byte("result1")},
+			{Success: true, ReturnData: []byte("result2")},
+		}, nil)
+
+	mockCaller.EXPECT().
+		ViewTryAggregate(
+			gomock.Any(),
+			false,
+			callsJob1,
+		).
+		Return([]multicall3.IMulticall3Result{
+			{Success: true, ReturnData: []byte("result3")},
+			{Success: true, ReturnData: []byte("result4")},
+		}, nil)
+
+	mockCaller.EXPECT().
+		ViewTryAggregate(
+			gomock.Any(),
+			false,
+			callsJob2,
+		).
+		Return(nil, expectedError)
+
+	jobs := []multicall.Job{
+		{
+			Calls: callsJob0,
+			CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+				return result, nil
+			},
+		},
+		{
+			Calls: callsJob1,
+			CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+				return result, nil
+			},
+		},
+		{
+			Calls: callsJob2,
+			CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+				return result, nil
+			},
+		},
+	}
+
+	ctx := context.Background()
+	atBlock := big.NewInt(12345)
+	results := multicall.RunSync(ctx, jobs, atBlock, mockCaller, 2)
+
+	assert.Len(t, results, 3)
+	assert.NoError(t, results[0].Err)
+	assert.Len(t, results[0].Results, 2)
+	assert.Equal(t, expectedBlockNumber, results[0].BlockNumber)
+
+	assert.NoError(t, results[1].Err)
+	assert.Len(t, results[1].Results, 2)
+	assert.Equal(t, expectedBlockNumber, results[1].BlockNumber)
+
+	assert.Equal(t, expectedError, results[2].Err)
+	assert.Nil(t, results[2].Results)
+}
+
+func TestRunSync_ChunkRetry_SplitsOnFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+
+	const callCount = 2 * multicall.DefaultMinChunkSize
+	calls := make([]multicall3.IMulticall3Call, callCount)
+	expectedResults := make([]multicall3.IMulticall3Result, callCount)
+	for i := 0; i < callCount; i++ {
+		calls[i] = multicall3.IMulticall3Call{
+			Target:   common.HexToAddress("0x1"),
+			CallData: []byte{byte(i)},
+		}
+		expectedResults[i] = multicall3.IMulticall3Result{
+			Success:    true,
+			ReturnData: []byte{byte(i)},
+		}
+	}
+
+	expectedBlockNumber := big.NewInt(12345)
+	expectedBlockHash := [32]byte{1, 2, 3, 4}
+
+	mockCaller.EXPECT().
+		ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
+		DoAndReturn(func(_ *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			if len(chunk) >= callCount {
+				return nil, [32]byte{}, nil, errors.New("chunk too large")
+			}
+			results := make([]multicall3.IMulticall3Result, len(chunk))
+			for i, call := range chunk {
+				results[i] = multicall3.IMulticall3Result{
+					Success:    true,
+					ReturnData: call.CallData,
+				}
+			}
+			return expectedBlockNumber, expectedBlockHash, results, nil
+		}).
+		AnyTimes()
+
+	mockCaller.EXPECT().
+		ViewTryAggregate(gomock.Any(), false, gomock.Any()).
+		DoAndReturn(func(_ *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error) {
+			if len(chunk) >= callCount {
+				return nil, errors.New("chunk too large")
+			}
+			results := make([]multicall3.IMulticall3Result, len(chunk))
+			for i, call := range chunk {
+				results[i] = multicall3.IMulticall3Result{
+					Success:    true,
+					ReturnData: call.CallData,
+				}
+			}
+			return results, nil
+		}).
+		AnyTimes()
+
+	job := multicall.Job{
+		Calls: calls,
+		CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+			return result, nil
+		},
+	}
+
+	ctx := context.Background()
+	atBlock := big.NewInt(12345)
+	results := multicall.RunSync(ctx, []multicall.Job{job}, atBlock, mockCaller, callCount)
+
+	assert.Len(t, results, 1)
+	result := results[0]
+	assert.NoError(t, result.Err)
+	assert.Len(t, result.Results, callCount)
+	for i, callResult := range result.Results {
+		assert.NoError(t, callResult.Err)
+		parsed, ok := callResult.Value.(multicall3.IMulticall3Result)
+		assert.True(t, ok)
+		assert.Equal(t, expectedResults[i].ReturnData, parsed.ReturnData)
+	}
+}
+
+func TestRunSync_ChunkRetry_MinSizeFailurePropagates(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+
+	const callCount = multicall.DefaultMinChunkSize
+	calls := make([]multicall3.IMulticall3Call, callCount)
+	for i := 0; i < callCount; i++ {
+		calls[i] = multicall3.IMulticall3Call{
+			Target:   common.HexToAddress("0x1"),
+			CallData: []byte{byte(i)},
+		}
+	}
+
+	expectedError := errors.New("rpc unavailable")
+	mockCaller.EXPECT().
+		ViewTryBlockAndAggregate(gomock.Any(), false, calls).
+		Return(nil, [32]byte{}, nil, expectedError)
+
+	job := multicall.Job{
+		Calls: calls,
+		CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+			return result, nil
+		},
+	}
+
+	ctx := context.Background()
+	atBlock := big.NewInt(12345)
+	results := multicall.RunSync(ctx, []multicall.Job{job}, atBlock, mockCaller, callCount)
+
+	assert.Len(t, results, 1)
+	result := results[0]
+	assert.Equal(t, expectedError, result.Err)
+	assert.Nil(t, result.Results)
+}
+
+func TestRunSync_ChunkRetry_ContextCanceledNoSplit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+
+	callCount := 2 * multicall.DefaultMinChunkSize
+	calls := make([]multicall3.IMulticall3Call, callCount)
+	for i := 0; i < callCount; i++ {
+		calls[i] = multicall3.IMulticall3Call{
+			Target:   common.HexToAddress("0x1"),
+			CallData: []byte{byte(i)},
+		}
+	}
+
+	mockCaller.EXPECT().
+		ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
+		Return(nil, [32]byte{}, nil, context.Canceled).
+		Times(1)
+
+	job := multicall.Job{
+		Calls: calls,
+		CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+			return result, nil
+		},
+	}
+
+	results := multicall.RunSync(context.Background(), []multicall.Job{job}, big.NewInt(12345), mockCaller, callCount)
+
+	assert.Len(t, results, 1)
+	assert.ErrorIs(t, results[0].Err, context.Canceled)
+}
+
 func TestRunSync_ContextCancellation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

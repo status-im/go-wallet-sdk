@@ -265,6 +265,7 @@ func TestAutofetcher_Start_MultipleCalls(t *testing.T) {
 	defer ctrl.Finish()
 
 	config := createValidTokenListsConfig()
+	config.LastUpdate = time.Now() // avoid background refresh; this test only checks Start idempotency
 	mockFetcher := mock_fetcher.NewMockFetcher(ctrl)
 	mockContentStore := mock_autofetcher.NewMockContentStore(ctrl)
 
@@ -287,6 +288,7 @@ func TestAutofetcher_Stop_MultipleCalls(t *testing.T) {
 	defer ctrl.Finish()
 
 	config := createValidTokenListsConfig()
+	config.LastUpdate = time.Now() // avoid background refresh; this test only checks Stop idempotency
 	mockFetcher := mock_fetcher.NewMockFetcher(ctrl)
 	mockContentStore := mock_autofetcher.NewMockContentStore(ctrl)
 
@@ -307,6 +309,7 @@ func TestAutofetcher_Start_AfterStop(t *testing.T) {
 	defer ctrl.Finish()
 
 	config := createValidTokenListsConfig()
+	config.LastUpdate = time.Now() // avoid background refresh; this test only checks restart behavior
 	mockFetcher := mock_fetcher.NewMockFetcher(ctrl)
 	mockContentStore := mock_autofetcher.NewMockContentStore(ctrl)
 

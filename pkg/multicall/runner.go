@@ -14,6 +14,8 @@ import (
 	"github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
 )
 
+const DefaultMinChunkSize = 500
+
 type Caller interface {
 	ViewTryBlockAndAggregate(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error)
 	ViewTryAggregate(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error)
@@ -71,6 +73,57 @@ func RunAsync(ctx context.Context, jobs []Job, atBlock *big.Int, caller Caller, 
 	return resultsCh
 }
 
+func executeChunkWithRetry(
+	ctx context.Context,
+	caller Caller,
+	atBlock, blockNumber *big.Int,
+	requireSuccess bool,
+	minChunkSize int,
+	calls []multicall3.IMulticall3Call,
+) (*big.Int, common.Hash, []multicall3.IMulticall3Result, error) {
+	if len(calls) == 0 {
+		return blockNumber, common.Hash{}, nil, nil
+	}
+
+	var (
+		bn      = blockNumber
+		bh      common.Hash
+		results []multicall3.IMulticall3Result
+		err     error
+	)
+	if blockNumber == nil {
+		bn, bh, results, err = caller.ViewTryBlockAndAggregate(&bind.CallOpts{
+			Context:     ctx,
+			BlockNumber: atBlock,
+		}, requireSuccess, calls)
+	} else {
+		results, err = caller.ViewTryAggregate(&bind.CallOpts{
+			Context:     ctx,
+			BlockNumber: blockNumber,
+		}, requireSuccess, calls)
+	}
+	if err == nil {
+		return bn, bh, results, nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil, common.Hash{}, nil, err
+	}
+	if len(calls) <= minChunkSize {
+		return nil, common.Hash{}, nil, err
+	}
+
+	mid := len(calls) / 2
+	lbn, lbh, left, err := executeChunkWithRetry(ctx, caller, atBlock, blockNumber, requireSuccess, minChunkSize, calls[:mid])
+	if err != nil {
+		return nil, common.Hash{}, nil, err
+	}
+	_, _, right, err := executeChunkWithRetry(ctx, caller, atBlock, lbn, requireSuccess, minChunkSize, calls[mid:])
+	if err != nil {
+		return nil, common.Hash{}, nil, err
+	}
+	return lbn, lbh, append(left, right...), nil
+}
+
 // Collects all jobs and runs them in batches.
 // A single JobResult will be sent on each JobRunner's channel,
 // as soon as each individual job is finished.
@@ -109,7 +162,7 @@ func ProcessJobs(ctx context.Context, jobs []Job, resultsCh chan<- JobsResult, a
 		// Report error to unprocessed jobs
 		for i := range jobs[lastProcessedJobIdx:] {
 			resultsCh <- JobsResult{
-				JobIdx: i,
+				JobIdx: lastProcessedJobIdx + i,
 				JobResult: JobResult{
 					Err: err,
 				},
@@ -117,26 +170,23 @@ func ProcessJobs(ctx context.Context, jobs []Job, resultsCh chan<- JobsResult, a
 		}
 	}()
 
-	first := true
 	for chunk := range slices.Chunk(flatCalls, batchsize) {
+		var chunkBlockNumber *big.Int
+		var chunkBlockHash common.Hash
 		var chunkResults []multicall3.IMulticall3Result
-		if first {
-			first = false
-			// First chunk, we need to get the block number and hash
-			blockNumber, blockHash, chunkResults, err = caller.ViewTryBlockAndAggregate(&bind.CallOpts{
-				Context:     ctx,
-				BlockNumber: atBlock,
-			}, requireSuccess, chunk)
-		} else {
-			// Subsequent chunks, we use the block number from the previous chunk
-			chunkResults, err = caller.ViewTryAggregate(&bind.CallOpts{
-				Context:     ctx,
-				BlockNumber: blockNumber,
-			}, requireSuccess, chunk)
-		}
+
+		chunkBlockNumber, chunkBlockHash, chunkResults, err = executeChunkWithRetry(
+			ctx, caller, atBlock, blockNumber, requireSuccess, DefaultMinChunkSize, chunk,
+		)
 		if err != nil {
 			return
 		}
+
+		if blockNumber == nil {
+			blockNumber = chunkBlockNumber
+			blockHash = chunkBlockHash
+		}
+
 		rawCallResults = append(rawCallResults, chunkResults...)
 
 		// Process results for any finished jobs
