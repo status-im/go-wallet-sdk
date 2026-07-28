@@ -298,6 +298,8 @@ var Multicall3Addresses = map[int64]common.Address{
 	737373:       common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Katana Bokuto
 	1868:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Soneium Mainnet
 	1946:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Soneium Minato
+	4663:         common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Robinhood Chain
+	46630:        common.HexToAddress("0x25087fa102b88c69d77f8a82920234eeeb5cb554"), // Robinhood Chain Testnet
 	1660990954:   common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Status Network Sepolia
 	374:          common.HexToAddress("0xca11bde05977b3631167028862be2a173976ca11"), // Status Network Hoodi
 }
