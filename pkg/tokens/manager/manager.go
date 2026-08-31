@@ -58,6 +58,7 @@ type manager struct {
 	// They do NOT alter token lists returned by TokenList / TokenLists (those return the original lists as loaded).
 	skippedTokenKeys []string
 	// additionalAddressesForNativeToken registers extra addresses that resolve to a chain's native token.
+	// Lookups by such an address are normalized to the canonical zero-address native token.
 	additionalAddressesForNativeToken map[uint64][]common.Address
 
 	started         bool
@@ -369,7 +370,32 @@ func (m *manager) UniqueTokens() []*types.Token {
 	return tokens
 }
 
-// GetTokenByChainAddress retrieves a token by chain ID and address.
+// isSkippedTokenKey reports whether the given token key is listed in the configured SkippedTokenKeys (case-insensitive).
+func (m *manager) isSkippedTokenKey(key string) bool {
+	for _, skipped := range m.skippedTokenKeys {
+		if strings.EqualFold(skipped, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeTokenAddress maps a registered native-token alias to the canonical zero address, so lookups by an alias
+// resolve to the chain's native token.
+func (m *manager) normalizeTokenAddress(chainID uint64, addr common.Address) common.Address {
+	for _, alias := range m.additionalAddressesForNativeToken[chainID] {
+		if alias != addr {
+			continue
+		}
+		if m.isSkippedTokenKey(types.TokenKey(chainID, addr)) {
+			return addr
+		}
+		return common.Address{}
+	}
+	return addr
+}
+
+// GetTokenByChainAddress retrieves a token by chain ID and address. Native-token aliases resolve to the chain's native token.
 func (m *manager) GetTokenByChainAddress(chainID uint64, addr common.Address) (*types.Token, bool) {
 	m.builderMu.RLock()
 	defer m.builderMu.RUnlock()
@@ -377,7 +403,7 @@ func (m *manager) GetTokenByChainAddress(chainID uint64, addr common.Address) (*
 	if m.builder == nil {
 		return nil, false
 	}
-	key := types.TokenKey(chainID, addr)
+	key := types.TokenKey(chainID, m.normalizeTokenAddress(chainID, addr))
 	token, exists := m.builder.GetTokens()[key]
 	return token, exists
 }
@@ -400,7 +426,7 @@ func (m *manager) GetTokensByChain(chainID uint64) []*types.Token {
 	return tokens
 }
 
-// GetTokensByKeys returns tokens by keys.
+// GetTokensByKeys returns tokens by keys, a native-token alias key resolves to the chain's native token.
 func (m *manager) GetTokensByKeys(keys []string) ([]*types.Token, error) {
 	m.builderMu.RLock()
 	defer m.builderMu.RUnlock()
@@ -413,7 +439,11 @@ func (m *manager) GetTokensByKeys(keys []string) ([]*types.Token, error) {
 
 	tokens := make([]*types.Token, 0)
 	for _, key := range keys {
-		token, exists := tokensMap[strings.ToLower(key)]
+		key = strings.ToLower(key)
+		if chainID, addr, ok := types.ChainAndAddressFromTokenKey(key); ok {
+			key = types.TokenKey(chainID, m.normalizeTokenAddress(chainID, addr))
+		}
+		token, exists := tokensMap[key]
 		if exists {
 			tokens = append(tokens, token)
 		}
@@ -455,7 +485,7 @@ func (m *manager) TokenLists() []*types.TokenList {
 }
 
 func (m *manager) buildState() error {
-	builder := builder.New(m.chains, m.skippedTokenKeys, m.additionalAddressesForNativeToken)
+	builder := builder.New(m.chains, m.skippedTokenKeys)
 
 	// 1. native token list
 	if err := builder.AddNativeTokenList(); err != nil {

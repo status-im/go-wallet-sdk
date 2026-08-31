@@ -120,9 +120,9 @@ config := &manager.Config{
 
 Some chains expose the native token at more than one address. For example, on zkSync Era the native token is reachable both at the zero address `0x0000…0000` and at the system-contract alias `0x0000…800a`. Use `AdditionalAddressesForNativeToken` to register such per-chain aliases:
 
-- **🪞 Aliases as separate entries**: Each registered address is added to the manager's *unique token collection* as its own entry. The entry is a clone of the chain's canonical native token with `Address` set to the registered address (so callers see a `Token` whose `Address` matches what they queried). `CrossChainID` stays the same, so clients can dedupe by asset identity.
-- **📋 Native list excludes aliases**: Aliases do NOT appear in the `"native"` token list returned by `TokenList` / `TokenLists`. Those lists still contain exactly one zero-address entry per chain.
-- **🚫 Filtering and validation**: Entries whose chain is not in `Chains` and entries equal to the zero address are silently ignored. Aliases respect `SkippedTokenKeys`.
+- **🔀 Aliases are lookup redirects, not entries**: A registered alias never appears as a separate token anywhere — the unique token collection, `UniqueTokens`, `GetTokensByChain` and the `"native"` token list all contain exactly one zero-address native token per chain. Instead, lookups by an alias (`GetTokenByChainAddress`, and alias keys passed to `GetTokensByKeys`) are normalized to the canonical zero-address native token, so callers holding an alias address get the chain's native token back (`IsNative() == true`).
+- **🔁 One result per key**: `GetTokensByKeys` keeps its usual contract of one result per requested key — passing both the zero-address key and an alias key returns the same canonical native token twice.
+- **🚫 Skipping**: An alias whose token key is listed in `SkippedTokenKeys` is not normalized and thus resolves to nothing.
 
 ```go
 config := &manager.Config{
@@ -135,8 +135,8 @@ config := &manager.Config{
 }
 
 // After Start():
-//   GetTokenByChainAddress(324, 0x...800a) -> Token{Address: 0x...800a, Symbol: "ETH", ...}
-//   GetTokenByChainAddress(324, 0x0)       -> Token{Address: 0x0,       Symbol: "ETH", ...}
+//   GetTokenByChainAddress(324, 0x...800a) -> Token{Address: 0x0, Symbol: "ETH", ...} (the canonical native token)
+//   GetTokenByChainAddress(324, 0x0)       -> Token{Address: 0x0, Symbol: "ETH", ...}
 //   TokenList("native").Tokens             -> one entry per chain (zero-address only)
 ```
 

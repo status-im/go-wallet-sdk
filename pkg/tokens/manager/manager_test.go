@@ -1144,7 +1144,7 @@ func TestManager_AdditionalAddressesForNativeToken(t *testing.T) {
 		}
 	})
 
-	t.Run("GetTokenByChainAddress resolves the alias to a clone of the chain's native token", func(t *testing.T) {
+	t.Run("GetTokenByChainAddress resolves the alias to the chain's canonical native token", func(t *testing.T) {
 		token, ok := m.GetTokenByChainAddress(common.EthereumMainnet, zkSyncSystemNative)
 		require.True(t, ok)
 		require.NotNil(t, token)
@@ -1153,53 +1153,47 @@ func TestManager_AdditionalAddressesForNativeToken(t *testing.T) {
 		require.True(t, okZero)
 		require.NotNil(t, canonicalEth)
 
-		assert.Equal(t, zkSyncSystemNative, token.Address, "alias address must round-trip")
-		assert.Equal(t, canonicalEth.CrossChainID, token.CrossChainID)
-		assert.Equal(t, canonicalEth.ChainID, token.ChainID)
-		assert.Equal(t, canonicalEth.Symbol, token.Symbol)
-		assert.Equal(t, canonicalEth.Name, token.Name)
-		assert.Equal(t, canonicalEth.Decimals, token.Decimals)
-		assert.Equal(t, canonicalEth.LogoURI, token.LogoURI)
+		assert.True(t, token.IsNative(), "alias lookup must return the zero-address native token")
+		assert.Same(t, canonicalEth, token, "alias lookup must return the same token as the zero-address lookup")
+
+		// Aliases configured for one chain must not resolve on other chains.
+		_, ok = m.GetTokenByChainAddress(common.BSCMainnet, zkSyncSystemNative)
+		assert.False(t, ok, "alias must not resolve on chains it wasn't registered for")
 	})
 
-	t.Run("GetTokensByChain includes the alias as a separate entry", func(t *testing.T) {
+	t.Run("GetTokensByChain does not expose the alias as a separate entry", func(t *testing.T) {
 		ethTokens := m.GetTokensByChain(common.EthereumMainnet)
-		var sawZero, sawAlias bool
+		var nativeCount int
 		for _, tk := range ethTokens {
-			if tk.Address == zeroAddr {
-				sawZero = true
-			}
-			if tk.Address == zkSyncSystemNative {
-				sawAlias = true
+			assert.NotEqual(t, zkSyncSystemNative, tk.Address, "alias must not appear as a separate entry")
+			if tk.IsNative() {
+				nativeCount++
 			}
 		}
-		assert.True(t, sawZero, "canonical zero-address native must be present")
-		assert.True(t, sawAlias, "alias entry must be present")
-
-		// Aliases configured for one chain must not leak into other chains.
-		bscTokens := m.GetTokensByChain(common.BSCMainnet)
-		for _, tk := range bscTokens {
-			assert.NotEqual(t, zkSyncSystemNative, tk.Address, "alias must not leak to other chains")
-		}
+		assert.Equal(t, 1, nativeCount, "exactly one native token per chain")
 	})
 
-	t.Run("GetTokensByKeys resolves the alias key", func(t *testing.T) {
+	t.Run("GetTokensByKeys resolves the alias key to the canonical native token", func(t *testing.T) {
 		tokens, err := m.GetTokensByKeys([]string{aliasKey})
 		require.NoError(t, err)
 		require.Len(t, tokens, 1)
-		assert.Equal(t, zkSyncSystemNative, tokens[0].Address)
+		assert.True(t, tokens[0].IsNative())
 		assert.Equal(t, common.EthereumMainnet, tokens[0].ChainID)
 	})
 
-	t.Run("UniqueTokens includes the alias", func(t *testing.T) {
-		var sawAlias bool
+	t.Run("GetTokensByKeys treats the zero-address and alias keys as the same token", func(t *testing.T) {
+		zeroKey := types.TokenKey(common.EthereumMainnet, zeroAddr)
+		tokens, err := m.GetTokensByKeys([]string{zeroKey, aliasKey})
+		require.NoError(t, err)
+		require.Len(t, tokens, 2, "one result per requested key, matching the duplicate-keys contract")
+		assert.Same(t, tokens[0], tokens[1], "both keys must resolve to the same canonical native token")
+		assert.True(t, tokens[0].IsNative())
+	})
+
+	t.Run("UniqueTokens does not include the alias", func(t *testing.T) {
 		for _, tk := range m.UniqueTokens() {
-			if tk.ChainID == common.EthereumMainnet && tk.Address == zkSyncSystemNative {
-				sawAlias = true
-				break
-			}
+			assert.NotEqual(t, zkSyncSystemNative, tk.Address, "alias must not be visible via UniqueTokens")
 		}
-		assert.True(t, sawAlias, "alias must be visible via UniqueTokens")
 	})
 }
 

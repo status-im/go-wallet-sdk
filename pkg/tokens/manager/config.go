@@ -44,12 +44,13 @@ type Config struct {
 	// expose the native token at more than one address (e.g. on zkSync Era the native token is reachable both at the
 	// zero address and at the system-contract alias 0x000000000000000000000000000000000000800a).
 	//
-	// Each registered address is surfaced through the manager's *unique token collection* APIs (UniqueTokens /
-	// GetTokenByChainAddress / GetTokensByChain / GetTokensByKeys) as a distinct entry whose fields match the chain's
-	// native token, except that Address is set to the registered address. It is NOT added to the "native" token list
-	// returned by `TokenList` / `TokenLists`.
+	// A registered alias never appears as a separate token entry anywhere: the unique token collection and the
+	// "native" token list contain exactly one zero-address native token per chain. Instead, lookups by an alias
+	// (GetTokenByChainAddress, and alias keys passed to GetTokensByKeys) are normalized to the canonical
+	// zero-address native token, so callers holding an alias address get the chain's native token back
+	// (GetTokensByKeys keeps its one-result-per-requested-key contract).
 	//
-	// Entries whose chain is not in `Chains` and entries equal to the zero address are ignored.
+	// An alias whose token key is listed in SkippedTokenKeys is not normalized and thus resolves to nothing.
 	AdditionalAddressesForNativeToken map[uint64][]common.Address
 }
 
