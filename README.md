@@ -147,6 +147,17 @@ Access: http://localhost:8081
 
 Interactive web interface for testing extkeystore and standard keystore functionality, including mnemonic generation, account creation, derivation, import/export, and signing.
 
+### Mini Wallet
+
+```bash
+cd examples/mini-wallet
+go run .
+```
+
+Access: http://localhost:8080
+
+A full-featured web-based cryptocurrency wallet demonstrating account management, multi-chain balance fetching, token transfers with ENS support, transaction preview, and token list exploration. Features include keystore management, Multicall3-based balance fetching, and support for multiple EVM chains.
+
 ### C Application Example
 
 ```bash
@@ -233,6 +244,7 @@ go test ./...
 - [Multicall Usage](examples/multiclient3-usage/README.md) - Multicall examples
 - [Event Filter Example](examples/eventfilter-example/README.md) - Event filtering examples
 - [Accounts Example](examples/accounts/README.md) - Keystore management web interface
+- [Mini Wallet](examples/mini-wallet/README.md) - Full-featured web-based cryptocurrency wallet
 - [C Application Example](examples/c-app/README.md) - C application using the shared library
 - [Token Builder](examples/token-builder/README.md) - Token collection building
 - [Token Fetcher](examples/token-fetcher/README.md) - Token list fetching
