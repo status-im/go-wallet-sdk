@@ -55,7 +55,7 @@ func main() {
 
 func demonstrateBasicBuilder(supportedChains []uint64) {
 	// Create new builder starting empty
-	tokenBuilder := builder.New(supportedChains, nil, nil)
+	tokenBuilder := builder.New(supportedChains, nil)
 
 	fmt.Printf("🏗️  Created builder for %d chains\n", len(supportedChains))
 	fmt.Printf("📊 Initial state: %d tokens, %d lists\n",
@@ -85,7 +85,7 @@ func demonstrateBasicBuilder(supportedChains []uint64) {
 
 func demonstrateIncrementalBuilding(supportedChains []uint64) {
 	// Start with empty builder
-	tokenBuilder := builder.New(supportedChains, nil, nil)
+	tokenBuilder := builder.New(supportedChains, nil)
 
 	fmt.Println("🏗️  Building token collection incrementally...")
 
@@ -128,7 +128,7 @@ func demonstrateIncrementalBuilding(supportedChains []uint64) {
 }
 
 func demonstrateRawTokenListProcessing(supportedChains []uint64) {
-	tokenBuilder := builder.New(supportedChains, nil, nil)
+	tokenBuilder := builder.New(supportedChains, nil)
 
 	// Add native tokens first
 	err := tokenBuilder.AddNativeTokenList()
@@ -234,7 +234,7 @@ func demonstrateRawTokenListProcessing(supportedChains []uint64) {
 }
 
 func demonstrateDeduplication(supportedChains []uint64) {
-	tokenBuilder := builder.New(supportedChains, nil, nil)
+	tokenBuilder := builder.New(supportedChains, nil)
 
 	// Add native tokens
 	err := tokenBuilder.AddNativeTokenList()
@@ -344,7 +344,7 @@ func demonstrateAdvancedPatterns(supportedChains []uint64) {
 
 	// Pattern 1: Builder with validation
 	fmt.Println("\n1️⃣ Builder with validation:")
-	validationBuilder := builder.New(supportedChains, nil, nil)
+	validationBuilder := builder.New(supportedChains, nil)
 	err := validationBuilder.AddNativeTokenList()
 	if err != nil {
 		log.Printf("❌ Validation failed: %v", err)
@@ -354,7 +354,7 @@ func demonstrateAdvancedPatterns(supportedChains []uint64) {
 
 	// Pattern 2: Conditional building
 	fmt.Println("\n2️⃣ Conditional building based on chain support:")
-	conditionalBuilder := builder.New([]uint64{1}, nil, nil) // Only Ethereum
+	conditionalBuilder := builder.New([]uint64{1}, nil) // Only Ethereum
 
 	// This will only include Ethereum native token
 	err = conditionalBuilder.AddNativeTokenList()
@@ -366,7 +366,7 @@ func demonstrateAdvancedPatterns(supportedChains []uint64) {
 
 	// Pattern 3: Builder state inspection
 	fmt.Println("\n3️⃣ Builder state inspection:")
-	inspectionBuilder := builder.New(supportedChains, nil, nil)
+	inspectionBuilder := builder.New(supportedChains, nil)
 	inspectionBuilder.AddNativeTokenList()
 
 	lists := inspectionBuilder.GetTokenLists()
@@ -540,7 +540,7 @@ func estimateTokenMemoryUsage(tokens map[string]*types.Token) int {
 func demonstrateErrorHandling() {
 	fmt.Println("   🛠️  Error handling examples:")
 
-	builder := builder.New([]uint64{1}, nil, nil)
+	builder := builder.New([]uint64{1}, nil)
 
 	// Test 1: Empty raw data
 	fmt.Println("      📝 Testing empty raw data...")
@@ -569,7 +569,7 @@ func demonstrateErrorHandling() {
 
 func demonstrateBuilderWithSkippedTokens(supportedChains []uint64) {
 	skippedTokenKeys := []string{"10-0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"}
-	builder := builder.New(supportedChains, skippedTokenKeys, nil)
+	builder := builder.New(supportedChains, skippedTokenKeys)
 
 	tokenList := &types.TokenList{
 		Name: "Skipped Tokens List",

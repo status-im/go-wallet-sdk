@@ -1080,7 +1080,7 @@ func (b *Builder) GetTokenLists() map[string]*types.TokenList
 #### 3.12.2 Usage Example
 
 ```go
-builder := builder.New([]uint64{1, 56, 10, 137}) // Ethereum, BSC, Optimism, Polygon
+builder := builder.New([]uint64{1, 56, 10, 137}, nil) // Ethereum, BSC, Optimism, Polygon; nil = no tokens to skip
 builder.AddNativeTokenList()
 builder.AddTokenList("uniswap", uniswapList)
 tokens := builder.GetTokens()
