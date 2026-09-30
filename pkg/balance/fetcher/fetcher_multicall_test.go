@@ -63,7 +63,7 @@ func TestFetchNativeBalancesWithMulticall_Success(t *testing.T) {
 			for i := range calls {
 				results[i] = multicall3.IMulticall3Result{
 					Success:    true,
-					ReturnData: expectedBalances[i].Bytes(),
+					ReturnData: common.LeftPadBytes(expectedBalances[i].Bytes(), 32),
 				}
 			}
 
@@ -166,7 +166,7 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 				balance := new(big.Int).Mul(big.NewInt(int64(i)), big.NewInt(1000000000000000000))
 				results[i] = multicall3.IMulticall3Result{
 					Success:    true,
-					ReturnData: balance.Bytes(),
+					ReturnData: common.LeftPadBytes(balance.Bytes(), 32),
 				}
 			}
 
@@ -185,7 +185,7 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 				balance := new(big.Int).Mul(big.NewInt(int64(i+10)), big.NewInt(1000000000000000000))
 				results[i] = multicall3.IMulticall3Result{
 					Success:    true,
-					ReturnData: balance.Bytes(),
+					ReturnData: common.LeftPadBytes(balance.Bytes(), 32),
 				}
 			}
 
@@ -202,7 +202,7 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 				balance := new(big.Int).Mul(big.NewInt(int64(i+20)), big.NewInt(1000000000000000000))
 				results[i] = multicall3.IMulticall3Result{
 					Success:    true,
-					ReturnData: balance.Bytes(),
+					ReturnData: common.LeftPadBytes(balance.Bytes(), 32),
 				}
 			}
 
@@ -221,7 +221,7 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 	for i, addr := range addresses {
 		assert.Contains(t, result, addr)
 		expectedBalance := new(big.Int).Mul(big.NewInt(int64(i)), big.NewInt(1000000000000000000))
-		assert.Equal(t, expectedBalance, result[addr])
+		assert.Zero(t, expectedBalance.Cmp(result[addr]), "balance of %s", addr.Hex())
 	}
 }
 
@@ -247,7 +247,7 @@ func TestFetchNativeBalancesWithMulticall_FailedResults(t *testing.T) {
 			results := []multicall3.IMulticall3Result{
 				{
 					Success:    true,
-					ReturnData: big.NewInt(1000000000000000000).Bytes(), // 1 ETH
+					ReturnData: common.LeftPadBytes(big.NewInt(1000000000000000000).Bytes(), 32), // 1 ETH
 				},
 				{
 					Success:    false, // Failed result
@@ -295,7 +295,7 @@ func TestFetchNativeBalancesWithMulticall_ZeroBalance(t *testing.T) {
 			results := []multicall3.IMulticall3Result{
 				{
 					Success:    true,
-					ReturnData: big.NewInt(0).Bytes(), // Zero balance
+					ReturnData: common.LeftPadBytes(big.NewInt(0).Bytes(), 32), // Zero balance
 				},
 			}
 
@@ -311,7 +311,7 @@ func TestFetchNativeBalancesWithMulticall_ZeroBalance(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result, 1)
-	assert.Equal(t, big.NewInt(0), result[addresses[0]])
+	assert.Zero(t, result[addresses[0]].Sign())
 }
 
 func TestFetchNativeBalancesWithMulticall_ContextCancellation(t *testing.T) {
@@ -343,7 +343,7 @@ func TestFetchNativeBalancesWithMulticall_ContextCancellation(t *testing.T) {
 				results := []multicall3.IMulticall3Result{
 					{
 						Success:    true,
-						ReturnData: big.NewInt(1000000000000000000).Bytes(),
+						ReturnData: common.LeftPadBytes(big.NewInt(1000000000000000000).Bytes(), 32),
 					},
 				}
 				blockNumber := big.NewInt(1000)
@@ -409,7 +409,7 @@ func generateTestMulticallResults(count int) []multicall3.IMulticall3Result {
 		balance := new(big.Int).Mul(big.NewInt(int64(i)), big.NewInt(1000000000000000000))
 		results[i] = multicall3.IMulticall3Result{
 			Success:    true,
-			ReturnData: balance.Bytes(),
+			ReturnData: common.LeftPadBytes(balance.Bytes(), 32),
 		}
 	}
 	return results
@@ -465,7 +465,7 @@ func TestFetchErc20BalancesWithMulticall_Success(t *testing.T) {
 				tokenIdx := i % 2
 				results[i] = multicall3.IMulticall3Result{
 					Success:    true,
-					ReturnData: expectedBalances[accountIdx][tokenIdx].Bytes(),
+					ReturnData: common.LeftPadBytes(expectedBalances[accountIdx][tokenIdx].Bytes(), 32),
 				}
 			}
 

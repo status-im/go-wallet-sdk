@@ -41,8 +41,8 @@ func TestFetchBalances_NativeBalances_Success(t *testing.T) {
 		multicall.BuildNativeBalanceCall(account2, multicall3Addr),
 	}
 	expectedResults := []multicall3.IMulticall3Result{
-		{Success: true, ReturnData: expectedBalance1.Bytes()},
-		{Success: true, ReturnData: expectedBalance2.Bytes()},
+		{Success: true, ReturnData: common.LeftPadBytes(expectedBalance1.Bytes(), 32)},
+		{Success: true, ReturnData: common.LeftPadBytes(expectedBalance2.Bytes(), 32)},
 	}
 
 	mockCaller.EXPECT().
@@ -175,8 +175,8 @@ func TestFetchBalances_ERC20Balances_Success(t *testing.T) {
 		multicall.BuildERC20BalanceCall(account, token2),
 	}
 	expectedResults := []multicall3.IMulticall3Result{
-		{Success: true, ReturnData: expectedBalance1.Bytes()},
-		{Success: true, ReturnData: expectedBalance2.Bytes()},
+		{Success: true, ReturnData: common.LeftPadBytes(expectedBalance1.Bytes(), 32)},
+		{Success: true, ReturnData: common.LeftPadBytes(expectedBalance2.Bytes(), 32)},
 	}
 
 	mockCaller.EXPECT().
@@ -267,22 +267,22 @@ func TestFetchBalances_ERC20Balances_MultipleAccounts(t *testing.T) {
 				if call.Target == expectedCall_1.Target && bytes.Equal(call.CallData, expectedCall_1.CallData) {
 					results[i] = multicall3.IMulticall3Result{
 						Success:    true,
-						ReturnData: big.NewInt(1000).Bytes(),
+						ReturnData: common.LeftPadBytes(big.NewInt(1000).Bytes(), 32),
 					}
 				} else if call.Target == expectedCall_2.Target && bytes.Equal(call.CallData, expectedCall_2.CallData) {
 					results[i] = multicall3.IMulticall3Result{
 						Success:    true,
-						ReturnData: big.NewInt(2000).Bytes(),
+						ReturnData: common.LeftPadBytes(big.NewInt(2000).Bytes(), 32),
 					}
 				} else if call.Target == expectedCall_3.Target && bytes.Equal(call.CallData, expectedCall_3.CallData) {
 					results[i] = multicall3.IMulticall3Result{
 						Success:    true,
-						ReturnData: big.NewInt(3000).Bytes(),
+						ReturnData: common.LeftPadBytes(big.NewInt(3000).Bytes(), 32),
 					}
 				} else if call.Target == expectedCall_4.Target && bytes.Equal(call.CallData, expectedCall_4.CallData) {
 					results[i] = multicall3.IMulticall3Result{
 						Success:    true,
-						ReturnData: big.NewInt(4000).Bytes(),
+						ReturnData: common.LeftPadBytes(big.NewInt(4000).Bytes(), 32),
 					}
 				}
 			}
@@ -362,8 +362,8 @@ func TestFetchBalances_ERC721Balances_Success(t *testing.T) {
 		multicall.BuildERC721BalanceCall(account, nft2),
 	}
 	expectedResults := []multicall3.IMulticall3Result{
-		{Success: true, ReturnData: expectedBalance1.Bytes()},
-		{Success: true, ReturnData: expectedBalance2.Bytes()},
+		{Success: true, ReturnData: common.LeftPadBytes(expectedBalance1.Bytes(), 32)},
+		{Success: true, ReturnData: common.LeftPadBytes(expectedBalance2.Bytes(), 32)},
 	}
 
 	mockCaller.EXPECT().
@@ -436,8 +436,8 @@ func TestFetchBalances_ERC1155Balances_Success(t *testing.T) {
 		multicall.BuildERC1155BalanceCall(account, contract2, tokenID2),
 	}
 	expectedResults := []multicall3.IMulticall3Result{
-		{Success: true, ReturnData: expectedBalance1.Bytes()},
-		{Success: true, ReturnData: expectedBalance2.Bytes()},
+		{Success: true, ReturnData: common.LeftPadBytes(expectedBalance1.Bytes(), 32)},
+		{Success: true, ReturnData: common.LeftPadBytes(expectedBalance2.Bytes(), 32)},
 	}
 
 	mockCaller.EXPECT().
@@ -526,10 +526,10 @@ func TestFetchBalances_MixedBalanceTypes(t *testing.T) {
 		multicall.BuildERC1155BalanceCall(account2, contract1, tokenID1), // ERC1155
 	}
 	expectedResults := []multicall3.IMulticall3Result{
-		{Success: true, ReturnData: big.NewInt(1000000000000000000).Bytes()}, // Native balance
-		{Success: true, ReturnData: big.NewInt(2000).Bytes()},                // ERC20 balance
-		{Success: true, ReturnData: big.NewInt(5).Bytes()},                   // ERC721 balance
-		{Success: true, ReturnData: big.NewInt(10).Bytes()},                  // ERC1155 balance
+		{Success: true, ReturnData: common.LeftPadBytes(big.NewInt(1000000000000000000).Bytes(), 32)}, // Native balance
+		{Success: true, ReturnData: common.LeftPadBytes(big.NewInt(2000).Bytes(), 32)},                // ERC20 balance
+		{Success: true, ReturnData: common.LeftPadBytes(big.NewInt(5).Bytes(), 32)},                   // ERC721 balance
+		{Success: true, ReturnData: common.LeftPadBytes(big.NewInt(10).Bytes(), 32)},                  // ERC1155 balance
 	}
 
 	mockCaller.EXPECT().
