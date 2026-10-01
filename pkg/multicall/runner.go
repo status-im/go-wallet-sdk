@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math/big"
 	"slices"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -73,6 +74,58 @@ func RunAsync(ctx context.Context, jobs []Job, atBlock *big.Int, caller Caller, 
 	return resultsCh
 }
 
+// ArbSys precompile of Arbitrum-stack chains (Arbitrum, Robinhood).
+var arbSysAddress = common.HexToAddress("0x0000000000000000000000000000000000000064")
+
+// arbBlockNumber()
+var arbBlockNumberCallData = []byte{0xa3, 0xb1, 0xb3, 0x1d}
+
+// BuildChainBlockNumberCall builds the call the runner adds to the first request
+// of a run to learn the number of the block the request is read at.
+//
+// Multicall3 reports block.number, which on Arbitrum-stack chains is the L1 block
+// number. Their ArbSys precompile reports the chain's own block number. On other
+// chains nothing answers at that address and the Multicall3 number is used.
+func BuildChainBlockNumberCall() multicall3.IMulticall3Call {
+	return multicall3.IMulticall3Call{
+		Target:   arbSysAddress,
+		CallData: arbBlockNumberCallData,
+	}
+}
+
+func chainBlockNumber(reported *big.Int, result multicall3.IMulticall3Result) *big.Int {
+	if !result.Success || len(result.ReturnData) != 32 {
+		return reported
+	}
+	return new(big.Int).SetBytes(result.ReturnData)
+}
+
+// Runs the first request of a run: the calls plus the chain block number call.
+// Returns the number of the block the request was read at and the results of the calls.
+func tryBlockAndAggregate(
+	ctx context.Context,
+	caller Caller,
+	atBlock *big.Int,
+	requireSuccess bool,
+	calls []multicall3.IMulticall3Call,
+) (*big.Int, common.Hash, []multicall3.IMulticall3Result, error) {
+	callsAndBlockNumber := make([]multicall3.IMulticall3Call, 0, len(calls)+1)
+	callsAndBlockNumber = append(callsAndBlockNumber, calls...)
+	callsAndBlockNumber = append(callsAndBlockNumber, BuildChainBlockNumberCall())
+
+	reported, blockHash, results, err := caller.ViewTryBlockAndAggregate(&bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: atBlock,
+	}, requireSuccess, callsAndBlockNumber)
+	if err != nil {
+		return nil, common.Hash{}, nil, err
+	}
+	if len(results) != len(callsAndBlockNumber) {
+		return nil, common.Hash{}, nil, errors.New("expected " + strconv.Itoa(len(callsAndBlockNumber)) + " call results, got " + strconv.Itoa(len(results)))
+	}
+	return chainBlockNumber(reported, results[len(calls)]), blockHash, results[:len(calls)], nil
+}
+
 func executeChunkWithRetry(
 	ctx context.Context,
 	caller Caller,
@@ -92,16 +145,11 @@ func executeChunkWithRetry(
 		err     error
 	)
 	if blockNumber == nil {
-		bn, bh, results, err = caller.ViewTryBlockAndAggregate(&bind.CallOpts{
-			Context:     ctx,
-			BlockNumber: atBlock,
-		}, requireSuccess, calls)
+		bn, bh, results, err = tryBlockAndAggregate(ctx, caller, atBlock, requireSuccess, calls)
 	} else {
-		// Read at atBlock, not at the reported blockNumber: Multicall3 reports
-		// block.number, which on Arbitrum-stack chains is the L1 block number.
 		results, err = caller.ViewTryAggregate(&bind.CallOpts{
 			Context:     ctx,
-			BlockNumber: atBlock,
+			BlockNumber: blockNumber,
 		}, requireSuccess, calls)
 	}
 	if err == nil {
@@ -129,9 +177,10 @@ func executeChunkWithRetry(
 // Collects all jobs and runs them in batches.
 // A single JobResult will be sent on each JobRunner's channel,
 // as soon as each individual job is finished.
-// Every batch is read at atBlock. With a nil atBlock each batch is read at the
-// latest block, so batches of one run can be read at different blocks.
-// JobResult.BlockNumber is the block number Multicall3 reported for the first batch.
+// The first batch is read at atBlock (the latest block when nil) and the following
+// ones at the block the first batch was read at, so a run reads a single block.
+// JobResult.BlockNumber is that block. The first batch carries one call on top
+// of batchsize, see BuildChainBlockNumberCall.
 func ProcessJobs(ctx context.Context, jobs []Job, resultsCh chan<- JobsResult, atBlock *big.Int, caller Caller, batchsize int) {
 	flatCalls := make([]multicall3.IMulticall3Call, 0, len(jobs))
 	for _, job := range jobs {

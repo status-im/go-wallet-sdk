@@ -45,7 +45,7 @@ func TestFetchNativeBalancesWithMulticall_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
+	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(ignoringBlockNumberCall(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.Equal(t, ctx, opts.Context)
 			require.Equal(t, big.NewInt(int64(atBlock)), opts.BlockNumber)
@@ -70,7 +70,7 @@ func TestFetchNativeBalancesWithMulticall_Success(t *testing.T) {
 			blockNumber := big.NewInt(1000)
 			var blockHash [32]byte
 			return blockNumber, blockHash, results, nil
-		})
+		}))
 
 	// Test
 	result, err := fetcher.FetchNativeBalancesWithMulticall(ctx, addresses, atBlock, mockMulticallCaller, multicallAddress, batchSize)
@@ -156,7 +156,7 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 	multicallAddress := common.HexToAddress("0xcA11bde05977b3631167028862bE2a173976CA11")
 
 	// Mock expectations for multiple chunks
-	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
+	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(ignoringBlockNumberCall(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.Len(t, calls, 10) // First chunk
 
@@ -173,7 +173,7 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 			blockNumber := big.NewInt(1000)
 			var blockHash [32]byte
 			return blockNumber, blockHash, results, nil
-		})
+		}))
 
 	mockMulticallCaller.EXPECT().ViewTryAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error) {
@@ -242,7 +242,7 @@ func TestFetchNativeBalancesWithMulticall_FailedResults(t *testing.T) {
 	multicallAddress := common.HexToAddress("0xcA11bde05977b3631167028862bE2a173976CA11")
 
 	// Mock expectations - simulate failed results
-	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
+	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(ignoringBlockNumberCall(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			results := []multicall3.IMulticall3Result{
 				{
@@ -258,7 +258,7 @@ func TestFetchNativeBalancesWithMulticall_FailedResults(t *testing.T) {
 			blockNumber := big.NewInt(1000)
 			var blockHash [32]byte
 			return blockNumber, blockHash, results, nil
-		})
+		}))
 
 	// Test
 	result, err := fetcher.FetchNativeBalancesWithMulticall(ctx, addresses, atBlock, mockMulticallCaller, multicallAddress, batchSize)
@@ -290,7 +290,7 @@ func TestFetchNativeBalancesWithMulticall_ZeroBalance(t *testing.T) {
 	multicallAddress := common.HexToAddress("0xcA11bde05977b3631167028862bE2a173976CA11")
 
 	// Mock expectations - simulate zero balance
-	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
+	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(ignoringBlockNumberCall(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			results := []multicall3.IMulticall3Result{
 				{
@@ -302,7 +302,7 @@ func TestFetchNativeBalancesWithMulticall_ZeroBalance(t *testing.T) {
 			blockNumber := big.NewInt(1000)
 			var blockHash [32]byte
 			return blockNumber, blockHash, results, nil
-		})
+		}))
 
 	// Test
 	result, err := fetcher.FetchNativeBalancesWithMulticall(ctx, addresses, atBlock, mockMulticallCaller, multicallAddress, batchSize)
@@ -333,7 +333,7 @@ func TestFetchNativeBalancesWithMulticall_ContextCancellation(t *testing.T) {
 	cancel()
 
 	// Mock expectations
-	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
+	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(ignoringBlockNumberCall(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			// Check if context is cancelled
 			select {
@@ -350,7 +350,7 @@ func TestFetchNativeBalancesWithMulticall_ContextCancellation(t *testing.T) {
 				var blockHash [32]byte
 				return blockNumber, blockHash, results, nil
 			}
-		})
+		}))
 
 	// Test
 	result, err := fetcher.FetchNativeBalancesWithMulticall(ctx, addresses, atBlock, mockMulticallCaller, multicallAddress, batchSize)
@@ -377,7 +377,7 @@ func TestFetchNativeBalancesWithMulticall_InvalidData(t *testing.T) {
 	multicallAddress := common.HexToAddress("0xcA11bde05977b3631167028862bE2a173976CA11")
 
 	// Mock expectations - simulate invalid data
-	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
+	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(ignoringBlockNumberCall(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			results := []multicall3.IMulticall3Result{
 				{
@@ -389,7 +389,7 @@ func TestFetchNativeBalancesWithMulticall_InvalidData(t *testing.T) {
 			blockNumber := big.NewInt(1000)
 			var blockHash [32]byte
 			return blockNumber, blockHash, results, nil
-		})
+		}))
 
 	// Test
 	result, err := fetcher.FetchNativeBalancesWithMulticall(ctx, addresses, atBlock, mockMulticallCaller, multicallAddress, batchSize)
@@ -444,7 +444,7 @@ func TestFetchErc20BalancesWithMulticall_Success(t *testing.T) {
 	}
 
 	// Mock expectations
-	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
+	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(ignoringBlockNumberCall(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.Equal(t, ctx, opts.Context)
 			require.Equal(t, big.NewInt(int64(atBlock)), opts.BlockNumber)
@@ -472,7 +472,7 @@ func TestFetchErc20BalancesWithMulticall_Success(t *testing.T) {
 			blockNumber := big.NewInt(1000)
 			var blockHash [32]byte
 			return blockNumber, blockHash, results, nil
-		})
+		}))
 
 	// Test
 	result, err := fetcher.FetchErc20BalancesWithMulticall(ctx, accountAddresses, tokenAddresses, atBlock, mockMulticallCaller, batchSize)
@@ -570,4 +570,19 @@ func TestFetchErc20BalancesWithMulticall_MulticallError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
+}
+
+// The first request of a run carries the chain block number call after the job
+// calls. The chains of these tests report their own block number, so nothing
+// answers it; the wrapped mock sees the job calls only.
+func ignoringBlockNumberCall(
+	fn func(*bind.CallOpts, bool, []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error),
+) func(*bind.CallOpts, bool, []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+	return func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		blockNumber, blockHash, results, err := fn(opts, requireSuccess, calls[:len(calls)-1])
+		if err != nil {
+			return blockNumber, blockHash, results, err
+		}
+		return blockNumber, blockHash, append(results, multicall3.IMulticall3Result{Success: true}), nil
+	}
 }
