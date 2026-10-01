@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math/big"
 	"slices"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -73,6 +74,67 @@ func RunAsync(ctx context.Context, jobs []Job, atBlock *big.Int, caller Caller, 
 	return resultsCh
 }
 
+// ArbSys precompile of Arbitrum-stack chains (Arbitrum, Robinhood).
+var arbSysAddress = common.HexToAddress("0x0000000000000000000000000000000000000064")
+
+// BuildChainBlockNumberCall builds the call the runner adds to the first request
+// of a run to learn the number of the block the request is read at.
+//
+// Multicall3 reports block.number, which on Arbitrum-stack chains is the L1 block
+// number. Their ArbSys precompile reports the chain's own block number. On other
+// chains nothing answers at that address and the Multicall3 number is used.
+func BuildChainBlockNumberCall() multicall3.IMulticall3Call {
+	return multicall3.IMulticall3Call{
+		Target:   arbSysAddress,
+		CallData: []byte{0xa3, 0xb1, 0xb3, 0x1d}, // arbBlockNumber()
+	}
+}
+
+func chainBlockNumber(reported *big.Int, result multicall3.IMulticall3Result) *big.Int {
+	if !result.Success || len(result.ReturnData) != 32 {
+		return reported
+	}
+	return new(big.Int).SetBytes(result.ReturnData)
+}
+
+// Runs the first request of a run: the calls plus the chain block number call.
+// Returns the number of the block the request was read at and the results of the calls.
+func tryBlockAndAggregate(
+	ctx context.Context,
+	caller Caller,
+	atBlock *big.Int,
+	requireSuccess bool,
+	calls []multicall3.IMulticall3Call,
+) (*big.Int, common.Hash, []multicall3.IMulticall3Result, error) {
+	callsAndBlockNumber := make([]multicall3.IMulticall3Call, 0, len(calls)+1)
+	callsAndBlockNumber = append(callsAndBlockNumber, calls...)
+	callsAndBlockNumber = append(callsAndBlockNumber, BuildChainBlockNumberCall())
+
+	reported, blockHash, results, err := caller.ViewTryBlockAndAggregate(&bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: atBlock,
+	}, requireSuccess, callsAndBlockNumber)
+	if err != nil {
+		return nil, common.Hash{}, nil, err
+	}
+	if len(results) != len(callsAndBlockNumber) {
+		return nil, common.Hash{}, nil, errors.New("expected " + strconv.Itoa(len(callsAndBlockNumber)) + " call results, got " + strconv.Itoa(len(results)))
+	}
+	return chainBlockNumber(reported, results[len(calls)]), blockHash, results[:len(calls)], nil
+}
+
+// Splits the calls into requests of at most batchsize calls. The first request
+// also carries the chain block number call, so its chunk is one call shorter
+// (but never empty: with a batchsize of 1 the first request has two calls).
+func splitIntoChunks(calls []multicall3.IMulticall3Call, batchsize int) [][]multicall3.IMulticall3Call {
+	first := min(max(batchsize-1, 1), len(calls))
+	chunks := [][]multicall3.IMulticall3Call{calls[:first:first]}
+	for chunk := range slices.Chunk(calls[first:], batchsize) {
+		chunks = append(chunks, chunk)
+	}
+	return chunks
+}
+
 func executeChunkWithRetry(
 	ctx context.Context,
 	caller Caller,
@@ -92,10 +154,7 @@ func executeChunkWithRetry(
 		err     error
 	)
 	if blockNumber == nil {
-		bn, bh, results, err = caller.ViewTryBlockAndAggregate(&bind.CallOpts{
-			Context:     ctx,
-			BlockNumber: atBlock,
-		}, requireSuccess, calls)
+		bn, bh, results, err = tryBlockAndAggregate(ctx, caller, atBlock, requireSuccess, calls)
 	} else {
 		results, err = caller.ViewTryAggregate(&bind.CallOpts{
 			Context:     ctx,
@@ -108,7 +167,11 @@ func executeChunkWithRetry(
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return nil, common.Hash{}, nil, err
 	}
-	if len(calls) <= minChunkSize {
+	requestSize := len(calls)
+	if blockNumber == nil {
+		requestSize++ // the chain block number call
+	}
+	if requestSize <= minChunkSize || len(calls) < 2 {
 		return nil, common.Hash{}, nil, err
 	}
 
@@ -127,6 +190,10 @@ func executeChunkWithRetry(
 // Collects all jobs and runs them in batches.
 // A single JobResult will be sent on each JobRunner's channel,
 // as soon as each individual job is finished.
+// The first batch is read at atBlock (the latest block when nil) and the following
+// ones at the block the first batch was read at, so a run reads a single block.
+// JobResult.BlockNumber is that block. No batch exceeds batchsize; the first one
+// includes the chain block number call, see BuildChainBlockNumberCall.
 func ProcessJobs(ctx context.Context, jobs []Job, resultsCh chan<- JobsResult, atBlock *big.Int, caller Caller, batchsize int) {
 	flatCalls := make([]multicall3.IMulticall3Call, 0, len(jobs))
 	for _, job := range jobs {
@@ -170,7 +237,7 @@ func ProcessJobs(ctx context.Context, jobs []Job, resultsCh chan<- JobsResult, a
 		}
 	}()
 
-	for chunk := range slices.Chunk(flatCalls, batchsize) {
+	for _, chunk := range splitIntoChunks(flatCalls, batchsize) {
 		var chunkBlockNumber *big.Int
 		var chunkBlockHash common.Hash
 		var chunkResults []multicall3.IMulticall3Result

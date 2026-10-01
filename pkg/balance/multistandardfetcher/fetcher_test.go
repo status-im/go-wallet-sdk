@@ -51,10 +51,10 @@ func TestFetchBalances_NativeBalances_Success(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
-		})
+		}))
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -119,10 +119,10 @@ func TestFetchBalances_NativeBalances_Error(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			return nil, [32]byte{}, nil, expectedError
-		})
+		}))
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -185,10 +185,10 @@ func TestFetchBalances_ERC20Balances_Success(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
-		})
+		}))
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -259,7 +259,7 @@ func TestFetchBalances_ERC20Balances_MultipleAccounts(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			results := make([]multicall3.IMulticall3Result, len(calls))
 			for i := range calls {
@@ -287,7 +287,7 @@ func TestFetchBalances_ERC20Balances_MultipleAccounts(t *testing.T) {
 				}
 			}
 			return expectedBlockNumber, expectedBlockHash, results, nil
-		})
+		}))
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -372,10 +372,10 @@ func TestFetchBalances_ERC721Balances_Success(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
-		})
+		}))
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -446,10 +446,10 @@ func TestFetchBalances_ERC1155Balances_Success(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
-		})
+		}))
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -538,10 +538,10 @@ func TestFetchBalances_MixedBalanceTypes(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
-		})
+		}))
 
 	// Create config with mixed balance types
 	config := multistandardfetcher.FetchConfig{
@@ -672,11 +672,11 @@ func TestFetchBalances_ContextCancellation(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			cancel() // Cancel the context during the call
 			return nil, [32]byte{}, nil, context.Canceled
-		})
+		}))
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -730,10 +730,10 @@ func TestFetchBalances_CallFailure(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		DoAndReturn(ignoringBlockNumberCall(func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
 			require.ElementsMatch(t, calls, expectedCalls)
 			return expectedBlockNumber, expectedBlockHash, expectedResults, nil
-		})
+		}))
 
 	// Create config
 	config := multistandardfetcher.FetchConfig{
@@ -764,4 +764,19 @@ func TestFetchBalances_CallFailure(t *testing.T) {
 
 	// The failed call should not appear in results (it's skipped due to nil check in processERC20JobResult)
 	assert.Empty(t, erc20Result.Results)
+}
+
+// The first request of a run carries the chain block number call after the job
+// calls. The chains of these tests report their own block number, so nothing
+// answers it; the wrapped mock sees the job calls only.
+func ignoringBlockNumberCall(
+	fn func(*bind.CallOpts, bool, []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error),
+) func(*bind.CallOpts, bool, []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+	return func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+		blockNumber, blockHash, results, err := fn(opts, requireSuccess, calls[:len(calls)-1])
+		if err != nil {
+			return blockNumber, blockHash, results, err
+		}
+		return blockNumber, blockHash, append(results, multicall3.IMulticall3Result{Success: true}), nil
+	}
 }
