@@ -152,13 +152,13 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 	}
 
 	atBlock := gethrpc.BlockNumber(1000)
-	batchSize := 10 // Should create 3 chunks: 10, 10, 5
+	batchSize := 10 // Should create 3 chunks: 9 (plus the chain block number call), 10, 6
 	multicallAddress := common.HexToAddress("0xcA11bde05977b3631167028862bE2a173976CA11")
 
 	// Mock expectations for multiple chunks
 	mockMulticallCaller.EXPECT().ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(ignoringBlockNumberCall(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
-			require.Len(t, calls, 10) // First chunk
+			require.Len(t, calls, 9) // First chunk, without the chain block number call
 
 			// Create results for first chunk
 			results := make([]multicall3.IMulticall3Result, len(calls))
@@ -182,7 +182,7 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 			// Create results for second chunk
 			results := make([]multicall3.IMulticall3Result, len(calls))
 			for i := range calls {
-				balance := new(big.Int).Mul(big.NewInt(int64(i+10)), big.NewInt(1000000000000000000))
+				balance := new(big.Int).Mul(big.NewInt(int64(i+9)), big.NewInt(1000000000000000000))
 				results[i] = multicall3.IMulticall3Result{
 					Success:    true,
 					ReturnData: common.LeftPadBytes(balance.Bytes(), 32),
@@ -194,12 +194,12 @@ func TestFetchNativeBalancesWithMulticall_LargeBatch(t *testing.T) {
 
 	mockMulticallCaller.EXPECT().ViewTryAggregate(gomock.Any(), false, gomock.Any()).DoAndReturn(
 		func(opts *bind.CallOpts, requireSuccess bool, calls []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error) {
-			require.Len(t, calls, 5) // Third chunk
+			require.Len(t, calls, 6) // Third chunk
 
 			// Create results for third chunk
 			results := make([]multicall3.IMulticall3Result, len(calls))
 			for i := range calls {
-				balance := new(big.Int).Mul(big.NewInt(int64(i+20)), big.NewInt(1000000000000000000))
+				balance := new(big.Int).Mul(big.NewInt(int64(i+19)), big.NewInt(1000000000000000000))
 				results[i] = multicall3.IMulticall3Result{
 					Success:    true,
 					ReturnData: common.LeftPadBytes(balance.Bytes(), 32),
