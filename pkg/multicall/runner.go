@@ -97,9 +97,11 @@ func executeChunkWithRetry(
 			BlockNumber: atBlock,
 		}, requireSuccess, calls)
 	} else {
+		// Read at atBlock, not at the reported blockNumber: Multicall3 reports
+		// block.number, which on Arbitrum-stack chains is the L1 block number.
 		results, err = caller.ViewTryAggregate(&bind.CallOpts{
 			Context:     ctx,
-			BlockNumber: blockNumber,
+			BlockNumber: atBlock,
 		}, requireSuccess, calls)
 	}
 	if err == nil {
@@ -127,6 +129,9 @@ func executeChunkWithRetry(
 // Collects all jobs and runs them in batches.
 // A single JobResult will be sent on each JobRunner's channel,
 // as soon as each individual job is finished.
+// Every batch is read at atBlock. With a nil atBlock each batch is read at the
+// latest block, so batches of one run can be read at different blocks.
+// JobResult.BlockNumber is the block number Multicall3 reported for the first batch.
 func ProcessJobs(ctx context.Context, jobs []Job, resultsCh chan<- JobsResult, atBlock *big.Int, caller Caller, batchsize int) {
 	flatCalls := make([]multicall3.IMulticall3Call, 0, len(jobs))
 	for _, job := range jobs {

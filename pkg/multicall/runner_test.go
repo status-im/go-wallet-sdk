@@ -14,6 +14,7 @@ import (
 	mock_multicall "github.com/status-im/go-wallet-sdk/pkg/multicall/mock"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"go.uber.org/mock/gomock"
 )
@@ -939,4 +940,104 @@ func TestRunSync_DataTransformation(t *testing.T) {
 
 	assert.Equal(t, expectedBlockNumber, result.BlockNumber)
 	assert.Equal(t, common.Hash(expectedBlockHash), result.BlockHash)
+}
+
+// A Multicall3 that reports a block number of another chain, as it does on
+// Arbitrum-stack chains where block.number is the L1 block number.
+func expectForeignBlockNumberMulticall(mockCaller *mock_multicall.MockCaller, reported *big.Int, failFrom int, readAt *[]*big.Int) {
+	answer := func(chunk []multicall3.IMulticall3Call) []multicall3.IMulticall3Result {
+		results := make([]multicall3.IMulticall3Result, len(chunk))
+		for i, call := range chunk {
+			results[i] = multicall3.IMulticall3Result{Success: true, ReturnData: call.CallData}
+		}
+		return results
+	}
+	mockCaller.EXPECT().
+		ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
+		DoAndReturn(func(opts *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			if failFrom > 0 && len(chunk) >= failFrom {
+				return nil, [32]byte{}, nil, errors.New("chunk too large")
+			}
+			*readAt = append(*readAt, opts.BlockNumber)
+			return reported, [32]byte{}, answer(chunk), nil
+		}).
+		AnyTimes()
+	mockCaller.EXPECT().
+		ViewTryAggregate(gomock.Any(), false, gomock.Any()).
+		DoAndReturn(func(opts *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error) {
+			if failFrom > 0 && len(chunk) >= failFrom {
+				return nil, errors.New("chunk too large")
+			}
+			*readAt = append(*readAt, opts.BlockNumber)
+			return answer(chunk), nil
+		}).
+		AnyTimes()
+}
+
+func jobOfCalls(count int) multicall.Job {
+	job := multicall.Job{CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+		return result, nil
+	}}
+	for i := 0; i < count; i++ {
+		job.Calls = append(job.Calls, multicall3.IMulticall3Call{Target: common.HexToAddress("0x1"), CallData: []byte{byte(i)}})
+	}
+	return job
+}
+
+func TestRunSync_LaterChunksAreNotReadAtTheReportedBlockNumber(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+
+	reported := big.NewInt(26_096_991) // L1 block number, the chain itself is at 77M
+	var readAt []*big.Int
+	expectForeignBlockNumberMulticall(mockCaller, reported, 0, &readAt)
+
+	results := multicall.RunSync(context.Background(), []multicall.Job{jobOfCalls(5)}, nil, mockCaller, 2)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Err)
+	require.Len(t, readAt, 3)
+	for i, blockNumber := range readAt {
+		assert.Nil(t, blockNumber, "chunk %d is read at the latest block", i)
+	}
+	assert.Equal(t, reported, results[0].BlockNumber)
+}
+
+func TestRunSync_EveryChunkIsReadAtTheRequestedBlock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+
+	atBlock := big.NewInt(77_317_482)
+	var readAt []*big.Int
+	expectForeignBlockNumberMulticall(mockCaller, big.NewInt(26_096_991), 0, &readAt)
+
+	results := multicall.RunSync(context.Background(), []multicall.Job{jobOfCalls(5)}, atBlock, mockCaller, 2)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Err)
+	require.Len(t, readAt, 3)
+	for i, blockNumber := range readAt {
+		assert.Equal(t, atBlock, blockNumber, "chunk %d", i)
+	}
+}
+
+func TestRunSync_ChunkRetry_HalvesAreNotReadAtTheReportedBlockNumber(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+
+	const callCount = 2 * multicall.DefaultMinChunkSize
+	var readAt []*big.Int
+	expectForeignBlockNumberMulticall(mockCaller, big.NewInt(26_096_991), callCount, &readAt)
+
+	results := multicall.RunSync(context.Background(), []multicall.Job{jobOfCalls(callCount)}, nil, mockCaller, callCount)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Err)
+	require.Len(t, readAt, 2)
+	for i, blockNumber := range readAt {
+		assert.Nil(t, blockNumber, "half %d is read at the latest block", i)
+	}
 }
