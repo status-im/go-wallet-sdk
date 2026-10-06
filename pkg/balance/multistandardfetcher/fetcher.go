@@ -14,6 +14,10 @@ type FetchConfig struct {
 	ERC20   map[AccountAddress][]ContractAddress
 	ERC721  map[AccountAddress][]ContractAddress
 	ERC1155 map[AccountAddress][]CollectibleID
+	// OmitZeroERC20Balances leaves zero ERC20 balances out of ERC20Result.Results,
+	// and does not allocate them: a contract that is neither in Results nor in
+	// Failed has a zero balance.
+	OmitZeroERC20Balances bool
 }
 
 type ResultType string
@@ -34,8 +38,10 @@ type Result struct {
 }
 
 type Results[T comparable] struct {
-	Account       AccountAddress
-	Results       map[T]*big.Int
+	Account AccountAddress
+	Results map[T]*big.Int
+	// Failed lists the contracts whose call failed; they are not in Results.
+	Failed        []T
 	Err           error
 	AtBlockNumber *big.Int
 	AtBlockHash   common.Hash
@@ -80,7 +86,7 @@ func FetchBalances(ctx context.Context, multicall3Address common.Address, caller
 	}
 
 	for account, contractAddresses := range config.ERC20 {
-		job := buildERC20Job(account, contractAddresses)
+		job := buildERC20Job(account, contractAddresses, config.OmitZeroERC20Balances)
 		jobs = append(jobs, job)
 		jobResultProcessors = append(jobResultProcessors, func(jobResult multicall.JobResult) FetchResult {
 			return FetchResult{

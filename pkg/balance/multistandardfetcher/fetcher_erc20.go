@@ -9,10 +9,25 @@ import (
 	"github.com/status-im/go-wallet-sdk/pkg/multicall"
 )
 
-func buildERC20Job(account AccountAddress, contractAddresses []ContractAddress) multicall.Job {
+// zeroERC20Balance marks an omitted zero balance; boxing it does not allocate.
+type zeroERC20Balance struct{}
+
+func isZeroWord(word []byte) bool {
+	for _, b := range word {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func buildERC20Job(account AccountAddress, contractAddresses []ContractAddress, omitZero bool) multicall.Job {
 	job := multicall.Job{
 		Calls: make([]multicall3.IMulticall3Call, 0, len(contractAddresses)),
 		CallResultFn: func(result multicall3.IMulticall3Result) (any, error) {
+			if omitZero && result.Success && len(result.ReturnData) == 32 && isZeroWord(result.ReturnData) {
+				return zeroERC20Balance{}, nil
+			}
 			return multicall.ProcessERC20BalanceResult(result)
 		},
 	}
@@ -41,10 +56,15 @@ func processERC20JobResult(account AccountAddress, contractAddresses []ContractA
 
 	for i, callResult := range jobResult.Results {
 		if callResult.Err != nil {
+			result.Failed = append(result.Failed, contractAddresses[i])
+			continue
+		}
+		if _, zero := callResult.Value.(zeroERC20Balance); zero {
 			continue
 		}
 		parsedResult, ok := callResult.Value.(*big.Int)
 		if !ok || parsedResult == nil {
+			result.Failed = append(result.Failed, contractAddresses[i])
 			continue
 		}
 		result.Results[contractAddresses[i]] = parsedResult
