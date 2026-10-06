@@ -29,3 +29,12 @@ func BenchmarkTokenKey(b *testing.B) {
 		_ = TokenKey(8453, addr)
 	}
 }
+
+func FuzzTokenKeyFormat(f *testing.F) {
+	f.Add(uint64(1), []byte{0xa0, 0xb8, 0x69, 0x91})
+	f.Fuzz(func(t *testing.T, chainID uint64, b []byte) {
+		addr := gethcommon.BytesToAddress(b)
+		want := fmt.Sprintf("%d%s%s", chainID, tokenKeySeparator, strings.ToLower(addr.Hex()))
+		require.Equal(t, want, TokenKey(chainID, addr))
+	})
+}
