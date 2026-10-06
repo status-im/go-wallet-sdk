@@ -73,8 +73,8 @@ if len(results) > 0 && len(results[0].Results) > 0 {
 - `Caller` - Interface for executing multicall operations
 - `DirectCaller` (`NewDirectCaller(multicall3Address, backend)`) - `Caller` that encodes and decodes the
   `tryAggregate`/`tryBlockAndAggregate` ABI by hand instead of through the generated binding: same request
-  bytes and results, without reflection (~1MB/6 allocations instead of 8.5MB/95k for 2500 balance calls).
-  `backend` needs `CallContext` (rpc client) and `CodeAt`.
+  bytes and results, without reflection (~1MB/2 allocations instead of 8.5MB/95k for 2500 balance calls).
+  `backend` needs `CallContractRaw` and `CodeAt` (`ethclient.Client` has both).
 
 ### Call Builders
 - `BuildNativeBalanceCall()` - Get ETH balance

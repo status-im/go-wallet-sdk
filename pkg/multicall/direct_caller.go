@@ -11,8 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
 )
@@ -30,9 +28,10 @@ var (
 
 const abiWordSize = 32
 
-// CallBackend is what DirectCaller needs from an RPC client.
+// CallBackend is what DirectCaller needs from an RPC client; ethclient.Client implements it.
 type CallBackend interface {
-	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error
+	// CallContractRaw is eth_call with the call argument already encoded as JSON.
+	CallContractRaw(ctx context.Context, callArg json.RawMessage, blockNumber *big.Int) ([]byte, error)
 	CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error)
 }
 
@@ -85,8 +84,8 @@ func (c *DirectCaller) call(opts *bind.CallOpts, selector []byte, requireSuccess
 	// Not reused across calls: the fallback client can return on a timeout while
 	// a provider attempt that has yet to marshal the argument is still running.
 	arg := json.RawMessage(appendEthCallArg(nil, opts.From, c.address, selector, requireSuccess, calls))
-	var out hexutil.Bytes
-	if err := c.backend.CallContext(ctx, &out, "eth_call", arg, toBlockNumArg(opts.BlockNumber)); err != nil {
+	out, err := c.backend.CallContractRaw(ctx, arg, opts.BlockNumber)
+	if err != nil {
 		return nil, err
 	}
 	if len(out) == 0 {
@@ -99,17 +98,6 @@ func (c *DirectCaller) call(opts *bind.CallOpts, selector []byte, requireSuccess
 		}
 	}
 	return out, nil
-}
-
-// toBlockNumArg is go-ethereum's ethclient block argument encoding.
-func toBlockNumArg(number *big.Int) string {
-	if number == nil {
-		return "latest"
-	}
-	if number.Sign() >= 0 {
-		return hexutil.EncodeBig(number)
-	}
-	return rpc.BlockNumber(number.Int64()).String()
 }
 
 // appendEthCallArg appends the eth_call transaction argument exactly as

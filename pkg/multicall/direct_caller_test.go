@@ -16,11 +16,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
+	"github.com/status-im/go-wallet-sdk/pkg/ethclient"
 )
 
 func multicall3ABI(t testing.TB) *abi.ABI {
@@ -233,24 +233,14 @@ func (n *recordingNode) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": result})
 }
 
-// nodeClient serves both the generated binding (CallContract) and DirectCaller (CallContext).
-type nodeClient struct {
-	*ethclient.Client
-	rpc *rpc.Client
-}
-
-func (c nodeClient) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
-	return c.rpc.CallContext(ctx, result, method, args...)
-}
-
-func newRecordingNodeClient(t testing.TB, output []byte) (*recordingNode, nodeClient) {
+func newRecordingNodeClient(t testing.TB, output []byte) (*recordingNode, *ethclient.Client) {
 	node := &recordingNode{output: output}
 	server := httptest.NewServer(node)
 	t.Cleanup(server.Close)
 	rpcClient, err := rpc.Dial(server.URL)
 	require.NoError(t, err)
 	t.Cleanup(rpcClient.Close)
-	return node, nodeClient{Client: ethclient.NewClient(rpcClient), rpc: rpcClient}
+	return node, ethclient.NewClient(rpcClient)
 }
 
 // The generated binding and the hand-encoded caller must put the same bytes on
@@ -323,9 +313,8 @@ func (b *staticBackend) CallContract(context.Context, ethereum.CallMsg, *big.Int
 	return b.output, nil
 }
 
-func (b *staticBackend) CallContext(_ context.Context, result interface{}, _ string, _ ...interface{}) error {
-	*result.(*hexutil.Bytes) = b.output
-	return nil
+func (b *staticBackend) CallContractRaw(context.Context, json.RawMessage, *big.Int) ([]byte, error) {
+	return b.output, nil
 }
 
 func BenchmarkDirectCaller(b *testing.B) {
