@@ -47,7 +47,7 @@ func inspect(in Inspector, req *http.Request) Inspection {
 	if err != nil {
 		return Inspection{}
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 	buf := prefixBuffers.Get().(*[]byte)
 	defer prefixBuffers.Put(buf)
 	prefix := (*buf)[:min(req.ContentLength, MaxInspectedBody)]
@@ -57,7 +57,7 @@ func inspect(in Inspector, req *http.Request) Inspection {
 		if err != nil {
 			return Inspection{}
 		}
-		defer zr.Close()
+		defer func() { _ = zr.Close() }()
 		r, prefix = zr, (*buf)[:MaxInspectedBody]
 	}
 	n, _ := io.ReadFull(r, prefix)
