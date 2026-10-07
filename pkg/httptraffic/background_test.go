@@ -53,18 +53,18 @@ func TestRecorder_CountsTheTimeInTheBackground(t *testing.T) {
 
 func TestRecorder_FlagsIntervalsThatSawTheBackground(t *testing.T) {
 	rec := NewRecorder()
-	since := rec.Snapshot().Since
+	generation := rec.Snapshot().generation
 
-	rec.addInterval(since, IntervalTotals{})
+	rec.addInterval(generation, IntervalTotals{})
 	rec.SetBackground(true)
 	rec.SetBackground(false)
-	rec.addInterval(since, IntervalTotals{})
+	rec.addInterval(generation, IntervalTotals{})
 	rec.SetBackground(true)
-	rec.addInterval(since, IntervalTotals{})
-	rec.addInterval(since, IntervalTotals{})
+	rec.addInterval(generation, IntervalTotals{})
+	rec.addInterval(generation, IntervalTotals{})
 	rec.SetBackground(false)
-	rec.addInterval(since, IntervalTotals{})
-	rec.addInterval(since, IntervalTotals{})
+	rec.addInterval(generation, IntervalTotals{})
+	rec.addInterval(generation, IntervalTotals{})
 
 	var flags []bool
 	for _, p := range rec.Snapshot().Series {

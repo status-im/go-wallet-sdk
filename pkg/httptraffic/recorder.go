@@ -1,19 +1,3 @@
-// Package httptraffic counts what HTTP clients put on the wire, so that an
-// application's data consumption can be attributed to hosts, endpoints and
-// the features that cause it.
-//
-// The package keeps collecting and analysing apart. The instrumented
-// transport records raw facts into a Recorder: per connection, the exact
-// bytes it carried; per request, its endpoint (host, method, path, and what
-// an Inspector reads in its body, such as a JSON-RPC method), who made it (a
-// source tag from the context, or the calling function) and its sizes.
-// Snapshot hands those facts to analyze, a pure function that classifies them
-// into sources by an Attribution, merges, sums and orders them. Changing how
-// traffic is classified therefore never changes what is recorded.
-//
-// The package knows nothing of the application it measures: which code is
-// the application's, how features are named, and which paths stay private all
-// come from its Attribution.
 package httptraffic
 
 import (
@@ -25,12 +9,15 @@ import (
 // maxEndpoints bounds the raw endpoint table and maxHosts the host table:
 // clients that follow links reach any number of hosts in a long session.
 // Requests beyond the endpoint cap are pooled per caller under overflowHost
-// and overflowPath, and hosts beyond the host cap under overflowHost.
+// and overflowPath, for at most maxOverflowCallers callers and then all
+// together; hosts beyond the host cap are pooled under overflowHost.
 const (
-	maxEndpoints = 500
-	maxHosts     = 200
-	overflowHost = "<other hosts>"
-	overflowPath = "<other>"
+	maxEndpoints       = 500
+	maxOverflowCallers = 64
+	maxHosts           = 200
+	overflowHost       = "<other hosts>"
+	privateHost        = "<private>"
+	overflowPath       = "<other>"
 )
 
 // statusTransportError is the StatusCodes key of requests that got no answer.
@@ -48,6 +35,7 @@ type systemClock struct{}
 
 func (systemClock) Now() time.Time { return time.Now() }
 
+// Option configures a Recorder.
 type Option func(*Recorder)
 
 // WithClock makes the recorder tell the time by c.
@@ -102,12 +90,21 @@ func (t *hostTable) get(host string) *hostCounters {
 	if v, ok := t.m.Load(host); ok {
 		return v.(*hostCounters)
 	}
-	if t.count.Load() >= maxHosts {
-		host = overflowHost
+	// A slot is reserved before the host is stored, so that concurrent first
+	// connections to distinct hosts cannot overshoot the cap together.
+	for {
+		n := t.count.Load()
+		if n >= maxHosts {
+			v, _ := t.m.LoadOrStore(overflowHost, &hostCounters{})
+			return v.(*hostCounters)
+		}
+		if t.count.CompareAndSwap(n, n+1) {
+			break
+		}
 	}
 	v, loaded := t.m.LoadOrStore(host, &hostCounters{})
-	if !loaded && host != overflowHost {
-		t.count.Add(1)
+	if loaded {
+		t.count.Add(-1)
 	}
 	return v.(*hostCounters)
 }
@@ -120,6 +117,7 @@ type hostCounters struct {
 	backgroundReceived atomic.Uint64
 }
 
+// Recorder counts the HTTP traffic of the round trippers it instruments.
 type Recorder struct {
 	clock       Clock
 	attribution *Attribution
@@ -127,12 +125,20 @@ type Recorder struct {
 	enabled     atomic.Bool
 	background  atomic.Bool
 	hosts       atomic.Pointer[hostTable]
+	// generation counts Resets. An exchange that started before the latest one
+	// records nothing more, and a reset is told apart by it rather than by
+	// the time, which a coarse clock may not advance.
+	generation atomic.Uint64
+	// enablings counts the times recording was turned on. An exchange that
+	// started before the latest one records nothing more.
+	enablings atomic.Uint64
 
 	// mu guards everything below.
-	mu        sync.Mutex
-	since     time.Time
-	endpoints map[rawKey]*rawEndpoint
-	series    []IntervalTotals
+	mu              sync.Mutex
+	since           time.Time
+	endpoints       map[rawKey]*rawEndpoint
+	overflowCallers int
+	series          []IntervalTotals
 	// backgroundSince is when the app went to the background, or the last
 	// Reset if that came later.
 	backgroundSince   time.Time
@@ -155,9 +161,15 @@ func NewRecorder(opts ...Option) *Recorder {
 // SetEnabled turns recording on or off. While off the instrumented transports
 // pass requests straight through and the counters stay as they are.
 func (r *Recorder) SetEnabled(enabled bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if enabled && !r.enabled.Load() {
+		r.enablings.Add(1)
+	}
 	r.enabled.Store(enabled)
 }
 
+// Enabled tells whether the recorder is recording.
 func (r *Recorder) Enabled() bool {
 	return r.enabled.Load()
 }
@@ -184,9 +196,11 @@ func (r *Recorder) SetBackground(background bool) {
 func (r *Recorder) Reset() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.generation.Add(1)
 	r.since = r.clock.Now()
 	r.hosts.Store(&hostTable{})
 	r.endpoints = make(map[rawKey]*rawEndpoint)
+	r.overflowCallers = 0
 	r.series = nil
 	r.backgroundSince = r.since
 	r.backgroundSeconds = 0
@@ -194,11 +208,11 @@ func (r *Recorder) Reset() {
 }
 
 // addInterval appends a sampling interval, dropping the oldest beyond maxSeries.
-// An interval measured across a Reset is dropped: since tells the reset apart.
-func (r *Recorder) addInterval(since time.Time, interval IntervalTotals) {
+// An interval measured across a Reset is dropped.
+func (r *Recorder) addInterval(generation uint64, interval IntervalTotals) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !since.Equal(r.since) {
+	if generation != r.generation.Load() {
 		return
 	}
 	interval.Background = r.backgroundSeen
@@ -221,6 +235,7 @@ func (r *Recorder) facts() facts {
 
 	now := r.clock.Now()
 	f := facts{
+		generation:        r.generation.Load(),
 		since:             r.since,
 		until:             now,
 		enabled:           r.Enabled(),
@@ -291,35 +306,62 @@ func (r *Recorder) endpoint(key rawKey) *rawEndpoint {
 		if e, ok = r.endpoints[key]; ok {
 			return e
 		}
+		if key.caller != "" && r.overflowCallers >= maxOverflowCallers {
+			key.caller = ""
+			if e, ok = r.endpoints[key]; ok {
+				return e
+			}
+		}
+		if key.caller != "" {
+			r.overflowCallers++
+		}
 	}
 	e = &rawEndpoint{statusCodes: make(map[string]uint64)}
 	r.endpoints[key] = e
 	return e
 }
 
-// exchange is what is known about a request once its response headers
-// arrived, or it failed.
+// exchange is one request as it is recorded: what was known when it started,
+// and what its response told once its headers arrived or it failed.
 type exchange struct {
-	key                 rawKey
+	key rawKey
+	// generation, enablings and background are the recorder's when the request
+	// started: a Reset or a pause in recording since drops the rest of the
+	// exchange, and its bytes stay on the side of the background they started on.
+	generation uint64
+	enablings  uint64
+	// maxBefore is the endpoint's largest request before this one was added.
+	maxBefore           uint64
+	background          bool
 	requestBytes        uint64
 	responseHeaderBytes uint64
 	statusCode          int // 0 when the request got no answer
 	inspection          Inspection
 }
 
-func (r *Recorder) addExchange(x exchange) {
+// current tells whether x still belongs to what the recorder records: no
+// Reset since it started, and recording on ever since.
+func (r *Recorder) current(x *exchange) bool {
+	return x.generation == r.generation.Load() && x.enablings == r.enablings.Load() && r.Enabled()
+}
+
+func (r *Recorder) addExchange(x *exchange) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if !r.current(x) {
+		return
+	}
 	e := r.endpoint(x.key)
 	e.requests++
 	e.requestBytes += x.requestBytes
+	x.maxBefore = e.maxRequestBytes
 	e.maxRequestBytes = max(e.maxRequestBytes, x.requestBytes)
 	e.responseBytes += x.responseHeaderBytes
 	e.calls += x.inspection.Calls
 	e.bundles += x.inspection.Bundles
 	e.bundledCalls += x.inspection.BundledCalls
 	e.maxBundledCalls = max(e.maxBundledCalls, x.inspection.MaxBundledCalls)
-	if r.background.Load() {
+	if x.background {
 		e.background.Requests++
 		e.background.BytesSent += x.requestBytes
 		e.background.BytesReceived += x.responseHeaderBytes
@@ -335,13 +377,32 @@ func (r *Recorder) addExchange(x exchange) {
 	}
 }
 
-func (r *Recorder) addResponseBytes(key rawKey, wire, decoded int) {
+// addRequestBytes adds what a body of unknown length turned out to carry.
+func (r *Recorder) addRequestBytes(x *exchange, n uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	e := r.endpoint(key)
+	if !r.current(x) || n == 0 {
+		return
+	}
+	e := r.endpoint(x.key)
+	x.requestBytes += n
+	e.requestBytes += n
+	e.maxRequestBytes = max(e.maxRequestBytes, x.requestBytes)
+	if x.background {
+		e.background.BytesSent += n
+	}
+}
+
+func (r *Recorder) addResponseBytes(x *exchange, wire, decoded int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.current(x) {
+		return
+	}
+	e := r.endpoint(x.key)
 	e.responseBytes += uint64(wire)
 	e.decodedBodyBytes += uint64(decoded)
-	if r.background.Load() {
+	if x.background {
 		e.background.BytesReceived += uint64(wire)
 	}
 }
@@ -353,19 +414,26 @@ type exactBytes struct {
 	sent, received                 uint64
 }
 
-func (r *Recorder) finishExchange(key rawKey, latency time.Duration, exact *exactBytes) {
+func (r *Recorder) finishExchange(x *exchange, latency time.Duration, exact *exactBytes) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	e := r.endpoint(key)
+	if !r.current(x) {
+		return
+	}
+	e := r.endpoint(x.key)
 	e.latencies.add(latency.Milliseconds())
 	if exact == nil {
 		return
 	}
 	e.exactRequests++
 	e.requestBytes = e.requestBytes - min(e.requestBytes, exact.estimatedSent) + exact.sent
+	// An estimate that turned out too high stops being the largest request.
+	if e.maxRequestBytes == exact.estimatedSent {
+		e.maxRequestBytes = x.maxBefore
+	}
 	e.maxRequestBytes = max(e.maxRequestBytes, exact.sent)
 	e.responseBytes = e.responseBytes - min(e.responseBytes, exact.countedReceived) + exact.received
-	if r.background.Load() {
+	if x.background {
 		b := &e.background
 		b.BytesSent = b.BytesSent - min(b.BytesSent, exact.estimatedSent) + exact.sent
 		b.BytesReceived = b.BytesReceived - min(b.BytesReceived, exact.countedReceived) + exact.received

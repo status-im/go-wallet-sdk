@@ -34,6 +34,12 @@ func TestRecordedPath_OmitsPathsOfPrivateCallers(t *testing.T) {
 	require.Equal(t, "/v3/{id}", (*Attribution)(nil).recordedPath("", "/v3/0123456789abcdef0123456789abcdef"))
 }
 
+func TestEndpointPath_KeepsTheLabelOffPathsOfPrivateCallers(t *testing.T) {
+	a := &testAttribution
+	require.Equal(t, userPath, a.endpointPath(appModule+"preview.(*Unfurler).Unfurl", "/rpc", "#eth_call"))
+	require.Equal(t, "/rpc#eth_call", a.endpointPath(tagPrefix+"Balances", "/rpc", "#eth_call"))
+}
+
 func TestRecorder_NeverRecordsAProviderTokenInAPath(t *testing.T) {
 	server := newServer(t)
 	rec := NewRecorder()
@@ -48,4 +54,10 @@ func TestRecorder_NeverRecordsAProviderTokenInAPath(t *testing.T) {
 	summary := strings.Join(s.Summary(5, 5, 5).Endpoints, "\n")
 	require.NotContains(t, summary, token)
 	require.Contains(t, summary, "/v3/{id}")
+}
+
+func TestRecordedPath_MasksLongLowercaseTokens(t *testing.T) {
+	a := (*Attribution)(nil)
+	require.Equal(t, "/v1/{id}", a.recordedPath("", "/v1/abcdefghijklmnopqrstuvwxyzabcdef"))
+	require.Equal(t, "/v1/leaderboard/simpleprices", a.recordedPath("", "/v1/leaderboard/simpleprices"))
 }

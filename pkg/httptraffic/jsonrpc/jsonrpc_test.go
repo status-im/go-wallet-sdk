@@ -125,3 +125,39 @@ func BenchmarkInspector_Multicall(b *testing.B) {
 		_ = Inspector{}.Inspect(prefix)
 	}
 }
+
+func TestInspector_CountsOnlyTheCallsOwnMethod(t *testing.T) {
+	in := Inspector{}
+	require.Equal(t, httptraffic.Inspection{Label: "#batch:eth_call", Calls: 1},
+		in.Inspect([]byte(`[{"method":"eth_call","params":[{"method":"foo"}]}]`)),
+		"a method nested in params is not another call")
+	require.Equal(t, httptraffic.Inspection{Label: "#eth_call", Calls: 1},
+		in.Inspect([]byte(`{"params":[{"method":"foo"}],"method":"eth_call"}`)),
+		"a nested method before the call's own does not name it")
+	require.Equal(t, httptraffic.Inspection{Label: "#eth_call", Calls: 1},
+		in.Inspect([]byte(`{"params":["\"method\":\"foo\""],"method":"eth_call"}`)),
+		"a method inside a string is no key")
+	require.Equal(t, "#batch:eth_call,eth_getBalance",
+		in.Inspect([]byte(`[{"method":"eth_getBalance"},{"id":2,"method":"eth_call","params":[{"data":"0x1"}]}]`)).Label)
+}
+
+func TestInspector_CountsTheLastCallOfACutOffBatch(t *testing.T) {
+	body := `[{"method":"eth_getBalance"},{"method":"eth_call","params":[{"data":"` + multicallData("82ad56cb", 0, 2500)
+	in := Inspector{}.Inspect([]byte(body[:400]))
+	require.Equal(t, uint64(2), in.Calls)
+	require.Equal(t, uint64(2500), in.MaxBundledCalls)
+}
+
+func TestInspector_AcceptsJSONMediaTypesOnly(t *testing.T) {
+	accepts := func(contentType string) bool {
+		req, err := http.NewRequest(http.MethodPost, "http://rpc.example", nil)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", contentType)
+		return Inspector{}.Accepts(req)
+	}
+	require.True(t, accepts("application/json"))
+	require.True(t, accepts("APPLICATION/JSON; charset=utf-8"))
+	require.True(t, accepts("application/vnd.api+json"))
+	require.False(t, accepts("text/notjson"))
+	require.False(t, accepts(""))
+}

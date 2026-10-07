@@ -21,7 +21,15 @@ type Inspector struct{}
 
 // Accepts takes JSON POSTs, which is what JSON-RPC over HTTP sends.
 func (Inspector) Accepts(req *http.Request) bool {
-	return req.Method == http.MethodPost && strings.Contains(req.Header.Get("Content-Type"), "json")
+	return req.Method == http.MethodPost && isJSON(req.Header.Get("Content-Type"))
+}
+
+// isJSON tells application/json and the +json types, whatever their case and
+// parameters.
+func isJSON(contentType string) bool {
+	mediaType, _, _ := strings.Cut(contentType, ";")
+	mediaType = strings.ToLower(strings.TrimSpace(mediaType))
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
 // Inspect reads the methods and Multicall3 sizes of the calls prefix starts with.
@@ -29,8 +37,9 @@ func (Inspector) Inspect(prefix []byte) httptraffic.Inspection {
 	return parse(prefix)
 }
 
-// callWindow is how far after its method a call's data is looked for.
-const callWindow = 1 << 10
+// keyWindow is how far into a call its data key is looked for: a call's keys
+// come before its large values.
+const keyWindow = 1 << 10
 
 // multicallPrefix is how much calldata multicallSize needs: the selector and
 // the first four ABI words.
@@ -42,7 +51,8 @@ var (
 )
 
 // parse finds the methods and Multicall3 sizes of the calls a JSON-RPC body
-// starts with.
+// starts with. Only a call's own "method" counts, not one nested in its
+// params; a body cut off by the inspected prefix counts the calls it starts.
 func parse(body []byte) httptraffic.Inspection {
 	body = bytes.TrimSpace(body)
 	if len(body) == 0 || (body[0] != '{' && body[0] != '[') {
@@ -52,33 +62,26 @@ func parse(body []byte) httptraffic.Inspection {
 
 	var in httptraffic.Inspection
 	unique := make(map[string]struct{})
-	for rest := body; ; {
-		value, after, ok := stringValue(rest, methodKey)
+	visit := func(call []byte) bool {
+		method, ok := memberString(call, methodKey)
 		if !ok {
-			break
+			return true
 		}
-		method := string(value)
 		in.Calls++
-		unique[method] = struct{}{}
-		// The call's data follows its method closely, before the next call's; a
-		// single call has no next one to look for.
-		callEnd := min(len(after), callWindow)
-		if batch {
-			if next := bytes.Index(after[:callEnd], methodKey); next >= 0 {
-				callEnd = next
-			}
-		}
-		if method == "eth_call" {
-			if n, ok := multicallSize(callData(after[:callEnd])); ok {
+		unique[string(method)] = struct{}{}
+		if string(method) == "eth_call" {
+			if n, ok := multicallSize(callData(call)); ok {
 				in.Bundles++
 				in.BundledCalls += n
 				in.MaxBundledCalls = max(in.MaxBundledCalls, n)
 			}
 		}
-		if !batch {
-			break
-		}
-		rest = after
+		return true
+	}
+	if batch {
+		elements(body, visit)
+	} else {
+		visit(body)
 	}
 	if in.Calls == 0 {
 		return httptraffic.Inspection{}
@@ -97,27 +100,117 @@ func parse(body []byte) httptraffic.Inspection {
 	return in
 }
 
+// elements calls visit with each object of the array at data[0], the last one
+// possibly cut off, until visit returns false.
+func elements(data []byte, visit func(object []byte) bool) {
+	depth, start := 0, -1
+	for i := 0; i < len(data); {
+		switch data[i] {
+		case '"':
+			i, _ = skipString(data, i)
+			continue
+		case '{', '[':
+			depth++
+			if depth == 2 && data[i] == '{' {
+				start = i
+			}
+		case '}', ']':
+			if depth == 2 && data[i] == '}' && start >= 0 {
+				if !visit(data[start : i+1]) {
+					return
+				}
+				start = -1
+			}
+			depth--
+			if depth == 0 {
+				return
+			}
+		}
+		i++
+	}
+	if start >= 0 {
+		visit(data[start:])
+	}
+}
+
+// memberString returns the string value of the top-level member key of the
+// object at data[0], without copying it; a value cut off counts by its start.
+func memberString(data, key []byte) ([]byte, bool) {
+	depth := 0
+	for i := 0; i < len(data); {
+		switch data[i] {
+		case '"':
+			end, closed := skipString(data, i)
+			if depth == 1 && closed && bytes.Equal(data[i:end], key) {
+				j := skipSpace(data, end)
+				if j < len(data) && data[j] == ':' {
+					j = skipSpace(data, j+1)
+					if j < len(data) && data[j] == '"' {
+						if valueEnd, closed := skipString(data, j); closed {
+							return data[j+1 : valueEnd-1], true
+						}
+						return data[j+1:], true
+					}
+					return nil, false
+				}
+			}
+			i = end
+			continue
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 0 {
+				return nil, false
+			}
+		}
+		i++
+	}
+	return nil, false
+}
+
+// skipString returns the index just past the JSON string that starts at
+// data[i], and whether it is closed there rather than cut off at len(data).
+func skipString(data []byte, i int) (int, bool) {
+	for j := i + 1; j < len(data); {
+		k := bytes.IndexByte(data[j:], '"')
+		if k < 0 {
+			return len(data), false
+		}
+		end := j + k
+		backslashes := 0
+		for p := end - 1; p > i && data[p] == '\\'; p-- {
+			backslashes++
+		}
+		if backslashes%2 == 0 {
+			return end + 1, true
+		}
+		j = end + 1
+	}
+	return len(data), false
+}
+
 // callData returns the start of the hex of a call's transaction data, "input"
 // preferred: as much as multicallSize reads.
 func callData(call []byte) string {
 	for _, key := range dataKeys {
-		if v, _, ok := stringValue(call, key); ok {
+		if v, ok := stringValue(call, key, keyWindow); ok {
 			return string(v[:min(len(v), multicallPrefix)])
 		}
 	}
 	return ""
 }
 
-// stringValue finds key in data and returns the JSON string that follows it,
-// without copying it, and the bytes after that string. Escapes are not
-// decoded: the values looked for are method names and hex.
-func stringValue(data, key []byte) (value, after []byte, ok bool) {
+// stringValue finds key in the first window bytes of data and returns the
+// JSON string that follows it, without copying it. Escapes are not decoded:
+// the values looked for are method names and hex.
+func stringValue(data, key []byte, window int) ([]byte, bool) {
 	for {
-		i := bytes.Index(data, key)
+		i := bytes.Index(data[:min(len(data), window)], key)
 		if i < 0 {
-			return nil, nil, false
+			return nil, false
 		}
-		data = data[i+len(key):]
+		data, window = data[i+len(key):], window-i-len(key)
 		j := skipSpace(data, 0)
 		if j >= len(data) || data[j] != ':' {
 			continue
@@ -129,9 +222,9 @@ func stringValue(data, key []byte) (value, after []byte, ok bool) {
 		end := bytes.IndexByte(data[j+1:], '"')
 		if end < 0 {
 			// Cut off at the end of the inspected prefix: its start still counts.
-			return data[j+1:], nil, true
+			return data[j+1:], true
 		}
-		return data[j+1 : j+1+end], data[j+2+end:], true
+		return data[j+1 : j+1+end], true
 	}
 }
 

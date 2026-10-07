@@ -15,6 +15,19 @@ func sourceFrom(ctx context.Context) (string, bool) {
 	return source, ok && source != ""
 }
 
+type privateKey struct{}
+
+// WithPrivateDestination marks the requests made with ctx as going to an
+// address a user gave: neither their host nor their path is recorded.
+func WithPrivateDestination(ctx context.Context) context.Context {
+	return context.WithValue(ctx, privateKey{}, true)
+}
+
+func isPrivateDestination(ctx context.Context) bool {
+	private, _ := ctx.Value(privateKey{}).(bool)
+	return private
+}
+
 // tagPrefix marks a raw caller that is a source tag rather than a function.
 const tagPrefix = "@"
 

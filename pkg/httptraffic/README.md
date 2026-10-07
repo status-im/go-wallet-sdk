@@ -21,7 +21,7 @@ The `httptraffic` package counts what HTTP clients put on the wire and attribute
 
 - **Wire bytes**: per connection, and exact per request over HTTP/1.1
 - **Attribution**: a context tag, or the first application frame on the stack, named by configurable rules
-- **Private paths**: segments that look like keys, addresses or ids are recorded as `{id}`; chosen callers keep no path
+- **Private paths**: segments that look like keys, addresses or ids are recorded as `{id}`; chosen callers, and requests marked with `WithPrivateDestination`, keep neither host nor path
 - **Bounded memory**: host and endpoint tables are capped
 - **No globals**: every recorder is configured by its caller
 - **Cheap when off**: a disabled recorder passes requests straight through

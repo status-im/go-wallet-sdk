@@ -165,10 +165,10 @@ func TestRecorder_CountsStatusCodesAndLatency(t *testing.T) {
 
 func TestRecorder_SummarizesTotalsAndSources(t *testing.T) {
 	rec := NewRecorder()
-	rec.addExchange(exchange{key: rawKey{"h", http.MethodGet, "/a", tagPrefix + "Balances"}, requestBytes: 100, statusCode: 200})
-	rec.addExchange(exchange{key: rawKey{"h", http.MethodGet, "/b", tagPrefix + "Balances"}, requestBytes: 50, statusCode: 500})
-	rec.addExchange(exchange{key: rawKey{"h", http.MethodGet, "/c", tagPrefix + "Market: prices"}, requestBytes: 10, statusCode: 200})
-	rec.addExchange(exchange{key: rawKey{"h", http.MethodGet, "/c", tagPrefix + "Market: prices"}, requestBytes: 10, statusCode: 304})
+	addExchange(rec, exchange{key: rawKey{"h", http.MethodGet, "/a", tagPrefix + "Balances"}, requestBytes: 100, statusCode: 200})
+	addExchange(rec, exchange{key: rawKey{"h", http.MethodGet, "/b", tagPrefix + "Balances"}, requestBytes: 50, statusCode: 500})
+	addExchange(rec, exchange{key: rawKey{"h", http.MethodGet, "/c", tagPrefix + "Market: prices"}, requestBytes: 10, statusCode: 200})
+	addExchange(rec, exchange{key: rawKey{"h", http.MethodGet, "/c", tagPrefix + "Market: prices"}, requestBytes: 10, statusCode: 304})
 
 	s := rec.Snapshot()
 	require.Equal(t, uint64(4), s.Totals.Requests)
@@ -230,7 +230,7 @@ func TestSnapshot_SubKeepsOnlyTheTrafficInBetween(t *testing.T) {
 func TestRecorder_PoolsEndpointsBeyondTheCap(t *testing.T) {
 	rec := NewRecorder()
 	for i := 0; i < maxEndpoints+10; i++ {
-		rec.addExchange(exchange{key: rawKey{host: "h", method: http.MethodGet, path: fmt.Sprintf("/coins/%d", i)}, requestBytes: 10, statusCode: 200})
+		addExchange(rec, exchange{key: rawKey{host: "h", method: http.MethodGet, path: fmt.Sprintf("/coins/%d", i)}, requestBytes: 10, statusCode: 200})
 	}
 
 	s := rec.Snapshot()
@@ -241,7 +241,7 @@ func TestRecorder_PoolsEndpointsBeyondTheCap(t *testing.T) {
 func TestRecorder_PoolsEndpointsOfEveryNewHostBeyondTheCap(t *testing.T) {
 	rec := NewRecorder()
 	for i := 0; i < maxEndpoints+1000; i++ {
-		rec.addExchange(exchange{key: rawKey{host: fmt.Sprintf("h%d", i), method: http.MethodGet, path: "/p", caller: "c"}, requestBytes: 10, statusCode: 200})
+		addExchange(rec, exchange{key: rawKey{host: fmt.Sprintf("h%d", i), method: http.MethodGet, path: "/p", caller: "c"}, requestBytes: 10, statusCode: 200})
 	}
 
 	s := rec.Snapshot()
@@ -272,7 +272,7 @@ func TestRecorder_PoolsHostsBeyondTheCap(t *testing.T) {
 
 func TestRecorder_Reset(t *testing.T) {
 	rec := NewRecorder()
-	rec.addExchange(exchange{key: rawKey{host: "h", method: http.MethodGet, path: "/p"}, requestBytes: 10, statusCode: 200})
+	addExchange(rec, exchange{key: rawKey{host: "h", method: http.MethodGet, path: "/p"}, requestBytes: 10, statusCode: 200})
 	before := rec.Snapshot().Since
 
 	rec.Reset()
@@ -284,9 +284,9 @@ func TestRecorder_Reset(t *testing.T) {
 
 func TestRecorder_KeepsTheLatestIntervals(t *testing.T) {
 	rec := NewRecorder()
-	since := rec.Snapshot().Since
+	generation := rec.Snapshot().generation
 	for i := 0; i < maxSeries+5; i++ {
-		rec.addInterval(since, IntervalTotals{Requests: uint64(i)})
+		rec.addInterval(generation, IntervalTotals{Requests: uint64(i)})
 	}
 
 	series := rec.Snapshot().Series
@@ -294,7 +294,7 @@ func TestRecorder_KeepsTheLatestIntervals(t *testing.T) {
 	require.Equal(t, uint64(5), series[0].Requests, "the oldest intervals go first")
 	require.Equal(t, uint64(maxSeries+4), series[maxSeries-1].Requests)
 
-	rec.addInterval(since.Add(-time.Second), IntervalTotals{Requests: 999})
+	rec.addInterval(generation-1, IntervalTotals{Requests: 999})
 	require.Len(t, rec.Snapshot().Series, maxSeries, "an interval from before a reset is dropped")
 
 	rec.Reset()
@@ -324,4 +324,11 @@ func TestRecorder_ReportSamplesIntoTheSeries(t *testing.T) {
 
 	cancel()
 	<-done
+}
+
+// addExchange records x as an exchange that started now.
+func addExchange(rec *Recorder, x exchange) {
+	x.generation = rec.generation.Load()
+	x.enablings = rec.enablings.Load()
+	rec.addExchange(&x)
 }

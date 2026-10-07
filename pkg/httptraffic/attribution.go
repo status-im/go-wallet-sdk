@@ -30,7 +30,9 @@ type Attribution struct {
 	// When none does, the source is the caller's package.
 	Sources []SourceRule
 	// PrivateCallers are function name prefixes whose requests go to addresses
-	// users gave, such as links to preview: their paths are not recorded.
+	// users gave, such as links to preview: neither their hosts nor their paths
+	// are recorded. A request tagged with WithSource has no caller; mark it
+	// with WithPrivateDestination instead.
 	PrivateCallers []string
 	// Unattributed names the requests nothing claims. "Other" when empty.
 	Unattributed string
@@ -85,7 +87,7 @@ func (a *Attribution) callerOf() string {
 // caller of a request: application code that is neither plumbing nor an entry
 // point.
 func (a *Attribution) IsFeature(function string) bool {
-	if strings.HasPrefix(function, selfPackage) || !hasAnyPrefix(function, a.Modules) || hasAnyPrefix(function, a.Plumbing) {
+	if a == nil || strings.HasPrefix(function, selfPackage) || !hasAnyPrefix(function, a.Modules) || hasAnyPrefix(function, a.Plumbing) {
 		return false
 	}
 	return a.EntryPoints == nil || !a.EntryPoints.MatchString(function)

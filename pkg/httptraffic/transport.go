@@ -14,29 +14,43 @@ import (
 	"time"
 )
 
+// DialContextFunc has the signature of net.Dialer.DialContext and
+// http.Transport.DialContext.
 type DialContextFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 // Instrument returns rt wrapped so that its traffic is recorded; a nil rt
 // stands for http.DefaultTransport. An *http.Transport is cloned, so that its
-// connections can be counted without touching the original.
+// connections can be counted without touching the original; it dials as it
+// did, through its DialContext, its Dial or a plain net.Dialer.
+//
+// Connections an *http.Transport opens with DialTLSContext or DialTLS are not
+// counted: net/http negotiates HTTP/2 on the *tls.Conn they return, which a
+// counting wrapper would hide. Their requests are recorded with estimated
+// bytes. Other round trippers are recorded with estimates only.
 func (r *Recorder) Instrument(rt http.RoundTripper) http.RoundTripper {
 	if rt == nil {
 		rt = http.DefaultTransport
 	}
 	// Only an *http.Transport is known to decompress on its own; taking that
 	// over keeps the wire size of its responses visible.
-	decompress := false
+	decompress, countsConnections, dialsTLS := false, false, false
 	if t, ok := rt.(*http.Transport); ok {
 		t = t.Clone()
 		dial := t.DialContext
-		if dial == nil {
-			dial = (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext
+		switch legacy := t.Dial; { //nolint:staticcheck // Dial is deprecated, still honoured by net/http
+		case dial != nil:
+		case legacy != nil:
+			dial = func(_ context.Context, network, addr string) (net.Conn, error) { return legacy(network, addr) }
+		default:
+			dial = (&net.Dialer{}).DialContext
 		}
 		t.DialContext = r.WrapDialContext(dial)
 		decompress = !t.DisableCompression
+		countsConnections = true
+		dialsTLS = t.DialTLSContext != nil || t.DialTLS != nil //nolint:staticcheck // DialTLS is deprecated, still honoured by net/http
 		rt = t
 	}
-	return &roundTripper{base: rt, rec: r, decompress: decompress}
+	return &roundTripper{base: rt, rec: r, decompress: decompress, countsConnections: countsConnections, dialsTLS: dialsTLS}
 }
 
 // WrapDialContext returns dial with every connection it opens counted.
@@ -49,6 +63,9 @@ func (r *Recorder) WrapDialContext(dial DialContextFunc) DialContextFunc {
 		host, _, splitErr := net.SplitHostPort(addr)
 		if splitErr != nil {
 			host = addr
+		}
+		if isPrivateDestination(ctx) {
+			host = privateHost
 		}
 		if r.Enabled() {
 			r.addConnection(host)
@@ -65,6 +82,17 @@ type countingConn struct {
 	host     string
 	sent     atomic.Uint64
 	received atomic.Uint64
+	// private is set once a request to a private destination got the
+	// connection, which another request may have opened: its bytes are
+	// counted without the host from then on.
+	private atomic.Bool
+}
+
+func (c *countingConn) recordedHost() string {
+	if c.private.Load() {
+		return privateHost
+	}
+	return c.host
 }
 
 func (c *countingConn) Read(b []byte) (int, error) {
@@ -72,7 +100,7 @@ func (c *countingConn) Read(b []byte) (int, error) {
 	if n > 0 {
 		c.received.Add(uint64(n))
 		if c.rec.Enabled() {
-			c.rec.addConnBytes(c.host, 0, n)
+			c.rec.addConnBytes(c.recordedHost(), 0, n)
 		}
 	}
 	return n, err
@@ -83,7 +111,7 @@ func (c *countingConn) Write(b []byte) (int, error) {
 	if n > 0 {
 		c.sent.Add(uint64(n))
 		if c.rec.Enabled() {
-			c.rec.addConnBytes(c.host, n, 0)
+			c.rec.addConnBytes(c.recordedHost(), n, 0)
 		}
 	}
 	return n, err
@@ -106,12 +134,16 @@ func countingConnOf(conn net.Conn) *countingConn {
 
 // connMark remembers which connection a request got and its counts then.
 type connMark struct {
+	private        bool
 	conn           *countingConn
 	sent, received uint64
 }
 
 func (m *connMark) gotConn(info httptrace.GotConnInfo) {
 	if c := countingConnOf(info.Conn); c != nil {
+		if m.private {
+			c.private.Store(true)
+		}
 		m.conn, m.sent, m.received = c, c.sent.Load(), c.received.Load()
 	}
 }
@@ -122,6 +154,16 @@ type roundTripper struct {
 	// decompress makes the round tripper ask for gzip and decode it itself,
 	// as net/http would, so that both sizes of a response are known.
 	decompress bool
+	// countsConnections tells that the connections base dials are counted, and
+	// dialsTLS that it dials those of https requests itself, uncounted.
+	countsConnections bool
+	dialsTLS          bool
+}
+
+// countsConnectionOf tells whether the connection req travels on is counted,
+// so that it sent nothing if it failed without getting one.
+func (t *roundTripper) countsConnectionOf(req *http.Request) bool {
+	return t.countsConnections && !(t.dialsTLS && req.URL.Scheme == "https")
 }
 
 func (t *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -132,29 +174,54 @@ func (t *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	inspection := inspect(t.rec.inspector, req)
 	attribution := t.rec.attribution
 	caller := attribution.callerKey(req.Context())
-	key := rawKey{
-		host:   req.URL.Hostname(),
-		method: req.Method,
-		path:   attribution.recordedPath(caller, req.URL.Path) + inspection.Label,
-		caller: caller,
+	host, path := req.URL.Hostname(), attribution.endpointPath(caller, req.URL.Path, inspection.Label)
+	reqCtx := req.Context()
+	private := isPrivateDestination(reqCtx) || attribution.IsPrivate(callerFunction(caller))
+	if private {
+		// The mark travels with the context to the dialer, which names the host.
+		host, path, reqCtx = privateHost, userPath, WithPrivateDestination(reqCtx)
 	}
-	x := exchange{key: key, requestBytes: requestSize(req), inspection: inspection}
+	x := &exchange{
+		key: rawKey{
+			host:   host,
+			method: req.Method,
+			path:   path,
+			caller: caller,
+		},
+		generation:   t.rec.generation.Load(),
+		enablings:    t.rec.enablings.Load(),
+		background:   t.rec.background.Load(),
+		requestBytes: requestSize(req),
+		inspection:   inspection,
+	}
 
-	mark := &connMark{}
-	ctx := httptrace.WithClientTrace(req.Context(), &httptrace.ClientTrace{GotConn: mark.gotConn})
-	decode := t.decompress && req.Header.Get("Accept-Encoding") == "" &&
-		req.Header.Get("Range") == "" && req.Method != http.MethodHead
+	mark := &connMark{private: private}
+	ctx := httptrace.WithClientTrace(reqCtx, &httptrace.ClientTrace{GotConn: mark.gotConn})
+	decode := t.decompress && acceptsGzipByDefault(req)
 	if decode {
 		req = req.Clone(ctx)
 		req.Header.Set("Accept-Encoding", "gzip")
 	} else {
 		req = req.WithContext(ctx)
 	}
+	// A body of unknown length is counted as it is read; req is a copy.
+	var streamed *countingRequestBody
+	if req.Body != nil && req.Body != http.NoBody && req.ContentLength <= 0 {
+		streamed = &countingRequestBody{ReadCloser: req.Body}
+		req.Body = streamed
+	}
 
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
+		sentNothing := mark.conn == nil && t.countsConnectionOf(req)
+		if sentNothing {
+			x.requestBytes = 0
+		}
 		t.rec.addExchange(x)
-		t.rec.finishExchange(key, t.rec.clock.Now().Sub(start), nil)
+		if !sentNothing {
+			t.rec.addRequestBytes(x, streamed.count())
+		}
+		t.rec.finishExchange(x, t.rec.clock.Now().Sub(start), nil)
 		return resp, err
 	}
 
@@ -163,9 +230,14 @@ func (t *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	t.rec.addExchange(x)
 
 	body := &countingBody{
-		raw: resp.Body, rec: t.rec, key: key, start: start,
-		mark: mark, exact: resp.ProtoMajor == 1,
-		estimatedSent: x.requestBytes, counted: x.responseHeaderBytes,
+		raw: resp.Body, rec: t.rec, x: x, start: start, streamed: streamed,
+		mark: mark, exact: resp.ProtoMajor == 1, counted: x.responseHeaderBytes,
+	}
+	// Over HTTP/1.1 the request is on the wire once its response headers are
+	// back, and the connection carries nothing else until its body is read.
+	if mark.conn != nil {
+		body.sent = mark.conn.sent.Load() - mark.sent
+		body.received = mark.conn.received.Load() - mark.received
 	}
 	if decode && strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
 		body.gzipped = true
@@ -182,19 +254,48 @@ func (t *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+// acceptsGzipByDefault tells whether net/http asks for gzip on req by itself.
+func acceptsGzipByDefault(req *http.Request) bool {
+	return req.Header.Get("Accept-Encoding") == "" && req.Header.Get("Range") == "" && req.Method != http.MethodHead
+}
+
+// countingRequestBody counts what a request body of unknown length carries.
+type countingRequestBody struct {
+	io.ReadCloser
+	n atomic.Uint64
+}
+
+func (b *countingRequestBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	b.n.Add(uint64(n))
+	return n, err
+}
+
+func (b *countingRequestBody) count() uint64 {
+	if b == nil {
+		return 0
+	}
+	return b.n.Load()
+}
+
 // countingBody counts a response body as it comes off the connection and,
 // when gzipped, as it is once decoded. When the body ends or is closed it
 // takes the request's latency and, over HTTP/1.1, its exact bytes.
 type countingBody struct {
-	raw     io.ReadCloser
-	rec     *Recorder
-	key     rawKey
-	start   time.Time
-	gzipped bool
+	raw      io.ReadCloser
+	rec      *Recorder
+	x        *exchange
+	start    time.Time
+	gzipped  bool
+	streamed *countingRequestBody
 
-	mark          *connMark
-	exact         bool
-	estimatedSent uint64
+	mark  *connMark
+	exact bool
+	// sent is what the connection carried for the request, taken when its
+	// response headers arrived; received is what it carried for the response,
+	// taken then and right after each read of the body, before net/http can
+	// hand the connection to another request.
+	sent, received uint64
 	// counted is what was recorded as received so far: headers and wire body.
 	counted uint64
 
@@ -202,12 +303,23 @@ type countingBody struct {
 	done    sync.Once
 }
 
+// readRaw reads the wire body, counting it and what the connection carried.
+func (b *countingBody) readRaw(p []byte) (int, error) {
+	n, err := b.raw.Read(p)
+	if b.mark.conn != nil {
+		b.received = b.mark.conn.received.Load() - b.mark.received
+	}
+	if n > 0 {
+		b.counted += uint64(n)
+	}
+	return n, err
+}
+
 func (b *countingBody) Read(p []byte) (int, error) {
 	if !b.gzipped {
-		n, err := b.raw.Read(p)
+		n, err := b.readRaw(p)
 		if n > 0 {
-			b.counted += uint64(n)
-			b.rec.addResponseBytes(b.key, n, n)
+			b.rec.addResponseBytes(b.x, n, n)
 		}
 		if err != nil {
 			b.finish()
@@ -224,7 +336,7 @@ func (b *countingBody) Read(p []byte) (int, error) {
 	}
 	n, err := b.decoder.Read(p)
 	if n > 0 {
-		b.rec.addResponseBytes(b.key, 0, n)
+		b.rec.addResponseBytes(b.x, 0, n)
 	}
 	if err != nil {
 		b.finish()
@@ -244,15 +356,15 @@ const maxExactSlack = 64 << 10
 
 func (b *countingBody) finish() {
 	b.done.Do(func() {
+		b.rec.addRequestBytes(b.x, b.streamed.count())
 		var exact *exactBytes
-		if b.exact && b.mark.conn != nil {
-			sent := b.mark.conn.sent.Load() - b.mark.sent
-			received := b.mark.conn.received.Load() - b.mark.received
-			if sent <= b.estimatedSent+maxExactSlack && received <= b.counted+maxExactSlack {
-				exact = &exactBytes{estimatedSent: b.estimatedSent, countedReceived: b.counted, sent: sent, received: received}
+		if b.exact && b.mark.conn != nil && b.streamed == nil {
+			estimatedSent := b.x.requestBytes
+			if b.sent <= estimatedSent+maxExactSlack && b.received <= b.counted+maxExactSlack {
+				exact = &exactBytes{estimatedSent: estimatedSent, countedReceived: b.counted, sent: b.sent, received: b.received}
 			}
 		}
-		b.rec.finishExchange(b.key, b.rec.clock.Now().Sub(b.start), exact)
+		b.rec.finishExchange(b.x, b.rec.clock.Now().Sub(b.start), exact)
 	})
 }
 
@@ -260,29 +372,36 @@ func (b *countingBody) finish() {
 type wireCounter struct{ b *countingBody }
 
 func (w wireCounter) Read(p []byte) (int, error) {
-	n, err := w.b.raw.Read(p)
+	n, err := w.b.readRaw(p)
 	if n > 0 {
-		w.b.counted += uint64(n)
-		w.b.rec.addResponseBytes(w.b.key, n, 0)
+		w.b.rec.addResponseBytes(w.b.x, n, 0)
 	}
 	return n, err
 }
 
 // requestSize estimates the request as HTTP/1.1 puts it on the wire, counting
-// in the headers net/http adds on its own.
+// in the headers net/http adds on its own. A body of unknown length is added
+// as it is read, without the chunk framing HTTP/1.1 sends it in.
 func requestSize(req *http.Request) uint64 {
+	host := req.Host
+	if host == "" {
+		host = req.URL.Host
+	}
 	size := len(req.Method) + len(" ") + len(req.URL.RequestURI()) + len(" HTTP/1.1\r\n")
-	size += headerLineSize("Host", req.URL.Host)
+	size += headerLineSize("Host", host)
 	size += headersSize(req.Header)
 	if req.Header.Get("User-Agent") == "" {
 		size += headerLineSize("User-Agent", "Go-http-client/1.1")
 	}
-	if req.Header.Get("Accept-Encoding") == "" {
+	if acceptsGzipByDefault(req) {
 		size += headerLineSize("Accept-Encoding", "gzip")
 	}
-	if req.ContentLength > 0 {
+	switch {
+	case req.ContentLength > 0:
 		size += headerLineSize("Content-Length", strconv.FormatInt(req.ContentLength, 10))
 		size += int(req.ContentLength)
+	case req.Body != nil && req.Body != http.NoBody:
+		size += headerLineSize("Transfer-Encoding", "chunked")
 	}
 	return uint64(size + len("\r\n"))
 }

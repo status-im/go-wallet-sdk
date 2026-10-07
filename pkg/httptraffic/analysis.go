@@ -1,12 +1,16 @@
 package httptraffic
 
 import (
+	"cmp"
 	"maps"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
+// EndpointStats counts the requests of one endpoint: a host, method, path and
+// source.
 type EndpointStats struct {
 	Host   string `json:"host"`
 	Method string `json:"method"`
@@ -56,7 +60,9 @@ type EndpointStats struct {
 }
 
 // Background is the part of a count that happened while the app was in the
-// background, as told by Recorder.SetBackground.
+// background, as told by Recorder.SetBackground. A request counts by where the
+// app was when it started; a host's connection bytes by where it was as each
+// byte moved, so the two can differ across a switch.
 type Background struct {
 	Requests      uint64 `json:"requests"`
 	BytesSent     uint64 `json:"bytesSent"`
@@ -65,9 +71,9 @@ type Background struct {
 
 func (b Background) sub(p Background) Background {
 	return Background{
-		Requests:      b.Requests - p.Requests,
-		BytesSent:     b.BytesSent - p.BytesSent,
-		BytesReceived: b.BytesReceived - p.BytesReceived,
+		Requests:      b.Requests - min(b.Requests, p.Requests),
+		BytesSent:     b.BytesSent - min(b.BytesSent, p.BytesSent),
+		BytesReceived: b.BytesReceived - min(b.BytesReceived, p.BytesReceived),
 	}
 }
 
@@ -77,12 +83,14 @@ func (b *Background) add(o Background) {
 	b.BytesReceived += o.BytesReceived
 }
 
+// LatencyStats holds latency percentiles and the maximum, in milliseconds.
 type LatencyStats struct {
 	P50 int64 `json:"p50"`
 	P95 int64 `json:"p95"`
 	Max int64 `json:"max"`
 }
 
+// HostStats counts the connections and bytes of one host.
 type HostStats struct {
 	Host          string `json:"host"`
 	Connections   uint64 `json:"connections"`
@@ -128,6 +136,7 @@ type IntervalTotals struct {
 	Background bool `json:"background"`
 }
 
+// Snapshot is what a Recorder has counted between Since and Until.
 type Snapshot struct {
 	Since     time.Time       `json:"since"`
 	Until     time.Time       `json:"until"`
@@ -142,10 +151,14 @@ type Snapshot struct {
 	// Series holds the latest sampling intervals, oldest first, when a
 	// sampler is sampling the recorder.
 	Series []IntervalTotals `json:"series"`
+
+	// generation counts the Resets of the recorder before this snapshot.
+	generation uint64
 }
 
 // facts are the raw counters of a recorder at one moment.
 type facts struct {
+	generation        uint64
 	since, until      time.Time
 	enabled           bool
 	inBackground      bool
@@ -203,20 +216,25 @@ func analyze(f facts, a *Attribution) Snapshot {
 		for code, n := range e.statusCodes {
 			s.StatusCodes[code] += n
 		}
-		if function := callerFunction(raw.key.caller); function != "" && e.requests > m.callerSeen {
-			s.Caller = shortFunction(function)
-			m.callerSeen = e.requests
+		// Raw endpoints come in map order: equal counts go to the smaller name.
+		if function := callerFunction(raw.key.caller); function != "" {
+			short := shortFunction(function)
+			if e.requests > m.callerSeen || (e.requests == m.callerSeen && short < s.Caller) {
+				s.Caller = short
+				m.callerSeen = e.requests
+			}
 		}
 		m.latencies = append(m.latencies, raw.latencies...)
 	}
 
 	s := Snapshot{
-		Since:     f.since,
-		Until:     f.until,
-		Hosts:     append([]HostStats(nil), f.hosts...),
-		Endpoints: make([]EndpointStats, 0, len(byKey)),
-		Enabled:   f.enabled,
-		Series:    f.series,
+		generation: f.generation,
+		Since:      f.since,
+		Until:      f.until,
+		Hosts:      append([]HostStats(nil), f.hosts...),
+		Endpoints:  make([]EndpointStats, 0, len(byKey)),
+		Enabled:    f.enabled,
+		Series:     f.series,
 	}
 	for _, m := range byKey {
 		m.stats.Latency = latencyStats(m.latencies)
@@ -279,14 +297,20 @@ func (s *Snapshot) summarize() {
 		if a.RequestBytes+a.ResponseBytes != b.RequestBytes+b.ResponseBytes {
 			return a.RequestBytes+a.ResponseBytes > b.RequestBytes+b.ResponseBytes
 		}
-		return a.Host+a.Path+a.Source < b.Host+b.Path+b.Source
+		return cmp.Or(
+			strings.Compare(a.Host, b.Host),
+			strings.Compare(a.Method, b.Method),
+			strings.Compare(a.Path, b.Path),
+			strings.Compare(a.Source, b.Source),
+		) < 0
 	})
 }
 
 // Sub returns the traffic recorded between prev and s, leaving out hosts and
 // endpoints that saw none. prev has to be an earlier snapshot of the same
 // recorder with no Reset in between. Maxima and latencies are not differences:
-// they stay as s has them.
+// they stay as s has them. A count that exact bytes lowered since prev gives
+// zero rather than a negative difference.
 func (s Snapshot) Sub(prev Snapshot) Snapshot {
 	prevHosts := make(map[string]HostStats, len(prev.Hosts))
 	for _, h := range prev.Hosts {
@@ -297,12 +321,12 @@ func (s Snapshot) Sub(prev Snapshot) Snapshot {
 		prevEndpoints[endpointKey{e.Host, e.Method, e.Path, e.Source}] = e
 	}
 
-	d := Snapshot{Since: prev.Until, Until: s.Until, Enabled: s.Enabled}
+	d := Snapshot{Since: prev.Until, Until: s.Until, Enabled: s.Enabled, generation: s.generation}
 	for _, h := range s.Hosts {
 		p := prevHosts[h.Host]
-		h.Connections -= p.Connections
-		h.BytesSent -= p.BytesSent
-		h.BytesReceived -= p.BytesReceived
+		h.Connections -= min(h.Connections, p.Connections)
+		h.BytesSent -= min(h.BytesSent, p.BytesSent)
+		h.BytesReceived -= min(h.BytesReceived, p.BytesReceived)
 		h.Background = h.Background.sub(p.Background)
 		if h.Connections+h.BytesSent+h.BytesReceived > 0 {
 			d.Hosts = append(d.Hosts, h)
@@ -310,16 +334,16 @@ func (s Snapshot) Sub(prev Snapshot) Snapshot {
 	}
 	for _, e := range s.Endpoints {
 		p := prevEndpoints[endpointKey{e.Host, e.Method, e.Path, e.Source}]
-		e.Requests -= p.Requests
-		e.NotModified -= p.NotModified
-		e.Failed -= p.Failed
-		e.ExactRequests -= p.ExactRequests
-		e.RequestBytes -= p.RequestBytes
-		e.ResponseBytes -= p.ResponseBytes
-		e.DecodedBodyBytes -= p.DecodedBodyBytes
-		e.Calls -= p.Calls
-		e.Bundles -= p.Bundles
-		e.BundledCalls -= p.BundledCalls
+		e.Requests -= min(e.Requests, p.Requests)
+		e.NotModified -= min(e.NotModified, p.NotModified)
+		e.Failed -= min(e.Failed, p.Failed)
+		e.ExactRequests -= min(e.ExactRequests, p.ExactRequests)
+		e.RequestBytes -= min(e.RequestBytes, p.RequestBytes)
+		e.ResponseBytes -= min(e.ResponseBytes, p.ResponseBytes)
+		e.DecodedBodyBytes -= min(e.DecodedBodyBytes, p.DecodedBodyBytes)
+		e.Calls -= min(e.Calls, p.Calls)
+		e.Bundles -= min(e.Bundles, p.Bundles)
+		e.BundledCalls -= min(e.BundledCalls, p.BundledCalls)
 		e.Background = e.Background.sub(p.Background)
 		codes := maps.Clone(e.StatusCodes)
 		for code, n := range p.StatusCodes {
@@ -329,7 +353,7 @@ func (s Snapshot) Sub(prev Snapshot) Snapshot {
 			}
 		}
 		e.StatusCodes = codes
-		if e.Requests+e.ResponseBytes > 0 {
+		if e.Requests+e.RequestBytes+e.ResponseBytes > 0 {
 			d.Endpoints = append(d.Endpoints, e)
 		}
 	}

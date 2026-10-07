@@ -17,31 +17,25 @@ func (r *Recorder) Report(ctx context.Context, sampleInterval time.Duration, sam
 	prevSample := r.Snapshot()
 	prevReport := prevSample
 	samples := 0
-	// stale is set while recording is off: the baseline then predates
-	// whatever the counters missed, so it is taken again once it is back on.
-	stale := !r.Enabled()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// The counters stand still while recording is off, so the
+			// baselines stay good for when it is back on.
 			if !r.Enabled() {
-				stale = true
 				continue
 			}
 			current := r.Snapshot()
-			if stale {
-				prevSample, prevReport, samples, stale = current, current, 0, false
-				continue
-			}
-			if current.Since != prevSample.Since {
+			if current.generation != prevSample.generation {
 				// Reset in between: the counters started over.
-				prevSample = Snapshot{Since: current.Since, Until: current.Since}
+				prevSample = Snapshot{Since: current.Since, Until: current.Since, generation: current.generation}
 				prevReport = prevSample
 				samples = 0
 			}
 			d := current.Sub(prevSample)
-			r.addInterval(current.Since, IntervalTotals{
+			r.addInterval(current.generation, IntervalTotals{
 				At:            current.Until,
 				Requests:      d.Totals.Requests,
 				BytesSent:     d.Totals.BytesSent,
@@ -84,8 +78,9 @@ func (s Snapshot) Summary(sources, hosts, endpoints int) Summary {
 }
 
 func lines[T any](items []T, limit int, line func(T) string) []string {
-	out := make([]string, 0, min(len(items), limit))
-	for _, item := range items[:min(len(items), limit)] {
+	limit = max(0, min(len(items), limit))
+	out := make([]string, 0, limit)
+	for _, item := range items[:limit] {
 		out = append(out, line(item))
 	}
 	return out
