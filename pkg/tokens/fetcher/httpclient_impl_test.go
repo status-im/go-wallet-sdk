@@ -76,3 +76,26 @@ func (f *failingReader) Read(p []byte) (n int, err error) {
 func (f *failingReader) Close() error {
 	return nil
 }
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+func TestHTTPClient_UsesConfiguredTransport(t *testing.T) {
+	var requested []string
+	config := DefaultConfig()
+	config.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		requested = append(requested, req.URL.String())
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Etag": []string{`"v1"`}},
+			Body:       io.NopCloser(strings.NewReader(`{"tokens":[]}`)),
+		}, nil
+	})
+
+	data, etag, err := NewHTTPClient(config).DoGetRequestWithEtag(t.Context(), "https://example.com/list.json", "")
+	assert.NoError(t, err)
+	assert.Equal(t, `{"tokens":[]}`, string(data))
+	assert.Equal(t, `"v1"`, etag)
+	assert.Equal(t, []string{"https://example.com/list.json"}, requested)
+}

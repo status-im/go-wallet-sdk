@@ -21,6 +21,10 @@ type Config struct {
 	IdleConnTimeout    time.Duration
 	MaxIdleConns       int
 	DisableCompression bool
+	// Transport, when set, carries the requests instead of a transport built
+	// from IdleConnTimeout, MaxIdleConns and DisableCompression, e.g. to let
+	// the caller account for the traffic.
+	Transport http.RoundTripper
 }
 
 // DefaultConfig returns the default configuration for the HTTP client
@@ -40,14 +44,18 @@ type HTTPClient struct {
 
 // NewHTTPClient creates a new HTTP client with the provided configuration
 func NewHTTPClient(config Config) *HTTPClient {
+	transport := config.Transport
+	if transport == nil {
+		transport = &http.Transport{
+			MaxIdleConns:       config.MaxIdleConns,
+			IdleConnTimeout:    config.IdleConnTimeout,
+			DisableCompression: config.DisableCompression,
+		}
+	}
 	return &HTTPClient{
 		client: &http.Client{
-			Timeout: config.Timeout,
-			Transport: &http.Transport{
-				MaxIdleConns:       config.MaxIdleConns,
-				IdleConnTimeout:    config.IdleConnTimeout,
-				DisableCompression: config.DisableCompression,
-			},
+			Timeout:   config.Timeout,
+			Transport: transport,
 		},
 	}
 }
