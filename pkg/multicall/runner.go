@@ -129,9 +129,28 @@ func tryBlockAndAggregate(
 		return nil, common.Hash{}, nil, err
 	}
 	if len(results) != len(callsAndBlockNumber) {
-		return reported, blockHash, failedChunkResults(len(calls), len(callsAndBlockNumber), len(results)), nil
+		// The chain block number call cannot be told apart either: ask for it alone.
+		blockNumber, blockHash, err := readChainBlockNumber(ctx, caller, atBlock)
+		if err != nil {
+			return nil, common.Hash{}, nil, err
+		}
+		return blockNumber, blockHash, failedChunkResults(len(calls), len(callsAndBlockNumber), len(results)), nil
 	}
 	return chainBlockNumber(reported, results[len(calls)]), blockHash, results[:len(calls)], nil
+}
+
+func readChainBlockNumber(ctx context.Context, caller Caller, atBlock *big.Int) (*big.Int, common.Hash, error) {
+	reported, blockHash, results, err := caller.ViewTryBlockAndAggregate(&bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: atBlock,
+	}, false, []multicall3.IMulticall3Call{BuildChainBlockNumberCall()})
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	if len(results) != 1 {
+		return nil, common.Hash{}, errors.New("expected 1 call result, got " + strconv.Itoa(len(results)))
+	}
+	return chainBlockNumber(reported, results[0]), blockHash, nil
 }
 
 // Splits the calls into requests of at most batchsize calls. The first request
