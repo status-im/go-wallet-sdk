@@ -90,6 +90,17 @@ func BuildChainBlockNumberCall() multicall3.IMulticall3Call {
 	}
 }
 
+// failedChunkResults answers every call of a request answered with another
+// number of results than calls: the results cannot be matched to the calls.
+func failedChunkResults(calls, expected, got int) []multicall3.IMulticall3Result {
+	reason := []byte("expected " + strconv.Itoa(expected) + " call results, got " + strconv.Itoa(got))
+	results := make([]multicall3.IMulticall3Result, calls)
+	for i := range results {
+		results[i] = multicall3.IMulticall3Result{Success: false, ReturnData: reason}
+	}
+	return results
+}
+
 func chainBlockNumber(reported *big.Int, result multicall3.IMulticall3Result) *big.Int {
 	if !result.Success || len(result.ReturnData) != 32 {
 		return reported
@@ -118,7 +129,7 @@ func tryBlockAndAggregate(
 		return nil, common.Hash{}, nil, err
 	}
 	if len(results) != len(callsAndBlockNumber) {
-		return nil, common.Hash{}, nil, errors.New("expected " + strconv.Itoa(len(callsAndBlockNumber)) + " call results, got " + strconv.Itoa(len(results)))
+		return reported, blockHash, failedChunkResults(len(calls), len(callsAndBlockNumber), len(results)), nil
 	}
 	return chainBlockNumber(reported, results[len(calls)]), blockHash, results[:len(calls)], nil
 }
@@ -160,6 +171,9 @@ func executeChunkWithRetry(
 			Context:     ctx,
 			BlockNumber: blockNumber,
 		}, requireSuccess, calls)
+		if err == nil && len(results) != len(calls) {
+			results = failedChunkResults(len(calls), len(calls), len(results))
+		}
 	}
 	if err == nil {
 		return bn, bh, results, nil

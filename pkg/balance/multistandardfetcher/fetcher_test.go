@@ -834,3 +834,53 @@ func TestFetchBalances_ERC20ZeroBalancesAndFailures(t *testing.T) {
 		assert.ElementsMatch(t, []common.Address{reverted, noCode}, result.Failed)
 	})
 }
+
+func fetchWithResults(t *testing.T, config multistandardfetcher.FetchConfig, results []multicall3.IMulticall3Result) multistandardfetcher.FetchResult {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+	mockCaller.EXPECT().
+		ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
+		DoAndReturn(ignoringBlockNumberCall(func(*bind.CallOpts, bool, []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			return big.NewInt(1), [32]byte{}, results, nil
+		}))
+	var fetched []multistandardfetcher.FetchResult
+	for result := range multistandardfetcher.FetchBalances(context.Background(), common.Address{1}, mockCaller, config, 10) {
+		fetched = append(fetched, result)
+	}
+	require.Len(t, fetched, 1)
+	return fetched[0]
+}
+
+func TestFetchBalances_ERC721Failures(t *testing.T) {
+	account := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	held := common.HexToAddress("0x3333333333333333333333333333333333333333")
+	reverted := common.HexToAddress("0x4444444444444444444444444444444444444444")
+	result := fetchWithResults(t, multistandardfetcher.FetchConfig{
+		ERC721: map[multistandardfetcher.AccountAddress][]multistandardfetcher.ContractAddress{account: {held, reverted}},
+	}, []multicall3.IMulticall3Result{
+		{Success: true, ReturnData: common.LeftPadBytes(big.NewInt(2).Bytes(), 32)},
+		{Success: false, ReturnData: []byte("revert")},
+	}).Result.(multistandardfetcher.ERC721Result)
+
+	require.NoError(t, result.Err)
+	assert.Equal(t, map[common.Address]*big.Int{held: big.NewInt(2)}, result.Results)
+	assert.Equal(t, []common.Address{reverted}, result.Failed)
+}
+
+func TestFetchBalances_ERC1155Failures(t *testing.T) {
+	account := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	held := multistandardfetcher.CollectibleID{ContractAddress: common.HexToAddress("0x3333333333333333333333333333333333333333"), TokenID: big.NewInt(7)}
+	reverted := multistandardfetcher.CollectibleID{ContractAddress: common.HexToAddress("0x4444444444444444444444444444444444444444"), TokenID: big.NewInt(8)}
+	result := fetchWithResults(t, multistandardfetcher.FetchConfig{
+		ERC1155: map[multistandardfetcher.AccountAddress][]multistandardfetcher.CollectibleID{account: {held, reverted}},
+	}, []multicall3.IMulticall3Result{
+		{Success: true, ReturnData: common.LeftPadBytes(big.NewInt(3).Bytes(), 32)},
+		{Success: false, ReturnData: []byte("revert")},
+	}).Result.(multistandardfetcher.ERC1155Result)
+
+	require.NoError(t, result.Err)
+	assert.Equal(t, map[multistandardfetcher.HashableCollectibleID]*big.Int{held.ToHashableCollectibleID(): big.NewInt(3)}, result.Results)
+	assert.Equal(t, []multistandardfetcher.HashableCollectibleID{reverted.ToHashableCollectibleID()}, result.Failed)
+}
