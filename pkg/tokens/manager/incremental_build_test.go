@@ -118,3 +118,26 @@ func TestManager_RebuildParsesOnlyChangedLists(t *testing.T) {
 	require.NoError(t, m.SetChains([]uint64{common.EthereumMainnet, common.BSCMainnet}))
 	require.Equal(t, map[string]int{"main": 2, "other": 3, "remote": 2}, parser.counts())
 }
+
+// SetChains must not alias the caller's slice: mutating it afterwards would silently change the
+// chains the parsed-list cache was built for.
+func TestManager_SetChainsDoesNotAliasCallerSlice(t *testing.T) {
+	parser := &countingParser{parsed: map[string]int{}}
+	initialLists := map[string][]byte{"main": tokenListJSON("main", "MAIN")}
+	m, err := manager.New(&manager.Config{
+		MainListID:          "main",
+		InitialListIDs:      manager.InitialListIDsFromMap(initialLists),
+		InitialListProvider: manager.StaticInitialListProvider(initialLists),
+		CustomParsers:       map[string]parsers.TokenListParser{"main": parser},
+		Chains:              []uint64{common.EthereumMainnet},
+	}, nil, &memContentStore{data: map[string]autofetcher.Content{}}, nil)
+	require.NoError(t, err)
+	require.NoError(t, m.Start(context.Background(), false, nil))
+	defer func() { require.NoError(t, m.Stop()) }()
+
+	chains := []uint64{common.EthereumMainnet}
+	require.NoError(t, m.SetChains(chains))
+	chains[0] = common.BSCMainnet
+	require.NoError(t, m.SetChains([]uint64{common.EthereumMainnet}))
+	require.Equal(t, 1, parser.counts()["main"], "unchanged chains must reuse the parsed list")
+}
