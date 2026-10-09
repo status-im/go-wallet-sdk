@@ -40,9 +40,9 @@ type Manager interface {
 	// GetTokensByKeys returns tokens by keys.
 	GetTokensByKeys(keys []string) ([]*types.Token, error)
 
-	// TokenLists returns all token lists.
+	// TokenLists returns all token lists. The lists are shared with the manager and reused across rebuilds; do not modify them.
 	TokenLists() []*types.TokenList
-	// TokenList returns a token list by ID.
+	// TokenList returns a token list by ID. The list is shared with the manager and reused across rebuilds; do not modify it.
 	TokenList(id string) (*types.TokenList, bool)
 }
 

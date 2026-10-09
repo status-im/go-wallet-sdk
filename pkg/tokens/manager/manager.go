@@ -2,7 +2,9 @@ package manager
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -63,6 +65,17 @@ type manager struct {
 
 	started         bool
 	refreshCancelFn context.CancelFunc
+
+	// parsedLists keeps the lists parsed by the last successful build, so a rebuild only parses lists whose
+	// content changed. Parsing depends on chains, so it is cleared when they change.
+	parsedLists map[string]parsedList
+}
+
+type parsedList struct {
+	sourceURL string
+	fetched   time.Time
+	digest    [sha256.Size]byte
+	list      *types.TokenList
 }
 
 // New creates a new Manager instance.
@@ -339,6 +352,9 @@ func (m *manager) SetChains(chains []uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if !slices.Equal(m.chains, chains) {
+		m.parsedLists = nil
+	}
 	m.chains = chains
 
 	// If not started yet, Start() will build initial state using the updated chains.
@@ -486,6 +502,7 @@ func (m *manager) TokenLists() []*types.TokenList {
 
 func (m *manager) buildState() error {
 	builder := builder.New(m.chains, m.skippedTokenKeys)
+	parsed := make(map[string]parsedList, len(m.parsedLists))
 
 	// 1. native token list
 	if err := builder.AddNativeTokenList(); err != nil {
@@ -494,17 +511,17 @@ func (m *manager) buildState() error {
 
 	// merge tokens from all sources in the specified order.
 	// 2. main list (remote if available, otherwise initial)
-	if err := m.mergeMainList(builder); err != nil {
+	if err := m.mergeMainList(builder, parsed); err != nil {
 		return err
 	}
 
 	// 3. other initial lists (in deterministic order), remote if available, otherwise initial list
-	if err := m.mergeInitialLists(builder); err != nil {
+	if err := m.mergeInitialLists(builder, parsed); err != nil {
 		return err
 	}
 
 	// 4. remote lists that are not main or initial lists (in deterministic order)
-	if err := m.mergeRemoteLists(builder); err != nil {
+	if err := m.mergeRemoteLists(builder, parsed); err != nil {
 		return err
 	}
 
@@ -516,6 +533,7 @@ func (m *manager) buildState() error {
 	m.builderMu.Lock()
 	m.builder = builder
 	m.builderMu.Unlock()
+	m.parsedLists = parsed
 
 	return nil
 }
@@ -532,13 +550,8 @@ func (m *manager) tryToGetLastFetchedTokenList(tokenListID string) (content auto
 	return
 }
 
-func (m *manager) mergeList(builder *builder.Builder, tokenListID string, fallbackToInitialList bool) error {
-	parser, exists := m.customParsers[tokenListID]
-	if !exists {
-		// if no custom parser is provided, use the standard parser
-		parser = &parsers.StandardTokenListParser{}
-	}
-
+func (m *manager) mergeList(builder *builder.Builder, parsed map[string]parsedList, tokenListID string,
+	fallbackToInitialList bool) error {
 	// try to get last fetched main list if available, otherwise use the provided main list
 	var (
 		content autofetcher.Content
@@ -564,14 +577,43 @@ func (m *manager) mergeList(builder *builder.Builder, tokenListID string, fallba
 		content.Fetched = time.Time{}
 	}
 
-	return builder.AddRawTokenList(tokenListID, content.Data, content.SourceURL, content.Fetched, parser)
+	return m.mergeContent(builder, parsed, tokenListID, content)
 }
 
-func (m *manager) mergeMainList(builder *builder.Builder) error {
-	return m.mergeList(builder, m.mainListID, true)
+// mergeContent adds the list to builder, reusing the previous build's parsed list when the content is unchanged.
+func (m *manager) mergeContent(builder *builder.Builder, parsed map[string]parsedList, tokenListID string,
+	content autofetcher.Content) error {
+	digest := sha256.Sum256(content.Data)
+	if prev, ok := m.parsedLists[tokenListID]; ok && prev.digest == digest && prev.sourceURL == content.SourceURL &&
+		prev.fetched.Equal(content.Fetched) {
+		builder.AddTokenList(tokenListID, prev.list)
+		parsed[tokenListID] = prev
+		return nil
+	}
+
+	parser, exists := m.customParsers[tokenListID]
+	if !exists {
+		// if no custom parser is provided, use the standard parser
+		parser = &parsers.StandardTokenListParser{}
+	}
+
+	if err := builder.AddRawTokenList(tokenListID, content.Data, content.SourceURL, content.Fetched, parser); err != nil {
+		return err
+	}
+	parsed[tokenListID] = parsedList{
+		sourceURL: content.SourceURL,
+		fetched:   content.Fetched,
+		digest:    digest,
+		list:      builder.GetTokenLists()[tokenListID],
+	}
+	return nil
 }
 
-func (m *manager) mergeInitialLists(builder *builder.Builder) error {
+func (m *manager) mergeMainList(builder *builder.Builder, parsed map[string]parsedList) error {
+	return m.mergeList(builder, parsed, m.mainListID, true)
+}
+
+func (m *manager) mergeInitialLists(builder *builder.Builder, parsed map[string]parsedList) error {
 	// sort keys for deterministic order, skip main list
 	keys := make([]string, 0, len(m.initialListIDSet))
 	for key := range m.initialListIDSet {
@@ -583,7 +625,7 @@ func (m *manager) mergeInitialLists(builder *builder.Builder) error {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		err := m.mergeList(builder, key, true)
+		err := m.mergeList(builder, parsed, key, true)
 		if err != nil {
 			return err
 		}
@@ -592,7 +634,7 @@ func (m *manager) mergeInitialLists(builder *builder.Builder) error {
 	return nil
 }
 
-func (m *manager) mergeRemoteLists(builder *builder.Builder) error {
+func (m *manager) mergeRemoteLists(builder *builder.Builder, parsed map[string]parsedList) error {
 	allStoredContent, err := m.contentStore.GetAll()
 	if err != nil {
 		return err
@@ -612,7 +654,11 @@ func (m *manager) mergeRemoteLists(builder *builder.Builder) error {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		_ = m.mergeList(builder, key, false) // ignore error, and try to process as many remote lists as possible
+		content := allStoredContent[key]
+		if len(content.Data) == 0 {
+			continue
+		}
+		_ = m.mergeContent(builder, parsed, key, content) // ignore error, and try to process as many remote lists as possible
 	}
 
 	return nil
