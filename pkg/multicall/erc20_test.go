@@ -4,9 +4,11 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/status-im/go-wallet-sdk/pkg/contracts/erc20"
 	"github.com/status-im/go-wallet-sdk/pkg/contracts/multicall3"
 	"github.com/status-im/go-wallet-sdk/pkg/multicall"
 )
@@ -46,4 +48,33 @@ func TestProcessERC20BalanceResult(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, "revert", err.Error())
 	})
+}
+
+func TestBuildERC20BalanceCall_MatchesABIPack(t *testing.T) {
+	erc20ABI, err := erc20.Erc20MetaData.GetAbi()
+	require.NoError(t, err)
+	for _, account := range []common.Address{
+		{},
+		common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		common.HexToAddress("0xfFfFfFfFfFfFfFfFfFfFfFfFfFfFfFfFfFfFfFfF"),
+		common.HexToAddress("0x00000000000000000000000000000000000000a1"),
+	} {
+		token := common.HexToAddress("0x3333333333333333333333333333333333333333")
+		expected, err := erc20ABI.Pack("balanceOf", account)
+		require.NoError(t, err)
+		call := multicall.BuildERC20BalanceCall(account, token)
+		assert.Equal(t, expected, call.CallData, account.Hex())
+		assert.Equal(t, token, call.Target)
+	}
+}
+
+var callSink multicall3.IMulticall3Call
+
+func TestBuildERC20BalanceCall_SingleAllocation(t *testing.T) {
+	account := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	token := common.HexToAddress("0x3333333333333333333333333333333333333333")
+	allocs := testing.AllocsPerRun(100, func() {
+		callSink = multicall.BuildERC20BalanceCall(account, token)
+	})
+	assert.Equal(t, float64(1), allocs)
 }
