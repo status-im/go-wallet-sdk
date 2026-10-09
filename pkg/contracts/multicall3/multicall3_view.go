@@ -68,8 +68,7 @@ func (_Multicall3 *Multicall3CallerSession) ViewBlockAndAggregate(calls []IMulti
 //
 // Solidity: function tryAggregate(bool requireSuccess, (address,bytes)[] calls) payable returns((bool,bytes)[] returnData)
 func (_Multicall3 *Multicall3Caller) ViewTryAggregate(opts *bind.CallOpts, requireSuccess bool, calls []IMulticall3Call) ([]IMulticall3Result, error) {
-	var out []interface{}
-	err := _Multicall3.contract.Call(opts, &out, "tryAggregate", requireSuccess, calls)
+	out, err := _Multicall3.callWithSharedCallData(opts, "tryAggregate", requireSuccess, calls)
 
 	if err != nil {
 		return *new([]IMulticall3Result), err
@@ -92,8 +91,7 @@ func (_Multicall3 *Multicall3CallerSession) ViewTryAggregate(requireSuccess bool
 //
 // Solidity: function tryBlockAndAggregate(bool requireSuccess, (address,bytes)[] calls) payable returns(uint256 blockNumber, bytes32 blockHash, (bool,bytes)[] returnData)
 func (_Multicall3 *Multicall3Caller) ViewTryBlockAndAggregate(opts *bind.CallOpts, requireSuccess bool, calls []IMulticall3Call) (*big.Int, [32]byte, []IMulticall3Result, error) {
-	var out []interface{}
-	err := _Multicall3.contract.Call(opts, &out, "tryBlockAndAggregate", requireSuccess, calls)
+	out, err := _Multicall3.callWithSharedCallData(opts, "tryBlockAndAggregate", requireSuccess, calls)
 
 	if err != nil {
 		return *new(*big.Int), *new([32]byte), *new([]IMulticall3Result), err
@@ -162,4 +160,18 @@ func (_Multicall3 *Multicall3Session) ViewAggregate3Value(calls []IMulticall3Cal
 
 func (_Multicall3 *Multicall3CallerSession) ViewAggregate3Value(calls []IMulticall3Call3Value) ([]IMulticall3Result, error) {
 	return _Multicall3.Contract.ViewAggregate3Value(&_Multicall3.CallOpts, calls)
+}
+
+// callWithSharedCallData calls method, one of the (bool, Call[]) aggregates,
+// with the calls encoded by packCalls.
+func (_Multicall3 *Multicall3Caller) callWithSharedCallData(opts *bind.CallOpts, method string, requireSuccess bool, calls []IMulticall3Call) ([]interface{}, error) {
+	parsed, err := Multicall3MetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	output, err := _Multicall3.contract.CallRaw(opts, packCalls(parsed.Methods[method].ID, requireSuccess, calls))
+	if err != nil {
+		return nil, err
+	}
+	return parsed.Unpack(method, output)
 }

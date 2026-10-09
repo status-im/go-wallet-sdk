@@ -14,6 +14,7 @@
 
 - `GetMulticall3Address(chainID)` (in `deployments.go`)
 - Go bindings in `multicall3.go`
+- `ViewTryAggregate` and `ViewTryBlockAndAggregate` (in `multicall3_view.go`) send calls with the same call data as one copy of it, which halves a request that reads one account's balance of many tokens
 
 Copied over from https://github.com/mds1/multicall3.
 
