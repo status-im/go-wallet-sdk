@@ -90,6 +90,17 @@ func BuildChainBlockNumberCall() multicall3.IMulticall3Call {
 	}
 }
 
+// failedChunkResults answers every call of a request answered with another
+// number of results than calls: the results cannot be matched to the calls.
+func failedChunkResults(calls, expected, got int) []multicall3.IMulticall3Result {
+	reason := []byte("expected " + strconv.Itoa(expected) + " call results, got " + strconv.Itoa(got))
+	results := make([]multicall3.IMulticall3Result, calls)
+	for i := range results {
+		results[i] = multicall3.IMulticall3Result{Success: false, ReturnData: reason}
+	}
+	return results
+}
+
 func chainBlockNumber(reported *big.Int, result multicall3.IMulticall3Result) *big.Int {
 	if !result.Success || len(result.ReturnData) != 32 {
 		return reported
@@ -118,9 +129,28 @@ func tryBlockAndAggregate(
 		return nil, common.Hash{}, nil, err
 	}
 	if len(results) != len(callsAndBlockNumber) {
-		return nil, common.Hash{}, nil, errors.New("expected " + strconv.Itoa(len(callsAndBlockNumber)) + " call results, got " + strconv.Itoa(len(results)))
+		// The chain block number call cannot be told apart either: ask for it alone.
+		blockNumber, blockHash, err := readChainBlockNumber(ctx, caller, atBlock)
+		if err != nil {
+			return nil, common.Hash{}, nil, err
+		}
+		return blockNumber, blockHash, failedChunkResults(len(calls), len(callsAndBlockNumber), len(results)), nil
 	}
 	return chainBlockNumber(reported, results[len(calls)]), blockHash, results[:len(calls)], nil
+}
+
+func readChainBlockNumber(ctx context.Context, caller Caller, atBlock *big.Int) (*big.Int, common.Hash, error) {
+	reported, blockHash, results, err := caller.ViewTryBlockAndAggregate(&bind.CallOpts{
+		Context:     ctx,
+		BlockNumber: atBlock,
+	}, false, []multicall3.IMulticall3Call{BuildChainBlockNumberCall()})
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	if len(results) != 1 {
+		return nil, common.Hash{}, errors.New("expected 1 call result, got " + strconv.Itoa(len(results)))
+	}
+	return chainBlockNumber(reported, results[0]), blockHash, nil
 }
 
 // Splits the calls into requests of at most batchsize calls. The first request
@@ -160,6 +190,9 @@ func executeChunkWithRetry(
 			Context:     ctx,
 			BlockNumber: blockNumber,
 		}, requireSuccess, calls)
+		if err == nil && len(results) != len(calls) {
+			results = failedChunkResults(len(calls), len(calls), len(results))
+		}
 	}
 	if err == nil {
 		return bn, bh, results, nil
