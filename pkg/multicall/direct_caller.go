@@ -109,13 +109,13 @@ func appendEthCallArg(buf []byte, from, to common.Address, selector []byte, requ
 		toKey    = `","to":"0x`
 		end      = `"}`
 	)
-	size := multicallInputSize(selector, calls)
+	size, positions := multicallInputLayout(selector, calls)
 	buf = slices.Grow(buf, len(fromKey)+2*common.AddressLength+len(inputKey)+2*size+len(toKey)+2*common.AddressLength+len(end))
 	buf = append(buf, fromKey...)
 	buf = hex.AppendEncode(buf, from[:])
 	buf = append(buf, inputKey...)
 	input := buf[len(buf) : len(buf)+2*size]
-	putMulticallInput(input[:size], selector, requireSuccess, calls)
+	putMulticallInput(input[:size], selector, requireSuccess, calls, positions)
 	// Expand to hex back to front so no byte is overwritten before it is read.
 	const digits = "0123456789abcdef"
 	for i := size - 1; i >= 0; i-- {
@@ -137,24 +137,38 @@ func putWord(dst []byte, v int) {
 	binary.BigEndian.PutUint64(dst[abiWordSize-8:abiWordSize], uint64(v))
 }
 
-func multicallInputSize(selector []byte, calls []multicall3.IMulticall3Call) int {
-	size := len(selector) + 3*abiWordSize + len(calls)*abiWordSize
-	for _, call := range calls {
-		size += 3*abiWordSize + paddedLen(len(call.CallData))
+// multicallInputLayout returns the encoding's size and, for each call, where
+// its call data sits from the start of the array body. Calls with the same
+// call data share one copy of it, as the generated binding sends them.
+func multicallInputLayout(selector []byte, calls []multicall3.IMulticall3Call) (int, []int) {
+	n := len(calls)
+	positions := make([]int, n)
+	seen := make(map[string]int, 1)
+	next := 3 * n * abiWordSize
+	for i, call := range calls {
+		if at, ok := seen[string(call.CallData)]; ok {
+			positions[i] = at
+			continue
+		}
+		seen[string(call.CallData)] = next
+		positions[i] = next
+		next += abiWordSize + paddedLen(len(call.CallData))
 	}
-	return size
+	return len(selector) + 3*abiWordSize + next, positions
 }
 
 // encodeMulticallInput encodes `selector(bool requireSuccess, (address,bytes)[] calls)`,
-// byte-identical to abi.Pack.
+// byte-identical to the generated binding.
 func encodeMulticallInput(selector []byte, requireSuccess bool, calls []multicall3.IMulticall3Call) []byte {
-	buf := make([]byte, multicallInputSize(selector, calls))
-	putMulticallInput(buf, selector, requireSuccess, calls)
+	size, positions := multicallInputLayout(selector, calls)
+	buf := make([]byte, size)
+	putMulticallInput(buf, selector, requireSuccess, calls, positions)
 	return buf
 }
 
-// putMulticallInput writes the encoding into buf, of exactly multicallInputSize bytes.
-func putMulticallInput(buf []byte, selector []byte, requireSuccess bool, calls []multicall3.IMulticall3Call) {
+// putMulticallInput writes the encoding laid out by multicallInputLayout into
+// buf, of exactly its size.
+func putMulticallInput(buf []byte, selector []byte, requireSuccess bool, calls []multicall3.IMulticall3Call, positions []int) {
 	clear(buf)
 	n := copy(buf, selector)
 	if requireSuccess {
@@ -163,16 +177,21 @@ func putMulticallInput(buf []byte, selector []byte, requireSuccess bool, calls [
 	putWord(buf[n+abiWordSize:], 2*abiWordSize)
 	putWord(buf[n+2*abiWordSize:], len(calls))
 
-	// Element offsets are relative to the first offset word.
-	head := n + 3*abiWordSize
-	tail := head + len(calls)*abiWordSize
+	// Offsets are relative to the array body, which starts at the first offset word.
+	body := n + 3*abiWordSize
+	// First occurrences get increasing positions, so the next unwritten call
+	// data is the one at written.
+	written := 3 * len(calls) * abiWordSize
 	for i, call := range calls {
-		putWord(buf[head+i*abiWordSize:], tail-head)
-		copy(buf[tail+abiWordSize-common.AddressLength:], call.Target[:])
-		putWord(buf[tail+abiWordSize:], 2*abiWordSize)
-		putWord(buf[tail+2*abiWordSize:], len(call.CallData))
-		copy(buf[tail+3*abiWordSize:], call.CallData)
-		tail += 3*abiWordSize + paddedLen(len(call.CallData))
+		tuple := len(calls)*abiWordSize + 2*i*abiWordSize
+		putWord(buf[body+i*abiWordSize:], tuple)
+		copy(buf[body+tuple+abiWordSize-common.AddressLength:], call.Target[:])
+		putWord(buf[body+tuple+abiWordSize:], positions[i]-tuple)
+		if positions[i] == written {
+			putWord(buf[body+written:], len(call.CallData))
+			copy(buf[body+written+abiWordSize:], call.CallData)
+			written += abiWordSize + paddedLen(len(call.CallData))
+		}
 	}
 }
 

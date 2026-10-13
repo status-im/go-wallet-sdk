@@ -66,17 +66,34 @@ func testCalls(r *rand.Rand, n int) []multicall3.IMulticall3Call {
 	return calls
 }
 
-func TestEncodeMulticallInputMatchesABIPack(t *testing.T) {
+// decodeMulticallInput reads input back with go-ethereum's decoder, which
+// knows nothing of shared call data.
+func decodeMulticallInput(t *testing.T, mcABI *abi.ABI, method string, input []byte) (bool, []multicall3.IMulticall3Call) {
+	require.Equal(t, mcABI.Methods[method].ID, input[:4])
+	args, err := mcABI.Methods[method].Inputs.Unpack(input[4:])
+	require.NoError(t, err)
+	calls := *abi.ConvertType(args[1], new([]multicall3.IMulticall3Call)).(*[]multicall3.IMulticall3Call)
+	return args[0].(bool), calls
+}
+
+func normalizeCalls(calls []multicall3.IMulticall3Call) []multicall3.IMulticall3Call {
+	out := make([]multicall3.IMulticall3Call, len(calls))
+	for i, call := range calls {
+		out[i] = multicall3.IMulticall3Call{Target: call.Target, CallData: append([]byte{}, call.CallData...)}
+	}
+	return out
+}
+
+func TestEncodeMulticallInputDecodesToItsCalls(t *testing.T) {
 	mcABI := multicall3ABI(t)
 	r := newTestRand(1)
 	for _, method := range []string{"tryAggregate", "tryBlockAndAggregate"} {
 		for _, size := range []int{0, 1, 2, 7, 64, 499, 2500} {
 			for _, requireSuccess := range []bool{false, true} {
 				calls := testCalls(r, size)
-				expected, err := mcABI.Pack(method, requireSuccess, calls)
-				require.NoError(t, err)
-				require.Equal(t, expected, encodeMulticallInput(mcABI.Methods[method].ID, requireSuccess, calls),
-					"%s size=%d requireSuccess=%v", method, size, requireSuccess)
+				gotRequireSuccess, got := decodeMulticallInput(t, mcABI, method, encodeMulticallInput(mcABI.Methods[method].ID, requireSuccess, calls))
+				require.Equal(t, requireSuccess, gotRequireSuccess)
+				require.Equal(t, normalizeCalls(calls), normalizeCalls(got), "%s size=%d requireSuccess=%v", method, size, requireSuccess)
 			}
 		}
 	}
@@ -91,9 +108,11 @@ func TestEncodeMulticallInputBalanceOfOnly(t *testing.T) {
 		for i := range calls {
 			calls[i] = BuildERC20BalanceCall(account, randomAddress(r))
 		}
-		expected, err := mcABI.Pack("tryBlockAndAggregate", false, calls)
-		require.NoError(t, err)
-		require.Equal(t, expected, encodeMulticallInput(mcABI.Methods["tryBlockAndAggregate"].ID, false, calls))
+		input := encodeMulticallInput(mcABI.Methods["tryBlockAndAggregate"].ID, false, calls)
+		_, got := decodeMulticallInput(t, mcABI, "tryBlockAndAggregate", input)
+		require.Equal(t, normalizeCalls(calls), normalizeCalls(got))
+		// One copy of the shared balanceOf call data.
+		require.Len(t, input, 4+3*32+3*size*32+32+64)
 	}
 }
 
