@@ -36,6 +36,7 @@ go mod download
 | Balances | [`pkg/balance/fetcher`](pkg/balance/fetcher/README.md) | You need fast native/ERC20 balance reads with fallback strategies | `FetchNativeBalances`, `FetchErc20Balances` |
 | Batching | [`pkg/multicall`](pkg/multicall/README.md) | You want to batch thousands of contract reads via Multicall3 | `Build*Call`, `RunSync`, `RunAsync` |
 | Multi-standard balances | [`pkg/balance/multistandardfetcher`](pkg/balance/multistandardfetcher/README.md) | You want native+ERC20+ERC721+ERC1155 balances via one API | `FetchBalances`, `FetchConfig` |
+| Balance refresh | [`pkg/balance/refresh`](pkg/balance/refresh/README.md) | You need to decide when to re-read balances and which ones, without reading every listed token every period | `NewPolicy`, `Handle`, `Decision` |
 | Gas | [`pkg/gas`](pkg/gas/README.md) | You need fee suggestions + inclusion estimates across L1/L2s | `GetTxSuggestions`, `GetChainSuggestions` |
 | Transaction generation | [`pkg/txgenerator`](pkg/txgenerator/README.md) | You need to generate unsigned transactions for ETH/ERC20/ERC721/ERC1155 | `TransferETH`, `TransferERC20`, `ApproveERC20`, `TransferFromERC721`, `SafeTransferFromERC721`, `TransferERC1155` |
 | Transfers | [`pkg/eventfilter`](pkg/eventfilter/README.md) | You need to efficiently query ERC20/721/1155 transfers via `eth_getLogs` | `FilterTransfers`, `TransferQueryConfig` |
@@ -209,6 +210,7 @@ go test ./...
 
 ### Package Documentation
 - [Balance Fetcher](pkg/balance/fetcher/README.md) - Balance fetching functionality
+- [Balance Refresh](pkg/balance/refresh/README.md) - When to re-read balances and which ones
 - [Multicall](pkg/multicall/README.md) - Efficient contract call batching
 - [Ethereum Client](pkg/ethclient/README.md) - Complete Ethereum RPC client
 - [Gas Estimation](pkg/gas/README.md) - Gas fee estimation and suggestions
