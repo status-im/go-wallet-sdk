@@ -25,9 +25,11 @@ Four rules keep the full refresh rare, each backed by a measurement on a
 - A token list update reads only the tokens it added. The lists refresh about
   every half hour, so a full refresh each time would cost more than everything
   else together.
-- A refresh the user asks for reads the held set, and everything only if the
-  last full refresh is over 10 min old. The reload button allows a press a
-  minute, so a full refresh on every press could cost up to 147 MB/h.
+- A refresh the user asks for reads the held set at once, and everything only
+  if the last full refresh is over 10 min old. The reload button allows a
+  press a minute, so a full refresh on every press could cost up to 147 MB/h.
+  A reconnect to the chains is a resume: a held refresh at once, and transfer
+  detection reads the blocks missed meanwhile.
 
 Transfer detection only adds tokens to the held set and triggers a transfer
 refresh; it is never the sole source of a balance. Before this, every tick

@@ -200,17 +200,15 @@ func TestHeldScheduleReadsEverythingHourlyWhileOnScreen(t *testing.T) {
 	require.Equal(t, t0.Add(62*time.Minute), hourly.WakeAt)
 }
 
-func TestHeldScheduleRequestedRefreshReadsTheHeldSetSoonAfterAFullRefresh(t *testing.T) {
+func TestHeldScheduleRequestedRefreshReadsTheHeldSetAtOnceSoonAfterAFullRefresh(t *testing.T) {
 	p := refresh.NewPolicy(heldConfig())
 	p.Handle(t0, refresh.Started{})
 	p.Handle(t0.Add(2*time.Minute), refresh.Tick{})
 	p.Handle(t0.Add(4*time.Minute), refresh.Tick{})
 
 	requested := p.Handle(t0.Add(5*time.Minute), refresh.RefreshRequested{})
-	require.Empty(t, requested.Reads)
-	require.Equal(t, t0.Add(5*time.Minute+10*time.Second), requested.WakeAt)
-
-	require.Equal(t, []refresh.Read{{Tokens: refresh.Held}}, p.Handle(t0.Add(5*time.Minute+10*time.Second), refresh.Tick{}).Reads)
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Held}}, requested.Reads, "read at once, without the debounce")
+	require.Equal(t, t0.Add(7*time.Minute), requested.WakeAt, "the next periodic refresh counts from the requested one")
 }
 
 func TestHeldScheduleRequestedRefreshReadsEverythingOnceTheLastFullIsStaleAndMovesTheHourlyOne(t *testing.T) {
@@ -220,13 +218,12 @@ func TestHeldScheduleRequestedRefreshReadsEverythingOnceTheLastFullIsStaleAndMov
 		p.Handle(t0.Add(at), refresh.Tick{})
 	}
 
-	p.Handle(t0.Add(11*time.Minute), refresh.RefreshRequested{})
-	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, p.Handle(t0.Add(11*time.Minute+10*time.Second), refresh.Tick{}).Reads)
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, p.Handle(t0.Add(11*time.Minute), refresh.RefreshRequested{}).Reads)
 
-	for at := 12 * time.Minute; at <= 70*time.Minute; at += 2 * time.Minute {
+	for at := 13 * time.Minute; at < 71*time.Minute; at += 2 * time.Minute {
 		require.Equal(t, []refresh.Read{{Tokens: refresh.Held}}, p.Handle(t0.Add(at), refresh.Tick{}).Reads, at)
 	}
-	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, p.Handle(t0.Add(72*time.Minute), refresh.Tick{}).Reads,
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, p.Handle(t0.Add(71*time.Minute), refresh.Tick{}).Reads,
 		"the hourly full refresh counts from the requested one")
 }
 
@@ -236,9 +233,66 @@ func TestHiddenHeldScheduleRequestedRefreshReadsEverythingOnceTheLastFullIsStale
 	p.Handle(t0.Add(time.Minute), refresh.OnScreenChanged{OnScreen: false})
 	p.Handle(t0.Add(15*time.Minute), refresh.Tick{})
 
-	p.Handle(t0.Add(20*time.Minute), refresh.RefreshRequested{})
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, p.Handle(t0.Add(20*time.Minute), refresh.RefreshRequested{}).Reads)
+}
 
-	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, p.Handle(t0.Add(20*time.Minute+10*time.Second), refresh.Tick{}).Reads)
+func TestHeldScheduleRequestedRefreshTakesWhatWaitsForTheDebounce(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+	p.Handle(t0.Add(time.Minute), refresh.TokenListsUpdated{})
+
+	unread := refresh.Read{Tokens: refresh.Full, Scope: refresh.Scope{Unread: true}}
+	requested := p.Handle(t0.Add(time.Minute+time.Second), refresh.RefreshRequested{})
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Held}, unread}, requested.Reads)
+	require.Equal(t, t0.Add(3*time.Minute+time.Second), requested.WakeAt)
+}
+
+func TestHeldScheduleRequestedRefreshRetriesTheChainsWhoseFullRefreshFailed(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+	p.Handle(t0.Add(time.Second), refresh.FullRefreshFailed{Chain: 10})
+
+	require.Equal(t, []refresh.Read{
+		{Tokens: refresh.Held},
+		{Tokens: refresh.Full, Scope: refresh.Scope{Pair: refresh.Pair{Chain: 10}}},
+	}, p.Handle(t0.Add(time.Minute), refresh.RefreshRequested{}).Reads)
+}
+
+func TestReconnectedReadsEverythingAfterDebounce(t *testing.T) {
+	p := refresh.NewPolicy(refresh.DefaultConfig())
+	p.Handle(t0, refresh.Started{})
+
+	reconnected := p.Handle(t0.Add(30*time.Second), refresh.Reconnected{})
+	require.Empty(t, reconnected.Reads)
+	require.Equal(t, t0.Add(40*time.Second), reconnected.WakeAt)
+
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, p.Handle(t0.Add(40*time.Second), refresh.Tick{}).Reads)
+}
+
+func TestHeldScheduleReconnectedReadsTheHeldSetAtOnceEvenWhenTheLastFullIsOverTenMinutesOld(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+
+	reconnected := p.Handle(t0.Add(20*time.Minute), refresh.Reconnected{})
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Held}}, reconnected.Reads)
+	require.Equal(t, t0.Add(22*time.Minute), reconnected.WakeAt)
+}
+
+func TestHeldScheduleReconnectedReadsEverythingWhenTheHourlyFullIsDue(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, p.Handle(t0.Add(time.Hour), refresh.Reconnected{}).Reads)
+}
+
+func TestHiddenHeldScheduleReconnectedReadsTheHeldSetEvenWhenTheHourlyFullIsDue(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+	p.Handle(t0.Add(time.Minute), refresh.OnScreenChanged{OnScreen: false})
+
+	reconnected := p.Handle(t0.Add(2*time.Hour), refresh.Reconnected{})
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Held}}, reconnected.Reads)
+	require.Equal(t, t0.Add(2*time.Hour+15*time.Minute), reconnected.WakeAt)
 }
 
 func TestHiddenHeldScheduleSkipsTheHourlyReadUntilBalancesAreBackOnScreen(t *testing.T) {
@@ -342,4 +396,111 @@ func TestHeldScheduleReadsWhatAnEndedTransactionMoved(t *testing.T) {
 		Kinds:     refresh.Native | refresh.ERC20,
 		Contracts: []common.Address{usdc},
 	}}, confirmed.Reads)
+}
+
+func TestNothingIsReadBeforeStart(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+
+	for _, ev := range []refresh.Event{
+		refresh.Tick{},
+		refresh.OnScreenChanged{OnScreen: false},
+		refresh.RefreshRequested{},
+		refresh.Reconnected{},
+		refresh.TransactionEnded{Pairs: []refresh.Pair{{Account: alice, Chain: 1}}, Confirmed: true},
+	} {
+		require.Zero(t, p.Handle(t0, ev), "%T", ev)
+	}
+
+	start := p.Handle(t0.Add(time.Minute), refresh.Started{})
+	require.Equal(t, refresh.Full, start.Reads[0].Tokens)
+	require.Equal(t, t0.Add(16*time.Minute), start.WakeAt, "balances went hidden before the start")
+}
+
+func TestWhileStoppedNothingIsReadAndThePeriodsDoNotMove(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+	p.Handle(t0.Add(50*time.Minute), refresh.OnScreenChanged{OnScreen: false})
+	p.Handle(t0.Add(50*time.Minute), refresh.Stopped{})
+
+	for _, ev := range []refresh.Event{refresh.Tick{}, refresh.OnScreenChanged{OnScreen: true}, refresh.RefreshRequested{}, refresh.Reconnected{}} {
+		require.Zero(t, p.Handle(t0.Add(61*time.Minute), ev), "%T", ev)
+	}
+
+	resumed := p.Handle(t0.Add(62*time.Minute), refresh.Started{})
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, resumed.Reads, "the hourly full refresh came due on screen during the pause")
+	require.Equal(t, t0.Add(64*time.Minute), resumed.WakeAt)
+}
+
+func TestHeldScheduleResumeReadsWhatWaitedForTheDebounceWhenItStopped(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+	p.Handle(t0.Add(time.Minute), refresh.DetectionGap{Chain: 10})
+	p.Handle(t0.Add(time.Minute+5*time.Second), refresh.Stopped{})
+	p.Handle(t0.Add(2*time.Minute), refresh.AccountsOrChainsChanged{})
+
+	resumed := p.Handle(t0.Add(21*time.Minute), refresh.Started{})
+	require.Equal(t, []refresh.Read{
+		{Tokens: refresh.Held},
+		{Tokens: refresh.Full, Scope: refresh.Scope{Pair: refresh.Pair{Chain: 10}}},
+		{Tokens: refresh.Full, Scope: refresh.Scope{Unread: true}},
+	}, resumed.Reads)
+	require.Equal(t, t0.Add(23*time.Minute), resumed.WakeAt)
+}
+
+func TestHeldTickTakesWhatWaitsForTheDebounce(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+	p.Handle(t0.Add(115*time.Second), refresh.TransferDetected{Pair: refresh.Pair{Account: alice, Chain: 1}, Native: true})
+
+	late := p.Handle(t0.Add(3*time.Minute), refresh.Tick{})
+	require.Equal(t, []refresh.Read{
+		{Tokens: refresh.Held},
+		{Tokens: refresh.Transfer, Scope: refresh.Scope{Pair: refresh.Pair{Account: alice, Chain: 1}}, Kinds: refresh.Native},
+	}, late.Reads)
+	require.Equal(t, t0.Add(5*time.Minute), late.WakeAt)
+}
+
+func TestEventsThatKeepComingWaitNoLongerThanMaxDebounce(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+
+	var last refresh.Decision
+	for at := 5 * time.Second; at <= 65*time.Second; at += 8 * time.Second {
+		last = p.Handle(t0.Add(at), refresh.TransferDetected{Pair: refresh.Pair{Account: alice, Chain: 1}, Native: true})
+	}
+	require.Equal(t, t0.Add(65*time.Second), last.WakeAt, "a minute after the first event")
+
+	transfer := refresh.Read{Tokens: refresh.Transfer, Scope: refresh.Scope{Pair: refresh.Pair{Account: alice, Chain: 1}}, Kinds: refresh.Native}
+	require.Equal(t, []refresh.Read{transfer}, p.Handle(t0.Add(65*time.Second), refresh.Tick{}).Reads)
+}
+
+func TestColdTokenListsUpdateReadsEverythingAtOnce(t *testing.T) {
+	p := refresh.NewPolicy(refresh.DefaultConfig())
+	p.Handle(t0, refresh.Started{})
+	p.Handle(t0.Add(time.Second), refresh.AccountsOrChainsChanged{})
+
+	cold := p.Handle(t0.Add(3*time.Second), refresh.TokenListsUpdated{Cold: true})
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Full}}, cold.Reads)
+	require.Equal(t, t0.Add(3*time.Second+2*time.Minute), cold.WakeAt, "it counts as the periodic refresh and covers what waited")
+}
+
+func TestHeldScheduleColdTokenListsUpdateReadsWhatWasNeverReadAtOnce(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+
+	cold := p.Handle(t0.Add(3*time.Second), refresh.TokenListsUpdated{Cold: true})
+	require.Equal(t, []refresh.Read{{Tokens: refresh.Full, Scope: refresh.Scope{Unread: true}}}, cold.Reads)
+	require.Equal(t, t0.Add(2*time.Minute), cold.WakeAt)
+}
+
+func TestColdTokenListsUpdateWhileStoppedWaitsForTheStart(t *testing.T) {
+	p := refresh.NewPolicy(heldConfig())
+	p.Handle(t0, refresh.Started{})
+	p.Handle(t0.Add(time.Minute), refresh.Stopped{})
+
+	require.Zero(t, p.Handle(t0.Add(2*time.Minute), refresh.TokenListsUpdated{Cold: true}))
+	require.Equal(t, []refresh.Read{
+		{Tokens: refresh.Held},
+		{Tokens: refresh.Full, Scope: refresh.Scope{Unread: true}},
+	}, p.Handle(t0.Add(3*time.Minute), refresh.Started{}).Reads)
 }
