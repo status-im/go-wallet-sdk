@@ -100,7 +100,7 @@ func (e *miscountError) Error() string {
 	return "expected " + strconv.Itoa(e.expected) + " call results, got " + strconv.Itoa(e.got)
 }
 
-// failedChunkResults answers every call of a request whose retries were all miscounted.
+// failedChunkResults answers every call of a miscounted request that cannot be split further.
 func failedChunkResults(calls int, err *miscountError) []multicall3.IMulticall3Result {
 	reason := []byte(err.Error())
 	results := make([]multicall3.IMulticall3Result, calls)
