@@ -41,10 +41,12 @@ func processERC721JobResult(account AccountAddress, contractAddresses []Contract
 
 	for i, callResult := range jobResult.Results {
 		if callResult.Err != nil {
+			result.Failed = append(result.Failed, contractAddresses[i])
 			continue
 		}
 		parsedResult, ok := callResult.Value.(*big.Int)
 		if !ok || parsedResult == nil {
+			result.Failed = append(result.Failed, contractAddresses[i])
 			continue
 		}
 		result.Results[contractAddresses[i]] = parsedResult

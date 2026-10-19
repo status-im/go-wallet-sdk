@@ -133,6 +133,9 @@ type FetchConfig struct {
     ERC20   map[AccountAddress][]ContractAddress // Account -> ERC20 tokens to check
     ERC721  map[AccountAddress][]ContractAddress // Account -> ERC721 contracts to check
     ERC1155 map[AccountAddress][]CollectibleID   // Account -> ERC1155 collectibles to check
+    // Leave zero ERC20 balances out of the results (and don't allocate them):
+    // a contract in neither Results nor Failed has a zero balance.
+    OmitZeroERC20Balances bool
 }
 ```
 
@@ -176,6 +179,7 @@ type ERC1155Result = Results[HashableCollectibleID]
 type Results[T comparable] struct {
     Account       AccountAddress
     Results       map[T]*big.Int
+    Failed        []T // contracts whose call failed; not in Results
     Err           error
     AtBlockNumber *big.Int
     AtBlockHash   common.Hash
