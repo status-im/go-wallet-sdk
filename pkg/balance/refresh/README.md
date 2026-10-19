@@ -14,6 +14,8 @@ Terms (held set, held refresh, full refresh, transfer refresh, detection gap) ar
 - `refresh.NewPolicy(config) *Policy`
 - `(*Policy).Handle(now, event) Decision`
 - `refresh.DefaultConfig()`: 2 min on screen, 15 min hidden, full refresh hourly and at most every 10 min on request, 10 s debounce
+- `refresh.ChangeSource`: where `TransferDetected` and `DetectionGap` come from, scanned with every periodic refresh
+- `refresh.TransfersFromLogs(chain, accounts, logs, known)`: transfer logs to `TransferDetected` events
 
 ## Schedules
 
@@ -67,3 +69,9 @@ Each `Read` names which tokens to read and where:
 - `Kinds`: native, ERC20, ERC721, ERC1155; zero means every kind.
 
 The policy does not know which tokens are held or unread: the caller resolves that from what it has read before.
+
+## Change sources
+
+A `ChangeSource` finds where balances may have moved between refreshes and tells the caller with `TransferDetected` and `DetectionGap`, which the caller passes to the policy. The caller calls `Scan` with every periodic refresh and when the user asks for one, so the source looks for changes as often as balances are read and right after a read has told it the latest block.
+
+Transfer detection turns the `Transfer` logs of the user's accounts into events with `TransfersFromLogs`. It keeps the tokens the caller knows (its token lists and custom tokens), so spam tokens do not grow the held set. A native transfer log (EIP-7708, emitted by `NativeTransferLogAddress`) is a transfer of the native coin, never a token. A source tells `DetectionGap` for a block range it could not cover; the full refresh of that chain closes it.
