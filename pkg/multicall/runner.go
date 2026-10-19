@@ -90,10 +90,19 @@ func BuildChainBlockNumberCall() multicall3.IMulticall3Call {
 	}
 }
 
-// failedChunkResults answers every call of a request answered with another
-// number of results than calls: the results cannot be matched to the calls.
-func failedChunkResults(calls, expected, got int) []multicall3.IMulticall3Result {
-	reason := []byte("expected " + strconv.Itoa(expected) + " call results, got " + strconv.Itoa(got))
+// A request answered with another number of results than calls: the results
+// cannot be matched to the calls.
+type miscountError struct {
+	expected, got int
+}
+
+func (e *miscountError) Error() string {
+	return "expected " + strconv.Itoa(e.expected) + " call results, got " + strconv.Itoa(e.got)
+}
+
+// failedChunkResults answers every call of a request whose retries were all miscounted.
+func failedChunkResults(calls int, err *miscountError) []multicall3.IMulticall3Result {
+	reason := []byte(err.Error())
 	results := make([]multicall3.IMulticall3Result, calls)
 	for i := range results {
 		results[i] = multicall3.IMulticall3Result{Success: false, ReturnData: reason}
@@ -129,12 +138,7 @@ func tryBlockAndAggregate(
 		return nil, common.Hash{}, nil, err
 	}
 	if len(results) != len(callsAndBlockNumber) {
-		// The chain block number call cannot be told apart either: ask for it alone.
-		blockNumber, blockHash, err := readChainBlockNumber(ctx, caller, atBlock)
-		if err != nil {
-			return nil, common.Hash{}, nil, err
-		}
-		return blockNumber, blockHash, failedChunkResults(len(calls), len(callsAndBlockNumber), len(results)), nil
+		return nil, common.Hash{}, nil, &miscountError{expected: len(callsAndBlockNumber), got: len(results)}
 	}
 	return chainBlockNumber(reported, results[len(calls)]), blockHash, results[:len(calls)], nil
 }
@@ -191,7 +195,7 @@ func executeChunkWithRetry(
 			BlockNumber: blockNumber,
 		}, requireSuccess, calls)
 		if err == nil && len(results) != len(calls) {
-			results = failedChunkResults(len(calls), len(calls), len(results))
+			err = &miscountError{expected: len(calls), got: len(results)}
 		}
 	}
 	if err == nil {
@@ -205,7 +209,17 @@ func executeChunkWithRetry(
 		requestSize++ // the chain block number call
 	}
 	if requestSize <= minChunkSize || len(calls) < 2 {
-		return nil, common.Hash{}, nil, err
+		var miscount *miscountError
+		if !errors.As(err, &miscount) {
+			return nil, common.Hash{}, nil, err
+		}
+		if blockNumber == nil {
+			// The chain block number call cannot be told apart either: ask for it alone.
+			if bn, bh, err = readChainBlockNumber(ctx, caller, atBlock); err != nil {
+				return nil, common.Hash{}, nil, err
+			}
+		}
+		return bn, bh, failedChunkResults(len(calls), miscount), nil
 	}
 
 	mid := len(calls) / 2
