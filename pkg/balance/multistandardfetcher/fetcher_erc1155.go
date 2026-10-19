@@ -41,10 +41,12 @@ func processERC1155JobResult(account AccountAddress, tokens []CollectibleID, job
 
 	for i, callResult := range jobResult.Results {
 		if callResult.Err != nil {
+			result.Failed = append(result.Failed, tokens[i].ToHashableCollectibleID())
 			continue
 		}
 		parsedResult, ok := callResult.Value.(*big.Int)
 		if !ok || parsedResult == nil {
+			result.Failed = append(result.Failed, tokens[i].ToHashableCollectibleID())
 			continue
 		}
 		result.Results[tokens[i].ToHashableCollectibleID()] = parsedResult

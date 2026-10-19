@@ -1127,18 +1127,123 @@ func TestRunSync_NoRequestExceedsTheBatchSize(t *testing.T) {
 	assert.Equal(t, []int{3, 3, 2}, chain.requestSizes)
 }
 
+// A request answered with another number of results than calls cannot be
+// matched to its calls: every call of that request (one too small to split)
+// fails, the others are kept.
+// The block reported with a miscounted first request cannot be trusted either:
+// on an Arbitrum-stack chain it is the L1 block. The chain block number is asked
+// again on its own and the later requests are read at it.
 func TestRunSync_FirstRequestAnsweredWithAnotherNumberOfResults(t *testing.T) {
+	chains := map[string]struct {
+		chain     *fakeChain
+		readBlock int64
+	}{
+		"chain reporting its own block": {&fakeChain{reported: big.NewInt(12345)}, 12345},
+		"chain reporting the L1 block":  {&fakeChain{reported: big.NewInt(l1BlockNumber), arbSys: blockNumberResult(chainBlockNumber)}, chainBlockNumber},
+	}
+	for name, tc := range chains {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			mockCaller := mock_multicall.NewMockCaller(ctrl)
+			chain := tc.chain
+			miscounted := false
+			mockCaller.EXPECT().
+				ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
+				DoAndReturn(func(_ *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+					if !miscounted {
+						miscounted = true
+						return chain.reported, [32]byte{}, []multicall3.IMulticall3Result{{Success: true}}, nil
+					}
+					return chain.reported, [32]byte{}, chain.answer(chunk), nil
+				}).
+				Times(2)
+			mockCaller.EXPECT().
+				ViewTryAggregate(gomock.Any(), false, gomock.Any()).
+				DoAndReturn(func(opts *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error) {
+					chain.readAt = append(chain.readAt, opts.BlockNumber)
+					return chain.answer(chunk), nil
+				})
+
+			job := jobOfCalls(4)
+			results := multicall.RunSync(context.Background(), []multicall.Job{job}, nil, mockCaller, 3)
+
+			require.Len(t, results, 1)
+			require.NoError(t, results[0].Err)
+			require.Len(t, results[0].Results, 4)
+			for _, result := range results[0].Results[:2] {
+				assert.False(t, result.Value.(multicall3.IMulticall3Result).Success, "the first request's calls failed")
+			}
+			for i, result := range results[0].Results[2:] {
+				assert.Equal(t, job.Calls[2+i].CallData, result.Value.(multicall3.IMulticall3Result).ReturnData)
+			}
+			require.Len(t, chain.readAt, 1)
+			assert.Equal(t, tc.readBlock, chain.readAt[0].Int64())
+			assert.Equal(t, tc.readBlock, results[0].BlockNumber.Int64())
+		})
+	}
+}
+
+func TestRunSync_FirstRequestMiscounted_ChainBlockNumberUnknown(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockCaller := mock_multicall.NewMockCaller(ctrl)
 	mockCaller.EXPECT().
 		ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
-		Return(big.NewInt(12345), [32]byte{}, []multicall3.IMulticall3Result{{Success: true}}, nil)
+		Return(big.NewInt(12345), [32]byte{}, []multicall3.IMulticall3Result{{Success: true}, {Success: true}}, nil).
+		Times(2)
 
 	results := multicall.RunSync(context.Background(), []multicall.Job{jobOfCalls(2)}, nil, mockCaller, 10)
 
 	require.Len(t, results, 1)
-	assert.ErrorContains(t, results[0].Err, "expected 3 call results, got 1")
+	assert.ErrorContains(t, results[0].Err, "expected 1 call result, got 2")
+}
+
+func TestRunSync_LaterRequestAnsweredWithAnotherNumberOfResults(t *testing.T) {
+	for name, answer := range map[string]func([]multicall3.IMulticall3Result) []multicall3.IMulticall3Result{
+		"fewer results": func(r []multicall3.IMulticall3Result) []multicall3.IMulticall3Result { return r[1:] },
+		"more results":  func(r []multicall3.IMulticall3Result) []multicall3.IMulticall3Result { return append(r, r[0]) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			mockCaller := mock_multicall.NewMockCaller(ctrl)
+			chain := &fakeChain{reported: big.NewInt(12345)}
+			mockCaller.EXPECT().
+				ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
+				DoAndReturn(func(_ *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+					return chain.reported, [32]byte{}, chain.answer(chunk), nil
+				})
+			requests := 0
+			mockCaller.EXPECT().
+				ViewTryAggregate(gomock.Any(), false, gomock.Any()).
+				DoAndReturn(func(_ *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error) {
+					requests++
+					if requests == 1 {
+						return answer(chain.answer(chunk)), nil
+					}
+					return chain.answer(chunk), nil
+				}).
+				Times(2)
+
+			// requests: 2 calls + block number call, 3 (miscounted), 2
+			jobs := []multicall.Job{jobOfCalls(3), jobOfCalls(4)}
+			results := multicall.RunSync(context.Background(), jobs, nil, mockCaller, 3)
+
+			require.Len(t, results, 2)
+			flat := append(append([]multicall.CallResult{}, results[0].Results...), results[1].Results...)
+			calls := append(append([]multicall3.IMulticall3Call{}, jobs[0].Calls...), jobs[1].Calls...)
+			require.Len(t, flat, 7)
+			for i, result := range flat {
+				value := result.Value.(multicall3.IMulticall3Result)
+				if i >= 2 && i < 5 {
+					assert.False(t, value.Success, "call %d of the miscounted request failed", i)
+					continue
+				}
+				assert.Equal(t, calls[i].CallData, value.ReturnData, "call %d is not shifted", i)
+			}
+		})
+	}
 }
 
 func TestBuildChainBlockNumberCall_OwnsItsCallData(t *testing.T) {
@@ -1173,4 +1278,105 @@ func TestRunSync_ChunkRetry_ChainReportingL1BlockNumber(t *testing.T) {
 		assert.Equal(t, int64(chainBlockNumber), blockNumber.Int64(), "the rest is read at the block of the first half")
 	}
 	assert.Equal(t, int64(chainBlockNumber), results[0].BlockNumber.Int64())
+}
+
+// A miscounted answer is retried like a failed request: a flaky node's truncated
+// answer must not fail calls that a split request can still answer.
+func TestRunSync_ChunkRetry_MiscountedRequestIsSplit(t *testing.T) {
+	const callCount = 2 * multicall.DefaultMinChunkSize
+	for name, firstRequest := range map[string]bool{"first request": true, "later request": false} {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			mockCaller := mock_multicall.NewMockCaller(ctrl)
+			chain := &fakeChain{reported: big.NewInt(l1BlockNumber), arbSys: blockNumberResult(chainBlockNumber)}
+			miscounted := false
+			miscount := func(chunk []multicall3.IMulticall3Call) []multicall3.IMulticall3Result {
+				if miscounted || len(chunk) <= multicall.DefaultMinChunkSize {
+					return chain.answer(chunk)
+				}
+				miscounted = true
+				return chain.answer(chunk)[1:]
+			}
+			mockCaller.EXPECT().
+				ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
+				DoAndReturn(func(_ *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+					if firstRequest {
+						return chain.reported, [32]byte{}, miscount(chunk), nil
+					}
+					return chain.reported, [32]byte{}, chain.answer(chunk), nil
+				}).
+				AnyTimes()
+			mockCaller.EXPECT().
+				ViewTryAggregate(gomock.Any(), false, gomock.Any()).
+				DoAndReturn(func(opts *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error) {
+					chain.readAt = append(chain.readAt, opts.BlockNumber)
+					if !firstRequest {
+						return miscount(chunk), nil
+					}
+					return chain.answer(chunk), nil
+				}).
+				AnyTimes()
+
+			// requests: callCount-1 calls + the chain block number call, then callCount calls
+			job := jobOfCalls(2*callCount - 1)
+			results := multicall.RunSync(context.Background(), []multicall.Job{job}, nil, mockCaller, callCount)
+
+			require.True(t, miscounted)
+			require.Len(t, results, 1)
+			require.NoError(t, results[0].Err)
+			for _, result := range results[0].Results {
+				require.True(t, result.Value.(multicall3.IMulticall3Result).Success, "no call failed")
+			}
+			requireJobAnswered(t, results[0], job)
+			for _, blockNumber := range chain.readAt {
+				assert.Equal(t, int64(chainBlockNumber), blockNumber.Int64(), "a run reads a single block")
+			}
+		})
+	}
+}
+
+// A split first request whose leftmost leaf is still miscounted: only that leaf's
+// calls fail, and the rest are read at the chain block number asked on its own.
+func TestRunSync_ChunkRetry_MiscountedFirstLeafReadsTheChainBlockNumber(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockCaller := mock_multicall.NewMockCaller(ctrl)
+	chain := &fakeChain{reported: big.NewInt(l1BlockNumber), arbSys: blockNumberResult(chainBlockNumber)}
+	mockCaller.EXPECT().
+		ViewTryBlockAndAggregate(gomock.Any(), false, gomock.Any()).
+		DoAndReturn(func(_ *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) (*big.Int, [32]byte, []multicall3.IMulticall3Result, error) {
+			if len(chunk) == 1 {
+				return chain.reported, [32]byte{}, chain.answer(chunk), nil
+			}
+			return chain.reported, [32]byte{}, chain.answer(chunk)[1:], nil
+		}).
+		AnyTimes()
+	mockCaller.EXPECT().
+		ViewTryAggregate(gomock.Any(), false, gomock.Any()).
+		DoAndReturn(func(opts *bind.CallOpts, _ bool, chunk []multicall3.IMulticall3Call) ([]multicall3.IMulticall3Result, error) {
+			chain.readAt = append(chain.readAt, opts.BlockNumber)
+			return chain.answer(chunk), nil
+		}).
+		AnyTimes()
+
+	// 1000 calls + the chain block number call split into 250+1, 250, 500
+	const callCount = 2 * multicall.DefaultMinChunkSize
+	job := jobOfCalls(callCount)
+	results := multicall.RunSync(context.Background(), []multicall.Job{job}, nil, mockCaller, callCount+1)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Err)
+	require.Len(t, results[0].Results, callCount)
+	const leaf = callCount / 4
+	for _, result := range results[0].Results[:leaf] {
+		assert.False(t, result.Value.(multicall3.IMulticall3Result).Success, "the miscounted leaf's calls failed")
+	}
+	for i, result := range results[0].Results[leaf:] {
+		assert.Equal(t, job.Calls[leaf+i].CallData, result.Value.(multicall3.IMulticall3Result).ReturnData)
+	}
+	require.Len(t, chain.readAt, 2)
+	for _, blockNumber := range chain.readAt {
+		assert.Equal(t, int64(chainBlockNumber), blockNumber.Int64(), "a run reads a single block")
+	}
 }
