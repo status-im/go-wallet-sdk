@@ -107,9 +107,14 @@ func (c *countingConn) Read(b []byte) (int, error) {
 }
 
 func (c *countingConn) Write(b []byte) (int, error) {
+	// Counted before the bytes leave: the response can be read, and the
+	// request's exact bytes taken, before Write returns.
+	c.sent.Add(uint64(len(b)))
 	n, err := c.Conn.Write(b)
+	if unwritten := uint64(len(b) - n); unwritten > 0 {
+		c.sent.Add(-unwritten)
+	}
 	if n > 0 {
-		c.sent.Add(uint64(n))
 		if c.rec.Enabled() {
 			c.rec.addConnBytes(c.recordedHost(), n, 0)
 		}

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -200,6 +201,47 @@ func TestRecorder_CountsConnectionBytesPerHost(t *testing.T) {
 	}
 	require.Equal(t, requestBytes, h.BytesSent, "over plain HTTP/1.1 the estimate is exact")
 	require.Equal(t, responseBytes, h.BytesReceived)
+}
+
+// lateWriteConn holds its first Write back after the bytes went out, until
+// release is closed, so the response arrives before the write returns.
+type lateWriteConn struct {
+	net.Conn
+	held    bool
+	written atomic.Uint64
+	release <-chan struct{}
+}
+
+func (c *lateWriteConn) Write(b []byte) (int, error) {
+	n, err := c.Conn.Write(b)
+	c.written.Add(uint64(n))
+	if !c.held {
+		c.held = true
+		<-c.release
+	}
+	return n, err
+}
+
+func TestRecorder_CountsTheRequestWhenTheResponseBeatsTheWriteReturn(t *testing.T) {
+	server := newServer(t)
+	rec := NewRecorder()
+	release := make(chan struct{})
+	defer close(release)
+	var conn *lateWriteConn
+	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		c, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
+		conn = &lateWriteConn{Conn: c, release: release}
+		return conn, nil
+	}
+	client := &http.Client{Transport: rec.Instrument(&http.Transport{DialContext: dial})}
+
+	get(t, client, server.URL+"/a")
+
+	require.NotZero(t, conn.written.Load())
+	require.Equal(t, conn.written.Load(), endpointFor(t, rec.Snapshot(), "/a").RequestBytes)
 }
 
 func TestRecorder_InstrumentLeavesTheOriginalTransportAlone(t *testing.T) {

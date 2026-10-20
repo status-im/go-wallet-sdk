@@ -1,8 +1,8 @@
 package types
 
 import (
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -37,7 +37,13 @@ type Token struct {
 
 // TokenKey creates a key from provided chainID and address.
 func TokenKey(chainID uint64, addr gethcommon.Address) string {
-	return fmt.Sprintf("%d%s%s", chainID, tokenKeySeparator, strings.ToLower(addr.Hex()))
+	// Plain lowercase hex: same text as strings.ToLower(addr.Hex()) without the keccak checksum.
+	buf := make([]byte, 0, 20+len(tokenKeySeparator)+2+2*len(addr))
+	buf = strconv.AppendUint(buf, chainID, 10)
+	buf = append(buf, tokenKeySeparator...)
+	buf = append(buf, "0x"...)
+	buf = hex.AppendEncode(buf, addr[:])
+	return string(buf)
 }
 
 // ChainAndAddressFromTokenKey extracts chainID and address from a token key.

@@ -283,6 +283,9 @@ You can update the manager's configured chains after creation using `SetChains`.
 triggers an immediate rebuild of the in-memory state (native token list, parsed lists, and custom token validation) using
 the new chains. If you provided a `notifyCh` during `Start`, it will be notified after a successful rebuild.
 
+Rebuilds (on refresh or `SetChains`) only parse lists whose content, source or fetch time changed since the previous
+build; unchanged lists reuse their parsed form. Changing the chains re-parses every list.
+
 ```go
 // Switch to Ethereum-only
 err := manager.SetChains([]uint64{1})
